@@ -1,0 +1,11 @@
+{
+  "description": "kubectl rollout restart deployment",
+  "env": {
+    "DEPLOY_NAME": "my-app",
+    "NAMESPACE": "production"
+  },
+  "execute": "kubectl rollout restart deployment/${DEPLOY_NAME} -n ${NAMESPACE}",
+  "name": "K8s Pod Restarter",
+  "status": "",
+  "version": "1.0.0"
+}

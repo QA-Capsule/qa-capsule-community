@@ -1,0 +1,22 @@
+server:
+    port: "9000"
+    log_level: info
+smtp:
+    host: sandbox.smtp.mailtrap.io
+    port: 2525
+    user: 11a704f61d6563
+    password: 5768cda5d786f5
+    from: admin@arkom.com
+security:
+    enabled: true
+    admin_user: ""
+    admin_pass: ""
+    allowed_domain: '@qa-cap.com'
+telemetry:
+    report_path: ./reports/cypress-crash.json
+    websocket_timeout_sec: 60
+    webhook_token: ""
+projects: []
+plugins:
+    directory: ./plugins
+    auto_reload: true

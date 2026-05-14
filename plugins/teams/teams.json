@@ -1,0 +1,14 @@
+{
+  "name": "MS Teams Incident Broadcaster",
+  "version": "1.0.0",
+  "description": "Instantly broadcasts critical alerts as interactive 'MessageCards' to a designated Microsoft Teams channel.",
+  "status": "Active",
+  "command": "bash plugins/teams-action.sh",
+  "trigger_on": [
+    "[FATAL]",
+    "CRITICAL"
+  ],
+  "env": {
+    "TEAMS_WEBHOOK_URL": ""
+  }
+}

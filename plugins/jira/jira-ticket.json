@@ -1,0 +1,19 @@
+{
+  "command": "jira-action.sh",
+  "description": "Automatically creates a ticket (Bug) in the assigned team's Jira project.",
+  "env": {
+    "JIRA_API_TOKEN": "",
+    "JIRA_EMAIL": "",
+    "JIRA_URL": ""
+  },
+  "issuetype": {
+    "name": "Task"
+  },
+  "name": "Jira Auto-Ticketing",
+  "status": "Active",
+  "trigger_on": [
+    "CRITICAL",
+    "Timeout"
+  ],
+  "version": "1.0"
+}

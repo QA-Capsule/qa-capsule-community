@@ -1,0 +1,15 @@
+{
+  "command": "slack-action.sh",
+  "description": "Dynamically alerts the responsible team on their Slack channel (configured in the project).",
+  "env": {
+    "SLACK_WEBHOOK_URL": ""
+  },
+  "name": "Smart Slack Routing",
+  "status": "Active",
+  "trigger_on": [
+    "CRITICAL",
+    "Timeout",
+    "ECONNREFUSED"
+  ],
+  "version": "1.2"
+}

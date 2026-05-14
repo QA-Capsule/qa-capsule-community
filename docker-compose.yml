@@ -1,0 +1,13 @@
+services:
+  qacapsule:
+    build: .
+    container_name: qacapsule-server
+    ports:
+      - "9000:9000"
+    volumes:
+      - ./reports:/app/reports
+      - ./plugins:/app/plugins
+      - ./config.yaml:/app/config.yaml
+      - ./data:/app/data
+      - ~/.kube/config:/root/.kube/config:ro
+    restart: unless-stopped

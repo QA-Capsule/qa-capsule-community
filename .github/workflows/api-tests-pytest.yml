@@ -1,0 +1,66 @@
+name: API Pipeline (Python Pytest)
+
+on:
+  workflow_dispatch: 
+
+jobs:
+  run-pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # Step 1: Setup Python environment
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      # Step 2: Install Pytest
+      - name: Install Dependencies
+        run: pip install pytest
+
+      # Step 3: Write complex Python tests
+      - name: Create Python Tests
+        run: |
+          cat << 'EOF' > test_complex.py
+          import sys
+          import time
+
+          def test_database_connection_success():
+              print("[STDOUT] Connecting to primary database replica...")
+              time.sleep(0.5)
+              print("[STDOUT] Connection established.")
+              assert True
+
+          def test_api_payload_validation_failure():
+              print("[STDOUT] Sending malformed JSON payload to /api/users")
+              sys.stderr.write("[STDERR] HTTP 400 Bad Request received from server\n")
+              response_code = 400
+              # This will generate a <failure> in the XML
+              assert response_code == 201, f"Expected 201 Created, got {response_code}"
+
+          def test_unexpected_runtime_exception():
+              print("[STDOUT] Initializing background worker job...")
+              sys.stderr.write("[STDERR] OutOfMemory Exception triggered in worker node\n")
+              # This throws an actual exception, generating an <error> tag instead of <failure> in JUnit XML
+              raise RuntimeError("CRITICAL: The background worker crashed unexpectedly.")
+          EOF
+
+      # Step 4: Run tests and generate JUnit XML
+      - name: Execute Pytest
+        # We use --junitxml to native generate the report
+        run: pytest test_complex.py -v --junitxml=pytest-results.xml
+        continue-on-error: true
+
+      # Step 5: Upload the XML Report to QA Capsule
+      - name: Send Alert to QA Capsule
+        if: always()
+        env:
+          WEBHOOK_URL: ${{ secrets.QA_CAPSULE_URL }}
+          API_KEY: ${{ secrets.QA_CAPSULE_API_KEY }}
+        run: |
+          echo "Uploading Pytest JUnit XML report..."
+          curl -X POST "$WEBHOOK_URL/api/webhooks/upload?framework=Pytest" \
+            -H "X-API-Key: $API_KEY" \
+            -F "file=@pytest-results.xml"

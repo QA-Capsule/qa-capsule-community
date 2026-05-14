@@ -1,0 +1,81 @@
+name: E2E Pipeline (Cypress Complex)
+
+on:
+  workflow_dispatch: 
+
+jobs:
+  run-cypress:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      # Step 1: Install Cypress and JUnit reporter
+      - name: Install Cypress & Reporters
+        run: |
+          npm init -y
+          npm install -D cypress mocha-junit-reporter
+
+      # Step 2: Create Cypress configuration and test files
+      - name: Scaffold Cypress Environment
+        run: |
+          mkdir -p cypress/e2e
+          
+          # Create Cypress config with JUnit reporting enabled
+          cat << 'EOF' > cypress.config.js
+          const { defineConfig } = require("cypress");
+          module.exports = defineConfig({
+            e2e: { supportFile: false },
+            reporter: "mocha-junit-reporter",
+            reporterOptions: {
+              mochaFile: "cypress-results.xml",
+              toConsole: true
+            }
+          });
+          EOF
+
+          # Create a complex Cypress test suite
+          cat << 'EOF' > cypress/e2e/complex.cy.js
+          describe('User Dashboard Tests', () => {
+            it('Should successfully authenticate user', () => {
+              cy.log('Executing login sequence');
+              expect(200).to.equal(200);
+            });
+
+            it('Should fail to find the analytics chart rendering', () => {
+              cy.log('Loading dashboard metrics...');
+              cy.visit('https://example.com');
+              // This assertion will fail after Cypress default timeout
+              cy.get('canvas#main-analytics-chart', { timeout: 2000 }).should('be.visible');
+            });
+
+            it('Should catch a backend 500 error simulation', () => {
+              cy.log('Making API request to /api/data');
+              const apiResponseStatus = 500;
+              // Strict assertion failure
+              expect(apiResponseStatus).to.equal(200, "Backend returned an unexpected status code");
+            });
+          });
+          EOF
+
+      # Step 3: Run Cypress tests headlessly
+      - name: Execute Cypress
+        run: npx cypress run
+        continue-on-error: true
+
+      # Step 4: Upload the XML Report to QA Capsule
+      - name: Send Alert to QA Capsule
+        if: always()
+        env:
+          WEBHOOK_URL: ${{ secrets.QA_CAPSULE_URL }}
+          API_KEY: ${{ secrets.QA_CAPSULE_API_KEY }}
+        run: |
+          echo "Uploading Cypress JUnit XML report..."
+          curl -X POST "$WEBHOOK_URL/api/webhooks/upload?framework=Cypress" \
+            -H "X-API-Key: $API_KEY" \
+            -F "file=@cypress-results.xml"

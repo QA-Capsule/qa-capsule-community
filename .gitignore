@@ -1,0 +1,75 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary
+*.test
+
+# Output of the go coverage tool
+*.out
+
+file.txt
+env.txt
+
+qacapsule.db
+
+# Go workspace file
+go.work
+go.work.sum
+
+# Dependency directories (rarely used with Go modules)
+vendor/
+
+# Go build cache
+*.cache
+
+# IDE / Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Environment variables
+.env
+
+# Build directories
+bin/
+dist/
+build/
+
+# Coverage reports
+coverage/
+coverage.out
+
+# Temporary files
+tmp/
+temp/
+
+# Docker
+*.tar
+
+# Air (live reload tool)
+.air/
+
+# Delve debugger
+debug
+
+# Profiling files
+*.pprof
+
+# GoLand specific
+.idea/
+
+# VSCode Go extension
+.history/

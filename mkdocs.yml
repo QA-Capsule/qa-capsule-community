@@ -1,0 +1,70 @@
+site_name: QA Flight Recorder (QA Capsule)
+site_description: The Ultimate SRE Control Plane for E2E Testing and CI/CD Telemetry
+site_author: QA Capsule Team
+site_url: https://ashraf-khabar.github.io/qa-capsule/
+repo_name: Ashraf-Khabar/qa-capsule
+repo_url: https://github.com/Ashraf-Khabar/qa-capsule
+
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom blue
+      accent: deep purple
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom blue
+      accent: deep purple
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - tables
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+nav:
+  - Welcome to QA Capsule: index.md
+  - Setup & Installation:
+      - Docker Deployment: setup/docker.md
+      - System Configuration: setup/config.md
+  - CI/CD Integrations:
+      - The SRE Agent Concept: integration/agent.md
+      - GitHub Actions: integration/github.md
+      - GitLab CI: integration/gitlab.md
+      - Jenkins: integration/jenkins.md
+  - Plugin Engine:
+      - How Plugins Work: plugins/overview.md
+      - Jira Integration: plugins/jira.md
+      - Slack Integration: plugins/slack.md
+      - MS Teams Integration: plugins/teams.md
+  - API Reference:
+      - Webhooks API: api/webhooks.md
+  - Guides & Tutorials:
+      - End-to-End Testing: guides/testing.md
+
+extra:
+  announce: "**New version !** QA Capsule supports Multi-Tenancy and RBAC."
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/Ashraf-Khabar

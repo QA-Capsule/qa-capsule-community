@@ -1,0 +1,84 @@
+name: E2E Pipeline (Playwright Complex)
+
+on:
+  workflow_dispatch: 
+
+jobs:
+  run-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      # Step 1: Check out the repository code
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # Step 2: Setup Node.js environment
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      # Step 3: Install Playwright and dependencies
+      - name: Install Playwright
+        run: |
+          npm init -y
+          npm install -D @playwright/test
+          npx playwright install --with-deps chromium
+
+      # Step 4: Generate a complex test suite and JUnit config
+      - name: Create complex test suite
+        run: |
+          # Create a suite with mixed results (Pass, Fail, UI Timeout)
+          cat << 'EOF' > complex.spec.js
+          const { test, expect } = require('@playwright/test');
+          
+          test.describe('Core E2E Suite', () => {
+            
+            test('Homepage should load successfully', async ({ page }) => {
+              console.log("[STDOUT] Navigating to homepage...");
+              expect(true).toBeTruthy();
+              console.log("[STDOUT] Homepage loaded and verified.");
+            });
+
+            test('Checkout flow should fail on missing payment button', async ({ page }) => {
+              console.log("[STDOUT] Starting checkout flow...");
+              await page.goto('https://example.com');
+              console.error("[STDERR] Third-party payment gateway is taking too long to respond!");
+              // This will explicitly throw a TimeoutError and generate a rich stacktrace
+              await page.locator('#stripe-pay-button').click({ timeout: 1500 });
+            });
+
+            test('Data calculation should throw strict assertion error', async () => {
+              console.log("[STDOUT] Fetching user cart totals...");
+              const cartTotal = 50.00;
+              const expectedTotal = 150.00;
+              console.error("[STDERR] Cart data mismatch detected.");
+              // This will fail the test immediately
+              expect(cartTotal).toBe(expectedTotal);
+            });
+            
+          });
+          EOF
+          
+          # Configure Playwright to output JUnit XML
+          cat << 'EOF' > playwright.config.js
+          module.exports = {
+            reporter: [['junit', { outputFile: 'playwright-results.xml' }]],
+          };
+          EOF
+
+      # Step 5: Execute the tests.
+      - name: Run Playwright Tests
+        run: npx playwright test complex.spec.js
+        continue-on-error: true
+
+      # Step 6: Upload the XML Report to QA Capsule
+      - name: Send Alert to QA Capsule
+        if: always()
+        env:
+          WEBHOOK_URL: ${{ secrets.QA_CAPSULE_URL }}
+          API_KEY: ${{ secrets.QA_CAPSULE_API_KEY }}
+        run: |
+          echo "Uploading Playwright JUnit XML report..."
+          curl -X POST "$WEBHOOK_URL/api/webhooks/upload?framework=Playwright" \
+            -H "X-API-Key: $API_KEY" \
+            -F "file=@playwright-results.xml"
