@@ -33,36 +33,36 @@ func registerIncidentRoutes(config *core.Config) {
 			var rows *sql.Rows
 			var err error
 
-			// MODIFIED: Added error_logs to all SELECT queries
-			// Admin sees everything, specific users see only incidents assigned to their teams
+			// FIX: Changed ORDER BY to 'created_at DESC' and increased LIMIT to 200.
+			// This prevents resolved items from dropping out of the UI and breaking pipeline groups.
 			if claims.Role == "admin" {
 				if projectFilter != "" && projectFilter != "all" {
-					query = "SELECT id, project_name, name, status, error_message, console_logs, error_logs, is_resolved, resolved_by, created_at, resolved_at FROM incidents WHERE project_name = ? ORDER BY is_resolved ASC, created_at DESC LIMIT 50"
+					query = "SELECT id, project_name, name, status, error_message, console_logs, is_resolved, resolved_by, created_at, resolved_at FROM incidents WHERE project_name = ? ORDER BY created_at DESC LIMIT 200"
 					args = []interface{}{projectFilter}
 				} else {
-					query = "SELECT id, project_name, name, status, error_message, console_logs, error_logs, is_resolved, resolved_by, created_at, resolved_at FROM incidents ORDER BY is_resolved ASC, created_at DESC LIMIT 50"
+					query = "SELECT id, project_name, name, status, error_message, console_logs, is_resolved, resolved_by, created_at, resolved_at FROM incidents ORDER BY created_at DESC LIMIT 200"
 				}
 			} else {
 				if projectFilter != "" && projectFilter != "all" {
 					query = `
-						SELECT DISTINCT i.id, i.project_name, i.name, i.status, i.error_message, i.console_logs, i.error_logs, i.is_resolved, i.resolved_by, i.created_at, i.resolved_at 
+						SELECT DISTINCT i.id, i.project_name, i.name, i.status, i.error_message, i.console_logs, i.is_resolved, i.resolved_by, i.created_at, i.resolved_at 
 						FROM incidents i
 						JOIN projects p ON i.project_name = p.name
 						JOIN user_teams ut ON p.team_id = ut.team_id
 						JOIN users u ON u.id = ut.user_id
 						WHERE u.username = ? AND i.project_name = ?
-						ORDER BY i.is_resolved ASC, i.created_at DESC LIMIT 50
+						ORDER BY i.created_at DESC LIMIT 200
 					`
 					args = []interface{}{claims.Username, projectFilter}
 				} else {
 					query = `
-						SELECT DISTINCT i.id, i.project_name, i.name, i.status, i.error_message, i.console_logs, i.error_logs, i.is_resolved, i.resolved_by, i.created_at, i.resolved_at 
+						SELECT DISTINCT i.id, i.project_name, i.name, i.status, i.error_message, i.console_logs, i.is_resolved, i.resolved_by, i.created_at, i.resolved_at 
 						FROM incidents i
 						JOIN projects p ON i.project_name = p.name
 						JOIN user_teams ut ON p.team_id = ut.team_id
 						JOIN users u ON u.id = ut.user_id
 						WHERE u.username = ?
-						ORDER BY i.is_resolved ASC, i.created_at DESC LIMIT 50
+						ORDER BY i.created_at DESC LIMIT 200
 					`
 					args = []interface{}{claims.Username}
 				}
@@ -79,27 +79,21 @@ func registerIncidentRoutes(config *core.Config) {
 			var incidents []map[string]interface{}
 			for rows.Next() {
 				var id, isResolved int
-				// ADDED: eLogs to store the mapped error_logs string
-				var pName, name, status, errMsg, cLogs, eLogs string
+				var pName, name, status, errMsg, cLogs string
 				var resolvedBy, createdAt, resolvedAt sql.NullString
 
-				// MODIFIED: Added &eLogs to the Scan parameters
-				rows.Scan(&id, &pName, &name, &status, &errMsg, &cLogs, &eLogs, &isResolved, &resolvedBy, &createdAt, &resolvedAt)
+				rows.Scan(&id, &pName, &name, &status, &errMsg, &cLogs, &isResolved, &resolvedBy, &createdAt, &resolvedAt)
 
 				incidents = append(incidents, map[string]interface{}{
 					"id": id, "project_name": pName, "name": name, "status": status,
-					"error_message": errMsg,
-					"console_logs":  cLogs,
-					"error_logs":    eLogs, // MODIFIED: Exposing error_logs to the JSON response
-					"is_resolved":   isResolved == 1,
-					"resolved_by":   resolvedBy.String, "created_at": createdAt.String, "resolved_at": resolvedAt.String,
+					"error_message": errMsg, "console_logs": cLogs, "is_resolved": isResolved == 1,
+					"resolved_by": resolvedBy.String, "created_at": createdAt.String, "resolved_at": resolvedAt.String,
 				})
 			}
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(incidents)
 
 		} else if r.Method == http.MethodPut {
-			// Prevent viewers from mutating state
 			if claims.Role == "viewer" {
 				http.Error(w, "Viewers are not allowed to resolve incidents", http.StatusForbidden)
 				return
@@ -110,7 +104,6 @@ func registerIncidentRoutes(config *core.Config) {
 			}
 			json.NewDecoder(r.Body).Decode(&req)
 
-			// Mark incident as resolved and record the exact timestamp
 			_, err := core.DB.Exec("UPDATE incidents SET is_resolved = 1, resolved_by = ?, resolved_at = CURRENT_TIMESTAMP WHERE id = ?", claims.Username, req.ID)
 			if err != nil {
 				http.Error(w, "Failed to resolve incident", http.StatusInternalServerError)
@@ -119,7 +112,6 @@ func registerIncidentRoutes(config *core.Config) {
 			w.WriteHeader(http.StatusOK)
 
 		} else if r.Method == http.MethodDelete {
-			// Only Admins can permanently delete logs
 			if claims.Role != "admin" {
 				http.Error(w, "Only administrators can delete incident logs", http.StatusForbidden)
 				return
@@ -156,8 +148,6 @@ func registerIncidentRoutes(config *core.Config) {
 
 		var mttrMinutes sql.NullFloat64
 
-		// FIX: Calculate MTTR but IGNORE historical test data that was resolved in less than 1 minute.
-		// This prevents your manual 5-second UI tests from dragging the real average down to zero.
 		core.DB.QueryRow(`
 			SELECT AVG((julianday(resolved_at) - julianday(created_at)) * 24 * 60) 
 			FROM incidents 
@@ -173,8 +163,6 @@ func registerIncidentRoutes(config *core.Config) {
 		}
 
 		mttrDisplay := int(math.Round(mttrValue))
-
-		// Fallback: If no valid >1min incidents exist yet, but incidents are resolved, show 1 to avoid "0"
 		if mttrValue == 0 && resolved > 0 {
 			mttrDisplay = 1
 		}
@@ -182,7 +170,6 @@ func registerIncidentRoutes(config *core.Config) {
 		var devRate, ciCost, avgDuration, avgInvestigation float64
 		core.DB.QueryRow("SELECT dev_hourly_rate, ci_minute_cost, avg_pipeline_duration, avg_investigation_time FROM finops_settings WHERE id = 1").Scan(&devRate, &ciCost, &avgDuration, &avgInvestigation)
 
-		// FinOps Financial Impact logic
 		costPerInvestigation := (devRate / 60.0) * avgInvestigation
 		totalMinutesLost := float64(total) * avgDuration
 		flakyMinutesLost := float64(flaky) * avgDuration

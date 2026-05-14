@@ -1,9 +1,9 @@
 site_name: QA Flight Recorder (QA Capsule)
 site_description: The Ultimate SRE Control Plane for E2E Testing and CI/CD Telemetry
 site_author: QA Capsule Team
-site_url: https://ashraf-khabar.github.io/qa-capsule/
-repo_name: Ashraf-Khabar/qa-capsule
-repo_url: https://github.com/Ashraf-Khabar/qa-capsule
+site_url: https://qa-capsule.github.io/qa-capsule-community/
+repo_name: https://github.com/QA-Capsule/qa-capsule-community
+repo_url: https://github.com/QA-Capsule/qa-capsule-community
 
 theme:
   name: material
@@ -67,4 +67,4 @@ extra:
   announce: "**New version !** QA Capsule supports Multi-Tenancy and RBAC."
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/Ashraf-Khabar
+      link: https://github.com/QA-Capsule/

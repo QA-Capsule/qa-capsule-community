@@ -441,17 +441,17 @@ window.loadAnalytics = function() {
 };
 
 // ==========================================
-// BULK ACTIONS & SELECTIONS LOGIC (MINIMALIST UI)
+// BULK ACTIONS & SELECTIONS LOGIC 
 // ==========================================
 window.toggleIncidentSelection = function(id, checked) {
-    window.pausePollingUntil = Date.now() + 10000; 
+    window.pausePollingUntil = Date.now() + 15000; 
     if (checked) window.selectedIncidents.add(id);
     else window.selectedIncidents.delete(id);
     updateBulkActionUI();
 };
 
 window.toggleGroupSelection = function(groupId, checked) {
-    window.pausePollingUntil = Date.now() + 10000;
+    window.pausePollingUntil = Date.now() + 15000;
     const group = window.groupedIncidents[groupId];
     if (!group) return;
     group.incidents.forEach(inc => {
@@ -464,7 +464,7 @@ window.toggleGroupSelection = function(groupId, checked) {
 };
 
 window.toggleSelectAll = function(checked) {
-    window.pausePollingUntil = Date.now() + 10000;
+    window.pausePollingUntil = Date.now() + 15000;
     const incidentsToToggle = window.currentIncidents || [];
     incidentsToToggle.forEach(inc => {
         const cb = document.getElementById(`cb-inc-${inc.id}`);
@@ -498,13 +498,12 @@ window.resolveSelected = function() {
     const userRole = parseJwt(localStorage.getItem('sre-jwt')).role;
     if (userRole === 'viewer') return notify("Viewers cannot resolve incidents.", "error");
 
-    // Pause le Polling pour empêcher l'écrasement de l'UI
     window.pausePollingUntil = Date.now() + 15000; 
 
     const idsToResolve = Array.from(window.selectedIncidents);
     const currentUser = parseJwt(localStorage.getItem('sre-jwt')).username || 'You';
     
-    // OPTIMISTIC UI : Mettre à jour l'état local immédiatement sans attendre la base de données
+    // OPTIMISTIC UI 
     idsToResolve.forEach(id => {
         const inc = window.currentIncidents.find(i => i.id === id);
         if (inc) {
@@ -514,7 +513,8 @@ window.resolveSelected = function() {
     });
 
     window.selectedIncidents.clear();
-    window.renderIncidentsList(); // Rafraîchit l'UI (Drapeaux verts)
+    window.renderIncidentsList(); 
+    window.fetchMetricsOnly(); // Update KPIs
     notify("Tests marqués comme résolus.", "success");
 
     // Envoyer à l'API silencieusement (Sans relancer fetchIncidents)
@@ -535,10 +535,10 @@ window.deleteSelected = function() {
         window.pausePollingUntil = Date.now() + 15000;
         const idsToDelete = Array.from(window.selectedIncidents);
         
-        // Optimistic Delete
         window.currentIncidents = window.currentIncidents.filter(inc => !idsToDelete.includes(inc.id));
         window.selectedIncidents.clear();
         window.renderIncidentsList();
+        window.fetchMetricsOnly();
         notify("Suppression en cours...", "success");
 
         for (const id of idsToDelete) {
@@ -573,8 +573,8 @@ window.resolveGroup = function(groupId, event) {
 
     if (unresolvedIds.length === 0) return;
 
-    // Mise à jour instantanée de l'UI (Optimistic UI)
     window.renderIncidentsList();
+    window.fetchMetricsOnly();
     notify("Pipeline entier marqué comme résolu.", "success");
 
     for (const id of unresolvedIds) {
@@ -598,6 +598,7 @@ window.deleteGroup = function(groupId, event) {
         group.incidents.forEach(i => window.selectedIncidents.delete(i.id));
         
         window.renderIncidentsList();
+        window.fetchMetricsOnly();
         notify("Suppression du pipeline en cours...", "success");
 
         for (const inc of group.incidents) {
@@ -610,17 +611,12 @@ window.deleteGroup = function(groupId, event) {
 // ACTION DROPDOWN & LOG EXPORT
 // ==========================================
 window.toggleActionDropdown = function(id, event) {
-    // FIX : Empêche la propagation du clic de refermer le menu instantanément
-    if (event) {
-        event.preventDefault();
-        event.stopPropagation();
-    }
+    if (event) { event.preventDefault(); event.stopPropagation(); }
     
     const dropdown = document.getElementById(`action-dropdown-${id}`);
     if (dropdown) {
         const isCurrentlyHidden = dropdown.style.display === 'none';
         
-        // Fermer les autres menus
         document.querySelectorAll('[id^="action-dropdown-"]').forEach(el => { el.style.display = 'none'; });
 
         if (isCurrentlyHidden) {
@@ -628,12 +624,10 @@ window.toggleActionDropdown = function(id, event) {
             window.pausePollingUntil = Date.now() + 15000; 
         } else {
             dropdown.style.display = 'none';
-            window.pausePollingUntil = 0; 
         }
     }
 }
 
-// Clic à l'extérieur pour fermer
 document.addEventListener('click', function(event) {
     if (!event.target.closest('.action-dropdown-container')) {
         document.querySelectorAll('[id^="action-dropdown-"]').forEach(el => {
@@ -731,8 +725,30 @@ window.loadDashboardFilters = function() {
         }).catch(e => console.log("Error loading filter"));
 }
 
+// Fonction séparée pour les KPIs (Garantit les vrais chiffres de la DB sans casser l'UI)
+window.fetchMetricsOnly = function() {
+    window.fetchWithAuth(`/api/metrics?_ts=${Date.now()}`)
+    .then(r => r.json())
+    .then(metrics => {
+        if (metrics) {
+            const active = metrics.total_incidents - metrics.resolved_incidents;
+            document.getElementById('kpi-active').innerText = active;
+            document.getElementById('kpi-active').style.color = active > 0 ? '#ff7b72' : '#3fb950';
+            
+            document.getElementById('kpi-resolved').innerText = metrics.resolved_incidents;
+            
+            const health = metrics.total_incidents > 0 ? Math.round((metrics.resolved_incidents / metrics.total_incidents) * 100) : 100;
+            document.getElementById('kpi-health').innerText = `${health}%`;
+            document.getElementById('kpi-health').style.color = health < 80 ? '#d29922' : '#58a6ff';
+
+            if (metrics.sre_impact && document.getElementById('kpi-cost')) {
+                document.getElementById('kpi-cost').textContent = metrics.sre_impact.estimated_cost_usd.toLocaleString();
+            }
+        }
+    }).catch(e => console.error(e));
+}
+
 window.fetchIncidents = function() {
-    // Si l'utilisateur a interagi avec l'UI, on annule la requête silencieusement pour éviter l'écrasement
     if (Date.now() < window.pausePollingUntil) return;
 
     const filterEl = document.getElementById('project-filter');
@@ -742,11 +758,10 @@ window.fetchIncidents = function() {
     window.fetchWithAuth(url)
         .then(res => res.json())
         .then(data => {
-            // Sécurité niveau 2 : On vérifie si l'utilisateur a cliqué *pendant* la requête
             if (Date.now() < window.pausePollingUntil) return;
             if (!data) data = [];
             
-            // SMART DIFFING (Signature Array) : On ne redessine l'UI que s'il y a un réel changement d'état
+            // On ne redessine l'UI que si les statuts ont physiquement changé (Signature)
             const safeData = [...data].sort((a, b) => a.id - b.id);
             const currentData = window.currentIncidents || [];
             const safeCurrent = [...currentData].sort((a, b) => a.id - b.id);
@@ -759,14 +774,7 @@ window.fetchIncidents = function() {
                 window.renderIncidentsList();
                 window.isFirstLoad = false;
             }
-            
-            window.fetchWithAuth(`/api/metrics?_ts=${Date.now()}`)
-            .then(r => r.json())
-            .then(metrics => {
-                if (metrics && metrics.sre_impact && document.getElementById('kpi-cost')) {
-                    document.getElementById('kpi-cost').textContent = metrics.sre_impact.estimated_cost_usd.toLocaleString();
-                }
-            });
+            window.fetchMetricsOnly();
         })
         .catch(err => {
             const listEl = document.getElementById('incident-list');
@@ -776,14 +784,10 @@ window.fetchIncidents = function() {
         });
 };
 
-// ==========================================
-// CENTRAL RENDERING FUNCTION
-// ==========================================
 window.renderIncidentsList = function() {
     const listEl = document.getElementById('incident-list');
     const searchQuery = document.getElementById('incident-search') ? document.getElementById('incident-search').value.toLowerCase() : '';
     
-    // Garder en mémoire l'ouverture des sous-alertes
     const openGroups = new Set();
     document.querySelectorAll('[id^="sub-alerts-"]').forEach(el => {
         if (el.style.display === 'block') openGroups.add(el.id.replace('sub-alerts-', ''));
@@ -797,17 +801,6 @@ window.renderIncidentsList = function() {
             (inc.error_message && inc.error_message.toLowerCase().includes(searchQuery))
         );
     }
-
-    // Mise à jour instantanée des KPIs
-    const activeCount = filteredData.filter(i => !i.is_resolved).length;
-    const resolvedCount = filteredData.filter(i => i.is_resolved).length;
-    const health = filteredData.length > 0 ? Math.round((resolvedCount / filteredData.length) * 100) : 100;
-
-    document.getElementById('kpi-active').innerText = activeCount;
-    document.getElementById('kpi-active').style.color = activeCount > 0 ? '#ff7b72' : '#3fb950';
-    document.getElementById('kpi-resolved').innerText = resolvedCount;
-    document.getElementById('kpi-health').innerText = `${health}%`;
-    document.getElementById('kpi-health').style.color = health < 80 ? '#d29922' : '#58a6ff';
 
     if (filteredData.length === 0) {
         listEl.innerHTML = '<div style="text-align:center; padding: 40px; opacity: 0.5;">No results match your search.</div>';
@@ -840,7 +833,7 @@ window.renderIncidentsList = function() {
             const timeDiffSec = Math.abs(incTime - currentGroup.lastTime) / 1000;
             const idDiff = Math.abs(inc.id - currentGroup.lastId);
             
-            // Regroupement SRE : Même projet + IDs rapprochés (< 100) + Reçus en moins de 120 sec = Même Pipeline
+            // Regroupement : Même projet + IDs < 100 + Temps < 120s
             if (inc.project_name === currentGroup.project_name && timeDiffSec <= 120 && idDiff <= 100) {
                 currentGroup.lastTime = incTime;
                 currentGroup.lastId = inc.id;
@@ -870,7 +863,7 @@ window.renderIncidentsList = function() {
     const canResolve = userRole !== 'viewer';
     const isAdmin = userRole === 'admin';
 
-    // SVG Icons minimalistes
+    // SVG Icons
     const iconCheck = `<svg style="width:12px;height:12px;margin-right:4px;vertical-align:middle;stroke:currentColor;fill:none;" viewBox="0 0 24 24" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
     const iconAlert = `<svg style="width:12px;height:12px;margin-right:4px;vertical-align:middle;stroke:currentColor;fill:none;" viewBox="0 0 24 24" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>`;
     const iconWarning = `<svg style="width:12px;height:12px;margin-right:4px;vertical-align:middle;stroke:currentColor;fill:none;" viewBox="0 0 24 24" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>`;
@@ -883,7 +876,7 @@ window.renderIncidentsList = function() {
     const globalAllSelected = window.currentIncidents.length > 0 && window.currentIncidents.every(inc => window.selectedIncidents.has(inc.id));
     
     // ==========================================
-    // FLOATING BULK ACTIONS HEADER (MINIMALIST)
+    // FLOATING BULK ACTIONS HEADER
     // ==========================================
     let htmlContent = `
     <div id="bulk-action-banner" style="display: ${window.selectedIncidents.size > 0 ? 'flex' : 'none'}; margin-bottom: 20px; justify-content: space-between; align-items: center; background: #161b22; padding: 12px 20px; border: 1px solid #58a6ff; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); position: sticky; top: 10px; z-index: 100;">
@@ -907,7 +900,7 @@ window.renderIncidentsList = function() {
             : `<span style="display:inline-flex; align-items:center; background: rgba(255, 123, 114, 0.1); color: #ff7b72; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: bold;">${iconAlert} PIPELINE FAILED</span>`;
 
         // ==========================================
-        // INDIVIDUAL SUB-ALERTS (NO BUTTONS, JUST CHECKBOX & FLAG)
+        // INDIVIDUAL SUB-ALERTS (CHECKBOX & FLAG ONLY)
         // ==========================================
         let subAlertsHTML = group.incidents.map(inc => {
             const isFlaky = inc.name.includes("[FLAKY]");
@@ -987,7 +980,7 @@ window.renderIncidentsList = function() {
     listEl.innerHTML = htmlContent;
     window.updateBulkActionUI();
     
-    // Rétablir proprement les onglets
+    // Restore UI toggles
     openGroups.forEach(groupId => {
         const el = document.getElementById(`sub-alerts-${groupId}`);
         const icon = document.getElementById(`toggle-icon-${groupId}`);
@@ -1004,7 +997,6 @@ window.renderIncidentsList = function() {
 window.connectWebSocket = function () {
     setInterval(() => {
         const dashboard = document.getElementById('view-dashboard');
-        
         // Bloque le rafraîchissement si l'utilisateur est en train d'interagir
         if (Date.now() < window.pausePollingUntil) return;
 
@@ -1378,7 +1370,7 @@ window.deleteUser = function (username) {
 window.loadPlugins = function() {
     window.fetchWithAuth(`/api/plugins?_ts=${Date.now()}`).then(res => res.json()).then(data => {
         if (!data || data.length === 0) { document.getElementById('plugin-list').innerHTML = "<div style='text-align:center; padding:40px; opacity:0.5;'>No modules detected in the plugins directory.</div>"; return; }
-        const configIcon = `<svg style="width:14px;height:14px;margin-right:5px;vertical-align:middle;stroke:currentColor;fill:none;" viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>`;
+        const configIcon = `<svg style="width:14px;height:14px;margin-right:5px;vertical-align:middle;stroke:currentColor;fill:none;" viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>`;
         const runIcon = `<svg style="width:14px;height:14px;margin-right:5px;vertical-align:middle;stroke:currentColor;fill:none;" viewBox="0 0 24 24" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>`;
         const saveIcon = `<svg style="width:14px;height:14px;margin-right:5px;vertical-align:middle;stroke:currentColor;fill:none;" viewBox="0 0 24 24" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>`;
         const consoleIcon = `<svg style="width:12px;height:12px;margin-right:5px;vertical-align:middle;stroke:currentColor;fill:none;" viewBox="0 0 24 24" stroke-width="2"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>`;
