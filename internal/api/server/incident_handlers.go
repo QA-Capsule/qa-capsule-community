@@ -27,9 +27,11 @@ func registerIncidentRoutes(config *core.Config) {
 
 		if r.Method == http.MethodGet {
 			projectFilter := r.URL.Query().Get("project")
+
 			var query string
 			var args []interface{}
 
+			// Tri chronologique STRICT (created_at DESC LIMIT 200) pour garantir la séparation des pipelines
 			if claims.Role == "admin" {
 				if projectFilter != "" && projectFilter != "all" {
 					query = "SELECT id, project_name, name, status, error_message, console_logs, error_logs, is_resolved, resolved_by, created_at, resolved_at FROM incidents WHERE project_name = ? ORDER BY created_at DESC LIMIT 200"
@@ -94,12 +96,15 @@ func registerIncidentRoutes(config *core.Config) {
 				return
 			}
 
-			// SUPPORT FOR BULK UPDATES
+			// SUPPORT POUR LES MISES A JOUR DE MASSE (BULK UPDATES)
 			var req struct {
 				ID  int   `json:"id"`
 				IDs []int `json:"ids"`
 			}
-			json.NewDecoder(r.Body).Decode(&req)
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				http.Error(w, "Invalid request", http.StatusBadRequest)
+				return
+			}
 
 			idsToResolve := req.IDs
 			if req.ID != 0 {
@@ -131,7 +136,7 @@ func registerIncidentRoutes(config *core.Config) {
 				return
 			}
 
-			// SUPPORT FOR BULK DELETION
+			// SUPPORT POUR LA SUPPRESSION DE MASSE (BULK DELETION)
 			incidentID := r.URL.Query().Get("id")
 			incidentIDs := r.URL.Query().Get("ids")
 
@@ -146,12 +151,14 @@ func registerIncidentRoutes(config *core.Config) {
 				query := "DELETE FROM incidents WHERE id IN (" + strings.Join(placeholders, ",") + ")"
 				_, err := core.DB.Exec(query, args...)
 				if err != nil {
+					log.Println("[DB ERROR] Failed to delete incidents:", err)
 					http.Error(w, "Failed to delete incidents", http.StatusInternalServerError)
 					return
 				}
 			} else if incidentID != "" {
 				_, err := core.DB.Exec("DELETE FROM incidents WHERE id = ?", incidentID)
 				if err != nil {
+					log.Println("[DB ERROR] Failed to delete incident:", err)
 					http.Error(w, "Failed to delete incident", http.StatusInternalServerError)
 					return
 				}
@@ -172,6 +179,7 @@ func registerIncidentRoutes(config *core.Config) {
 		var query string
 		var args []interface{}
 
+		// Filtrage dynamique selon le choix de l'utilisateur dans l'interface
 		if projectFilter != "" && projectFilter != "all" {
 			query = `
 				SELECT 
@@ -244,6 +252,7 @@ func registerIncidentRoutes(config *core.Config) {
 		core.DB.QueryRow("SELECT COUNT(*) FROM incidents WHERE name LIKE '[FLAKY]%'").Scan(&flaky)
 
 		var mttrMinutes sql.NullFloat64
+
 		core.DB.QueryRow(`
 			SELECT AVG((julianday(resolved_at) - julianday(created_at)) * 24 * 60) 
 			FROM incidents 

@@ -15,7 +15,7 @@ import (
 // registerTeamRoutes binds organization and team management endpoints
 func registerTeamRoutes(config *core.Config) {
 
-	// CRUD for Teams (Le GET est passé à "false" pour permettre aux Viewers de voir l'organigramme)
+	// CRUD for Teams (GET is public for authenticated users, Mutations are Admin only)
 	http.HandleFunc("/api/teams", jwtAuthMiddleware(config, false, func(w http.ResponseWriter, r *http.Request) {
 
 		authHeader := r.Header.Get("Authorization")
@@ -49,7 +49,7 @@ func registerTeamRoutes(config *core.Config) {
 			json.NewEncoder(w).Encode(teams)
 
 		} else {
-			// SECURITY: Bloque les non-admins de modifier les équipes
+			// SECURITY: Block non-admins from mutating teams
 			if claims.Role != "admin" {
 				http.Error(w, "Admin access required", http.StatusForbidden)
 				return
@@ -155,7 +155,7 @@ func registerTeamRoutes(config *core.Config) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}))
 
-	// Fetch teams for a specific user (Read Only - Ouvert à tous -> false)
+	// Fetch teams for a specific user (Read Only - Open to all -> false)
 	http.HandleFunc("/api/users/teams", jwtAuthMiddleware(config, false, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
 			username := r.URL.Query().Get("username")
@@ -185,7 +185,7 @@ func registerTeamRoutes(config *core.Config) {
 		}
 	}))
 
-	// Manage team members (GET est ouvert, POST/DELETE réservé Admin)
+	// Manage team members (GET is open, POST/DELETE are reserved for Admins)
 	http.HandleFunc("/api/teams/members", jwtAuthMiddleware(config, false, func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
@@ -222,7 +222,7 @@ func registerTeamRoutes(config *core.Config) {
 			json.NewEncoder(w).Encode(members)
 
 		} else {
-			// SECURITY: Bloque les non-admins de modifier les membres
+			// SECURITY: Block non-admins from modifying members
 			if claims.Role != "admin" {
 				http.Error(w, "Admin access required", http.StatusForbidden)
 				return
