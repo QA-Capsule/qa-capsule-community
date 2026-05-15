@@ -12,6 +12,15 @@ window.currentIncidents = [];
 window.selectedIncidents = new Set();
 window.pausePollingUntil = 0;
 window.isFirstLoad = true;
+window.statusFilter = 'all'; // 'all', 'active', 'resolved'
+window.selectedCurrency = 'USD'; // Default currency
+
+// Currency symbols
+window.currencySymbols = {
+    'USD': '$', 'EUR': '€', 'GBP': '£', 'JPY': '¥', 'AUD': 'A$',
+    'CAD': 'C$', 'CHF': 'Fr', 'INR': '₹', 'CNY': '¥', 'MXN': '$',
+    'SGD': 'S$', 'NZD': 'NZ$'
+};
 
 // ==========================================
 // NOTIFICATIONS & THEME
@@ -586,13 +595,9 @@ window.toggleIncidentSelection = function (id, checked) {
     // English Comment: Sync the "Select All" checkbox state manually
     const masterCb = document.getElementById('select-all-cb');
     if (masterCb) {
-        if (!checked) {
-            masterCb.checked = false; // English Comment: Uncheck master if one child is unchecked
-        } else {
-            // English Comment: Check master only if ALL currently displayed incidents are selected
-            const allChecked = window.currentIncidents.every(inc => window.selectedIncidents.has(inc.id));
-            masterCb.checked = allChecked;
-        }
+        // English Comment: Check master only if ALL currently displayed incidents are selected
+        const allChecked = window.currentIncidents.every(inc => window.selectedIncidents.has(inc.id));
+        masterCb.checked = allChecked;
     }
     updateBulkActionUI();
 };
@@ -900,6 +905,64 @@ window.loadDashboardFilters = function () {
         }).catch(e => console.log("Error loading filter"));
 }
 
+window.setStatusFilter = function (status) {
+    window.statusFilter = status;
+    
+    // Update button styles with improved visuals
+    const allBtn = document.getElementById('status-all-btn');
+    const activeBtn = document.getElementById('status-active-btn');
+    const resolvedBtn = document.getElementById('status-resolved-btn');
+    
+    if (status === 'all') {
+        allBtn.style.borderColor = '#58a6ff';
+        allBtn.style.color = '#ffffff';
+        allBtn.style.background = 'rgba(88, 166, 255, 0.25)';
+        allBtn.style.fontWeight = 'bold';
+        
+        activeBtn.style.borderColor = '#30363d';
+        activeBtn.style.color = '#8b949e';
+        activeBtn.style.background = 'transparent';
+        activeBtn.style.fontWeight = 'normal';
+        
+        resolvedBtn.style.borderColor = '#30363d';
+        resolvedBtn.style.color = '#8b949e';
+        resolvedBtn.style.background = 'transparent';
+        resolvedBtn.style.fontWeight = 'normal';
+    } else if (status === 'active') {
+        allBtn.style.borderColor = '#30363d';
+        allBtn.style.color = '#8b949e';
+        allBtn.style.background = 'transparent';
+        allBtn.style.fontWeight = 'normal';
+        
+        activeBtn.style.borderColor = '#ff7b72';
+        activeBtn.style.color = '#ffffff';
+        activeBtn.style.background = 'rgba(255, 123, 114, 0.25)';
+        activeBtn.style.fontWeight = 'bold';
+        
+        resolvedBtn.style.borderColor = '#30363d';
+        resolvedBtn.style.color = '#8b949e';
+        resolvedBtn.style.background = 'transparent';
+        resolvedBtn.style.fontWeight = 'normal';
+    } else if (status === 'resolved') {
+        allBtn.style.borderColor = '#30363d';
+        allBtn.style.color = '#8b949e';
+        allBtn.style.background = 'transparent';
+        allBtn.style.fontWeight = 'normal';
+        
+        activeBtn.style.borderColor = '#30363d';
+        activeBtn.style.color = '#8b949e';
+        activeBtn.style.background = 'transparent';
+        activeBtn.style.fontWeight = 'normal';
+        
+        resolvedBtn.style.borderColor = '#3fb950';
+        resolvedBtn.style.color = '#ffffff';
+        resolvedBtn.style.background = 'rgba(63, 185, 80, 0.25)';
+        resolvedBtn.style.fontWeight = 'bold';
+    }
+    
+    window.fetchIncidents(true);
+}
+
 /**
  * Fetches real-time system stats to update KPI boxes
  * English Comment: Logic added to ensure KPI counters are synced after resolution
@@ -962,6 +1025,14 @@ window.renderIncidentsList = function () {
     });
 
     let filteredData = window.currentIncidents || [];
+    
+    // Apply status filter
+    if (window.statusFilter === 'active') {
+        filteredData = filteredData.filter(inc => !inc.is_resolved);
+    } else if (window.statusFilter === 'resolved') {
+        filteredData = filteredData.filter(inc => inc.is_resolved);
+    }
+    
     if (searchQuery) {
         filteredData = filteredData.filter(inc =>
             (inc.name && inc.name.toLowerCase().includes(searchQuery)) ||
@@ -1665,10 +1736,24 @@ window.loadFinOps = async function () {
 
             const invTimeInput = document.getElementById('finops-investigation');
             if (invTimeInput) invTimeInput.value = data.avg_investigation_time;
+            
+            // Load currency preference
+            const currencySelector = document.getElementById('finops-currency');
+            if (currencySelector && data.currency) {
+                currencySelector.value = data.currency;
+                window.selectedCurrency = data.currency;
+            }
         }
     } catch (e) {
         console.error("Could not load FinOps settings");
     }
+}
+
+window.saveCurrencyPreference = function () {
+    const currency = document.getElementById('finops-currency').value;
+    window.selectedCurrency = currency;
+    localStorage.setItem('selected-currency', currency);
+    notify(`Currency changed to ${currency}`, 'success');
 }
 
 window.saveFinOps = async function () {
@@ -1676,7 +1761,8 @@ window.saveFinOps = async function () {
         dev_hourly_rate: parseFloat(document.getElementById('finops-dev-rate').value) || 50,
         ci_minute_cost: parseFloat(document.getElementById('finops-ci-cost').value) || 0.008,
         avg_pipeline_duration: parseFloat(document.getElementById('finops-duration').value) || 15,
-        avg_investigation_time: parseFloat(document.getElementById('finops-investigation').value) || 30
+        avg_investigation_time: parseFloat(document.getElementById('finops-investigation').value) || 30,
+        currency: document.getElementById('finops-currency').value || 'USD'
     };
 
     try {
@@ -1695,6 +1781,14 @@ window.saveFinOps = async function () {
         }
     } catch (e) {
         notify('Network error saving FinOps', 'error');
+    }
+}
+
+window.updateCurrencyDisplay = function () {
+    const currencySymbol = window.currencySymbols[window.selectedCurrency] || '$';
+    const symbolElement = document.getElementById('kpi-cost-symbol');
+    if (symbolElement) {
+        symbolElement.textContent = currencySymbol;
     }
 }
 
@@ -1745,4 +1839,20 @@ window.triggerSSO = function () {
 window.onload = function () {
     window.checkAuth();
     window.checkSSOStatus();
+    // Initialize currency from localStorage
+    const savedCurrency = localStorage.getItem('selected-currency');
+    if (savedCurrency) {
+        window.selectedCurrency = savedCurrency;
+    }
+    window.updateCurrencyDisplay();
+    // Initialize status filter button styles
+    setTimeout(() => {
+        const statusAllBtn = document.getElementById('status-all-btn');
+        if (statusAllBtn) {
+            statusAllBtn.style.borderColor = '#58a6ff';
+            statusAllBtn.style.color = '#ffffff';
+            statusAllBtn.style.background = 'rgba(88, 166, 255, 0.25)';
+            statusAllBtn.style.fontWeight = 'bold';
+        }
+    }, 100);
 };
