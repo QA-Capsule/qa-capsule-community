@@ -247,6 +247,14 @@
                                 <option value="all">All My Projects</option>
                             </select>
                         </div>
+
+                        <div style="display: flex; gap: 8px; align-items: center; background: rgba(88, 166, 255, 0.05); padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(88, 166, 255, 0.2);">
+                            <label style="font-size: 0.75rem; color: #8b949e; margin-bottom: 0; font-weight: bold; letter-spacing: 0.5px;">STATUS:</label>
+                            <button class="btn-secondary" id="status-all-btn" onclick="setStatusFilter('all')" style="padding: 6px 12px; font-size: 12px; border-color: #58a6ff; color: #58a6ff; background: rgba(88, 166, 255, 0.15); border-radius: 6px; transition: all 0.2s ease; display: flex; align-items: center; gap: 4px;">◆ All</button>
+                            <button class="btn-secondary" id="status-active-btn" onclick="setStatusFilter('active')" style="padding: 6px 12px; font-size: 12px; border-radius: 6px; transition: all 0.2s ease; display: flex; align-items: center; gap: 4px;">⏱ Active</button>
+                            <button class="btn-secondary" id="status-resolved-btn" onclick="setStatusFilter('resolved')" style="padding: 6px 12px; font-size: 12px; border-radius: 6px; transition: all 0.2s ease; display: flex; align-items: center; gap: 4px;">✓ Resolved</button>
+                        </div>
+
                         <button class="btn-secondary" onclick="fetchIncidents()">↻ Refresh</button>
                         <button class="btn-secondary" onclick="toggleAnalytics()" style="border-color: #58a6ff; color: #58a6ff; font-weight: bold; display: flex; align-items: center; gap: 6px;">
                             <svg style="width:14px;height:14px;stroke:currentColor;fill:none;" viewBox="0 0 24 24" stroke-width="2">
@@ -296,7 +304,7 @@
                     <div class="kpi-card" style="border-top: 4px solid #d29922; background: rgba(210, 153, 34, 0.05);">
                         <div style="font-size: 11px; opacity: 0.6; font-weight: bold; margin-bottom: 10px; letter-spacing: 1px; color: #d29922;">ESTIMATED WASTE COST</div>
                         <div class="kpi-value" style="color: #d29922; display: flex; align-items: baseline; justify-content: center; gap: 5px;">
-                            <span style="font-size: 24px;">$</span><span id="kpi-cost">0</span>
+                            <span style="font-size: 24px;" id="kpi-cost-symbol">$</span><span id="kpi-cost">0</span>
                         </div>
                         <div style="font-size: 10px; opacity: 0.5; margin-top: 5px;">Based on industry CI/CD averages</div>
                     </div>
@@ -584,11 +592,28 @@
                     
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
                         <div>
-                            <label style="font-size: 11px; color: #8b949e; display: block; margin-bottom: 5px;">Dev Hourly Rate ($)</label>
+                            <label style="font-size: 11px; color: #8b949e; display: block; margin-bottom: 5px;">Currency</label>
+                            <select id="finops-currency" class="login-input" style="margin: 0; width: 100%; box-sizing: border-box;" onchange="window.saveCurrencyPreference()">
+                                <option value="USD">🇺🇸 USD ($)</option>
+                                <option value="EUR">🇪🇺 EUR (€)</option>
+                                <option value="GBP">🇬🇧 GBP (£)</option>
+                                <option value="JPY">🇯🇵 JPY (¥)</option>
+                                <option value="AUD">🇦🇺 AUD (A$)</option>
+                                <option value="CAD">🇨🇦 CAD (C$)</option>
+                                <option value="CHF">🇨🇭 CHF (Fr)</option>
+                                <option value="INR">🇮🇳 INR (₹)</option>
+                                <option value="CNY">🇨🇳 CNY (¥)</option>
+                                <option value="MXN">🇲🇽 MXN ($)</option>
+                                <option value="SGD">🇸🇬 SGD (S$)</option>
+                                <option value="NZD">🇳🇿 NZD (NZ$)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="font-size: 11px; color: #8b949e; display: block; margin-bottom: 5px;">Dev Hourly Rate</label>
                             <input type="number" id="finops-dev-rate" class="login-input" style="margin: 0; width: 100%; box-sizing: border-box;" placeholder="e.g. 50">
                         </div>
                         <div>
-                            <label style="font-size: 11px; color: #8b949e; display: block; margin-bottom: 5px;">CI/CD Minute Cost ($)</label>
+                            <label style="font-size: 11px; color: #8b949e; display: block; margin-bottom: 5px;">CI/CD Minute Cost</label>
                             <input type="number" step="0.001" id="finops-ci-cost" class="login-input" style="margin: 0; width: 100%; box-sizing: border-box;" placeholder="e.g. 0.008">
                         </div>
                         <div>
