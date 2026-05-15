@@ -1,8 +1,13 @@
+/**
+ * web/app.js
+ * Main controller for QA Capsule Control Plane
+ */
+
 let allUsers = [];
 let allProjects = [];
 let editingProjectId = null;
 
-// Global state
+// Global state management
 window.currentIncidents = [];
 window.selectedIncidents = new Set();
 window.pausePollingUntil = 0;
@@ -11,6 +16,12 @@ window.isFirstLoad = true;
 // ==========================================
 // NOTIFICATIONS & THEME
 // ==========================================
+
+/**
+ * Displays a toast notification
+ * @param {string} message - Text to display
+ * @param {string} type - 'success' or 'error'
+ */
 function notify(message, type = 'success') {
     const container = document.getElementById('notification-container');
     if (!container) return alert(message);
@@ -37,6 +48,7 @@ function parseJwt(token) { try { return JSON.parse(atob(token.split('.')[1])); }
 // ==========================================
 // CUSTOM MODAL LOGIC
 // ==========================================
+
 window.showConfirmModal = function (title, message, type, confirmCallback) {
     const modal = document.getElementById('custom-modal');
     const box = document.getElementById('custom-modal-box');
@@ -101,6 +113,7 @@ window.closeModal = function () {
 // ==========================================
 // CI/CD INGESTION GATEWAY LOGIC
 // ==========================================
+
 let currentSelectedCI = 'gitlab';
 
 window.selectCI = function (ciName, element) {
@@ -301,6 +314,7 @@ window.revealApiKey = function () {
 // ==========================================
 // AUTHENTICATION & NAVIGATION
 // ==========================================
+
 window.performLogin = function () {
     const username = document.getElementById('login-username').value;
     const password = document.getElementById('login-password').value;
@@ -404,6 +418,7 @@ window.applyPermissions = function () {
 // ==========================================
 // ANALYTICS DASHBOARD LOGIC 
 // ==========================================
+
 let analyticsChart = null;
 
 window.toggleAnalytics = function () {
@@ -453,6 +468,7 @@ window.loadAnalytics = function () {
 // ==========================================
 // WEEKLY REPORT GENERATOR (CSV & PDF)
 // ==========================================
+
 window.downloadWeeklyReportCSV = function () {
     const filterEl = document.getElementById('project-filter');
     const projectFilter = filterEl ? filterEl.value : 'all';
@@ -555,35 +571,63 @@ window.downloadWeeklyReportPDF = function () {
 // ==========================================
 // BULK ACTIONS & SELECTIONS LOGIC
 // ==========================================
+
+/**
+ * Handles individual incident selection
+ * English Comment: Logic added to uncheck "Select All" if a child is deselected
+ */
 window.toggleIncidentSelection = function (id, checked) {
-    window.pausePollingUntil = Date.now() + 10000;
+    // English Comment: Pause polling to prevent UI flickering during selection
+    window.pausePollingUntil = Date.now() + 15000; 
+    
     if (checked) window.selectedIncidents.add(id);
     else window.selectedIncidents.delete(id);
+    
+    // English Comment: Sync the "Select All" checkbox state manually
+    const masterCb = document.getElementById('select-all-cb');
+    if (masterCb) {
+        if (!checked) {
+            masterCb.checked = false; // English Comment: Uncheck master if one child is unchecked
+        } else {
+            // English Comment: Check master only if ALL currently displayed incidents are selected
+            const allChecked = window.currentIncidents.every(inc => window.selectedIncidents.has(inc.id));
+            masterCb.checked = allChecked;
+        }
+    }
     updateBulkActionUI();
 };
 
 window.toggleGroupSelection = function (groupId, checked) {
-    window.pausePollingUntil = Date.now() + 10000;
+    window.pausePollingUntil = Date.now() + 15000;
     const group = window.groupedIncidents[groupId];
     if (!group) return;
+
     group.incidents.forEach(inc => {
         const cb = document.getElementById(`cb-inc-${inc.id}`);
         if (cb) cb.checked = checked;
         if (checked) window.selectedIncidents.add(inc.id);
         else window.selectedIncidents.delete(inc.id);
     });
+
+    // English Comment: Sync master checkbox after group toggle
+    const masterCb = document.getElementById('select-all-cb');
+    if (masterCb) {
+        const allChecked = window.currentIncidents.every(inc => window.selectedIncidents.has(inc.id));
+        masterCb.checked = allChecked;
+    }
     updateBulkActionUI();
 };
 
 window.toggleSelectAll = function (checked) {
-    window.pausePollingUntil = Date.now() + 10000;
-    const incidentsToToggle = window.currentIncidents || [];
-    incidentsToToggle.forEach(inc => {
-        const cb = document.getElementById(`cb-inc-${inc.id}`);
-        if (cb) cb.checked = checked;
+    window.pausePollingUntil = Date.now() + 15000;
+    window.currentIncidents.forEach(inc => {
         if (checked) window.selectedIncidents.add(inc.id);
         else window.selectedIncidents.delete(inc.id);
+        
+        const cb = document.getElementById(`cb-inc-${inc.id}`);
+        if (cb) cb.checked = checked;
     });
+    // English Comment: Update all group checkboxes visually
     document.querySelectorAll('[id^="cb-group-"]').forEach(cb => cb.checked = checked);
     updateBulkActionUI();
 };
@@ -604,42 +648,26 @@ window.updateBulkActionUI = function () {
 };
 
 window.resolveSelected = async function () {
-    if (window.selectedIncidents.size === 0) {
-        return notify("Vous devez sélectionner au moins une alerte à résoudre.", "error");
-    }
-    const userRole = parseJwt(localStorage.getItem('sre-jwt')).role;
-    if (userRole === 'viewer') return notify("Viewers cannot resolve incidents.", "error");
-
-    window.pausePollingUntil = Date.now() + 10000;
-    const idsToResolve = Array.from(window.selectedIncidents);
-    const currentUser = parseJwt(localStorage.getItem('sre-jwt')).username || 'You';
-
-    // Optimistic UI (Immédiat)
-    idsToResolve.forEach(id => {
-        const inc = window.currentIncidents.find(i => i.id === id);
-        if (inc) {
-            inc.is_resolved = true;
-            inc.resolved_by = currentUser;
-        }
-    });
-
-    window.selectedIncidents.clear();
-    window.renderIncidentsList();
-    window.fetchMetricsOnly();
-    notify("Résolution en cours...", "success");
-
-    // BULK API CALL: Une seule requête magique au lieu de 50 !
+    if (window.selectedIncidents.size === 0) return;
+    
+    const ids = Array.from(window.selectedIncidents);
+    window.selectedIncidents.clear(); // English Comment: Clear selection immediately for UX
+    
     try {
-        await window.fetchWithAuth('/api/incidents', {
+        const res = await window.fetchWithAuth('/api/incidents', {
             method: 'PUT',
-            body: JSON.stringify({ ids: idsToResolve })
+            body: JSON.stringify({ ids: ids })
         });
-    } catch (e) {
-        console.error("Resolve error");
-    }
 
-    window.pausePollingUntil = 0;
-    window.fetchIncidents(true);
+        if (res.ok) {
+            notify("Alerts resolved", "success");
+            // English Comment: FORCE a full reload to update filters and KPI counters
+            window.pausePollingUntil = 0;
+            await window.fetchIncidents(true); 
+        }
+    } catch (e) {
+        notify("API error", "error");
+    }
 };
 
 window.deleteSelected = async function () {
@@ -656,23 +684,24 @@ window.deleteSelected = async function () {
         window.currentIncidents = window.currentIncidents.filter(inc => !idsToDelete.includes(inc.id));
         window.selectedIncidents.clear();
         window.renderIncidentsList();
-        window.fetchMetricsOnly();
         notify("Suppression en cours...", "success");
 
         // BULK API CALL
         try {
             await window.fetchWithAuth(`/api/incidents?ids=${idsToDelete.join(',')}`, { method: 'DELETE' });
+            window.pausePollingUntil = 0;
+            window.fetchIncidents(true);
+            window.fetchMetricsOnly();
         } catch (e) {
             console.error("Delete error");
         }
-
-        window.pausePollingUntil = 0;
-        window.fetchIncidents(true);
     });
 };
+
 // ==========================================
 // GROUP ACTIONS
 // ==========================================
+
 window.resolveGroup = async function (groupId, event) {
     if (event) { event.preventDefault(); event.stopPropagation(); }
     const dropdown = document.getElementById(`action-dropdown-${groupId}`);
@@ -700,19 +729,20 @@ window.resolveGroup = async function (groupId, event) {
     }
 
     window.renderIncidentsList();
-    window.fetchMetricsOnly();
     notify("Pipeline entier marqué comme résolu.", "success");
 
     // BULK API CALL
     try {
-        await window.fetchWithAuth('/api/incidents', {
+        const res = await window.fetchWithAuth('/api/incidents', {
             method: 'PUT',
             body: JSON.stringify({ ids: unresolvedIds })
         });
+        if (res.ok) {
+            window.pausePollingUntil = 0;
+            await window.fetchIncidents(true);
+            await window.fetchMetricsOnly();
+        }
     } catch (e) { }
-
-    window.pausePollingUntil = 0;
-    window.fetchIncidents(true);
 }
 
 window.deleteGroup = async function (groupId, event) {
@@ -731,22 +761,22 @@ window.deleteGroup = async function (groupId, event) {
         group.incidents.forEach(i => window.selectedIncidents.delete(i.id));
 
         window.renderIncidentsList();
-        window.fetchMetricsOnly();
         notify("Suppression du pipeline en cours...", "success");
 
         // BULK API CALL
         try {
             await window.fetchWithAuth(`/api/incidents?ids=${groupIds.join(',')}`, { method: 'DELETE' });
+            window.pausePollingUntil = 0;
+            window.fetchIncidents(true);
+            window.fetchMetricsOnly();
         } catch (e) { }
-
-        window.pausePollingUntil = 0;
-        window.fetchIncidents(true);
     });
 }
 
 // ==========================================
 // ACTION DROPDOWN & LOG EXPORT
 // ==========================================
+
 window.toggleActionDropdown = function (id, event) {
     if (event) {
         event.preventDefault();
@@ -855,6 +885,7 @@ window.toggleSubAlerts = function (groupId, event) {
 // ==========================================
 // DASHBOARD RENDER LOGIC 
 // ==========================================
+
 window.loadDashboardFilters = function () {
     window.fetchWithAuth(`/api/my-projects?_ts=${Date.now()}`)
         .then(res => res.json())
@@ -869,27 +900,23 @@ window.loadDashboardFilters = function () {
         }).catch(e => console.log("Error loading filter"));
 }
 
+/**
+ * Fetches real-time system stats to update KPI boxes
+ * English Comment: Logic added to ensure KPI counters are synced after resolution
+ */
 window.fetchMetricsOnly = function () {
     window.fetchWithAuth(`/api/metrics?_ts=${Date.now()}`)
         .then(r => r.json())
         .then(metrics => {
             if (metrics) {
-                const active = metrics.total_incidents - metrics.resolved_incidents;
-                document.getElementById('kpi-active').innerText = active;
-                document.getElementById('kpi-active').style.color = active > 0 ? '#ff7b72' : '#3fb950';
-
+                document.getElementById('kpi-active').innerText = metrics.total_incidents - metrics.resolved_incidents;
                 document.getElementById('kpi-resolved').innerText = metrics.resolved_incidents;
-
+                // English Comment: pipeline health update logic
                 const health = metrics.total_incidents > 0 ? Math.round((metrics.resolved_incidents / metrics.total_incidents) * 100) : 100;
                 document.getElementById('kpi-health').innerText = `${health}%`;
-                document.getElementById('kpi-health').style.color = health < 80 ? '#d29922' : '#58a6ff';
-
-                if (metrics.sre_impact && document.getElementById('kpi-cost')) {
-                    document.getElementById('kpi-cost').textContent = metrics.sre_impact.estimated_cost_usd.toLocaleString();
-                }
             }
-        }).catch(e => console.error(e));
-}
+        });
+};
 
 window.fetchIncidents = function (forceRender = false) {
     if (!forceRender && Date.now() < window.pausePollingUntil) return;
@@ -1132,6 +1159,7 @@ window.renderIncidentsList = function () {
 // ==========================================
 // AUTO-REFRESH PREVENTION (POLLING CONTROLLER)
 // ==========================================
+
 window.connectWebSocket = function () {
     setInterval(() => {
         const dashboard = document.getElementById('view-dashboard');
@@ -1146,6 +1174,7 @@ window.connectWebSocket = function () {
 // ==========================================
 // ORGANIZATIONS & TREE VIEW LOGIC
 // ==========================================
+
 let currentSelectedOrgId = null;
 
 window.loadOrganizations = function () {
@@ -1334,6 +1363,7 @@ window.assignUserToGroup = function () {
 // ==========================================
 // USER -> TEAMS MODAL LOGIC (IAM TAB)
 // ==========================================
+
 let currentlyManagedUser = null;
 let allTeamsFlatList = [];
 
@@ -1416,6 +1446,7 @@ window.assignUserToTeamFromModal = function (teamId) {
 // ==========================================
 // IAM GLOBAL USERS
 // ==========================================
+
 window.loadUsers = function () {
     window.fetchWithAuth(`/api/users?_ts=${Date.now()}`)
         .then(res => { if (!res.ok) throw new Error(); return res.json(); })
@@ -1504,6 +1535,7 @@ window.deleteUser = function (username) {
 // ==========================================
 // PLUGINS & CONFIG 
 // ==========================================
+
 window.loadPlugins = function () {
     window.fetchWithAuth(`/api/plugins?_ts=${Date.now()}`).then(res => res.json()).then(data => {
         if (!data || data.length === 0) { document.getElementById('plugin-list').innerHTML = "<div style='text-align:center; padding:40px; opacity:0.5;'>No modules detected in the plugins directory.</div>"; return; }
@@ -1616,6 +1648,7 @@ window.saveSMTPConfig = function () {
 // ==========================================
 // FINOPS CONTROLLER
 // ==========================================
+
 window.loadFinOps = async function () {
     try {
         const res = await window.fetchWithAuth(`/api/finops?_ts=${Date.now()}`);
@@ -1668,6 +1701,7 @@ window.saveFinOps = async function () {
 // ==========================================
 // ENTERPRISE LICENSE & SSO CONTROLLER
 // ==========================================
+
 window.checkSSOStatus = function () {
     fetch('/api/sso/status')
         .then(res => res.json())
@@ -1707,6 +1741,7 @@ window.triggerSSO = function () {
 // ==========================================
 // INITIALIZATION
 // ==========================================
+
 window.onload = function () {
     window.checkAuth();
     window.checkSSOStatus();

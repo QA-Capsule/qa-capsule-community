@@ -3,7 +3,6 @@ package server
 import (
 	"database/sql"
 	"encoding/json"
-	"log"
 	"math"
 	"net/http"
 	"strings"
@@ -27,11 +26,10 @@ func registerIncidentRoutes(config *core.Config) {
 
 		if r.Method == http.MethodGet {
 			projectFilter := r.URL.Query().Get("project")
-
 			var query string
 			var args []interface{}
 
-			// Tri chronologique STRICT (created_at DESC LIMIT 200) pour garantir la séparation des pipelines
+			// English Comment: Admin can see everything, users only their project incidents
 			if claims.Role == "admin" {
 				if projectFilter != "" && projectFilter != "all" {
 					query = "SELECT id, project_name, name, status, error_message, console_logs, error_logs, is_resolved, resolved_by, created_at, resolved_at FROM incidents WHERE project_name = ? ORDER BY created_at DESC LIMIT 200"
@@ -40,34 +38,23 @@ func registerIncidentRoutes(config *core.Config) {
 					query = "SELECT id, project_name, name, status, error_message, console_logs, error_logs, is_resolved, resolved_by, created_at, resolved_at FROM incidents ORDER BY created_at DESC LIMIT 200"
 				}
 			} else {
+				// English Comment: Permission check based on teams
+				query = `SELECT DISTINCT i.id, i.project_name, i.name, i.status, i.error_message, i.console_logs, i.error_logs, i.is_resolved, i.resolved_by, i.created_at, i.resolved_at 
+						 FROM incidents i
+						 JOIN projects p ON i.project_name = p.name
+						 JOIN user_teams ut ON p.team_id = ut.team_id
+						 JOIN users u ON u.id = ut.user_id
+						 WHERE u.username = ?`
+				args = []interface{}{claims.Username}
 				if projectFilter != "" && projectFilter != "all" {
-					query = `
-						SELECT DISTINCT i.id, i.project_name, i.name, i.status, i.error_message, i.console_logs, i.error_logs, i.is_resolved, i.resolved_by, i.created_at, i.resolved_at 
-						FROM incidents i
-						JOIN projects p ON i.project_name = p.name
-						JOIN user_teams ut ON p.team_id = ut.team_id
-						JOIN users u ON u.id = ut.user_id
-						WHERE u.username = ? AND i.project_name = ?
-						ORDER BY i.created_at DESC LIMIT 200
-					`
-					args = []interface{}{claims.Username, projectFilter}
-				} else {
-					query = `
-						SELECT DISTINCT i.id, i.project_name, i.name, i.status, i.error_message, i.console_logs, i.error_logs, i.is_resolved, i.resolved_by, i.created_at, i.resolved_at 
-						FROM incidents i
-						JOIN projects p ON i.project_name = p.name
-						JOIN user_teams ut ON p.team_id = ut.team_id
-						JOIN users u ON u.id = ut.user_id
-						WHERE u.username = ?
-						ORDER BY i.created_at DESC LIMIT 200
-					`
-					args = []interface{}{claims.Username}
+					query += " AND i.project_name = ?"
+					args = append(args, projectFilter)
 				}
+				query += " ORDER BY i.created_at DESC LIMIT 200"
 			}
 
 			rows, err := core.DB.Query(query, args...)
 			if err != nil {
-				log.Println("[DB ERROR] Error fetching incidents:", err)
 				http.Error(w, "Database error", http.StatusInternalServerError)
 				return
 			}
@@ -80,32 +67,21 @@ func registerIncidentRoutes(config *core.Config) {
 				var resolvedBy, createdAt, resolvedAt sql.NullString
 
 				rows.Scan(&id, &pName, &name, &status, &errMsg, &cLogs, &eLogs, &isResolved, &resolvedBy, &createdAt, &resolvedAt)
-
 				incidents = append(incidents, map[string]interface{}{
 					"id": id, "project_name": pName, "name": name, "status": status,
 					"error_message": errMsg, "console_logs": cLogs, "error_logs": eLogs, "is_resolved": isResolved == 1,
 					"resolved_by": resolvedBy.String, "created_at": createdAt.String, "resolved_at": resolvedAt.String,
 				})
 			}
-			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(incidents)
 
 		} else if r.Method == http.MethodPut {
-			if claims.Role == "viewer" {
-				http.Error(w, "Viewers are not allowed to resolve incidents", http.StatusForbidden)
-				return
-			}
-
-			// SUPPORT POUR LES MISES A JOUR DE MASSE (BULK UPDATES)
+			// English Comment: Handle resolution (Bulk and single)
 			var req struct {
 				ID  int   `json:"id"`
 				IDs []int `json:"ids"`
 			}
-			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-				http.Error(w, "Invalid request", http.StatusBadRequest)
-				return
-			}
-
+			json.NewDecoder(r.Body).Decode(&req)
 			idsToResolve := req.IDs
 			if req.ID != 0 {
 				idsToResolve = append(idsToResolve, req.ID)
@@ -119,57 +95,15 @@ func registerIncidentRoutes(config *core.Config) {
 					placeholders[i] = "?"
 					args[i+1] = id
 				}
-
-				query := "UPDATE incidents SET is_resolved = 1, resolved_by = ?, resolved_at = CURRENT_TIMESTAMP WHERE id IN (" + strings.Join(placeholders, ",") + ")"
-				_, err := core.DB.Exec(query, args...)
-				if err != nil {
-					log.Println("[DB ERROR] Bulk Resolve failed:", err)
-					http.Error(w, "Failed to resolve incidents", http.StatusInternalServerError)
-					return
-				}
-			}
-			w.WriteHeader(http.StatusOK)
-
-		} else if r.Method == http.MethodDelete {
-			if claims.Role != "admin" {
-				http.Error(w, "Only administrators can delete incident logs", http.StatusForbidden)
-				return
-			}
-
-			// SUPPORT POUR LA SUPPRESSION DE MASSE (BULK DELETION)
-			incidentID := r.URL.Query().Get("id")
-			incidentIDs := r.URL.Query().Get("ids")
-
-			if incidentIDs != "" {
-				idList := strings.Split(incidentIDs, ",")
-				placeholders := make([]string, len(idList))
-				args := make([]interface{}, len(idList))
-				for i, id := range idList {
-					placeholders[i] = "?"
-					args[i] = id
-				}
-				query := "DELETE FROM incidents WHERE id IN (" + strings.Join(placeholders, ",") + ")"
-				_, err := core.DB.Exec(query, args...)
-				if err != nil {
-					log.Println("[DB ERROR] Failed to delete incidents:", err)
-					http.Error(w, "Failed to delete incidents", http.StatusInternalServerError)
-					return
-				}
-			} else if incidentID != "" {
-				_, err := core.DB.Exec("DELETE FROM incidents WHERE id = ?", incidentID)
-				if err != nil {
-					log.Println("[DB ERROR] Failed to delete incident:", err)
-					http.Error(w, "Failed to delete incident", http.StatusInternalServerError)
-					return
-				}
+				// English Comment: Update both is_resolved flag and textual status
+				query := "UPDATE incidents SET is_resolved = 1, status = 'resolved', resolved_by = ?, resolved_at = CURRENT_TIMESTAMP WHERE id IN (" + strings.Join(placeholders, ",") + ")"
+				core.DB.Exec(query, args...)
 			}
 			w.WriteHeader(http.StatusOK)
 		}
 	}))
 
-	// ==========================================
-	// WEEKLY REPORT API
-	// ==========================================
+	// Weekly Report & Metrics APIs (unchanged logic, kept for file completeness)
 	http.HandleFunc("/api/reports/weekly", jwtAuthMiddleware(config, false, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			return
@@ -179,7 +113,6 @@ func registerIncidentRoutes(config *core.Config) {
 		var query string
 		var args []interface{}
 
-		// Filtrage dynamique selon le choix de l'utilisateur dans l'interface
 		if projectFilter != "" && projectFilter != "all" {
 			query = `
 				SELECT 
@@ -233,14 +166,10 @@ func registerIncidentRoutes(config *core.Config) {
 				"health_score":    healthScore,
 			})
 		}
-
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(report)
 	}))
 
-	// ==========================================
-	// ANALYTICS & FINOPS METRICS DASHBOARD
-	// ==========================================
 	http.HandleFunc("/api/metrics", jwtAuthMiddleware(config, false, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			return
@@ -252,7 +181,6 @@ func registerIncidentRoutes(config *core.Config) {
 		core.DB.QueryRow("SELECT COUNT(*) FROM incidents WHERE name LIKE '[FLAKY]%'").Scan(&flaky)
 
 		var mttrMinutes sql.NullFloat64
-
 		core.DB.QueryRow(`
 			SELECT AVG((julianday(resolved_at) - julianday(created_at)) * 24 * 60) 
 			FROM incidents 
@@ -298,9 +226,6 @@ func registerIncidentRoutes(config *core.Config) {
 		})
 	}))
 
-	// ==========================================
-	// FINOPS SETTINGS CONFIGURATION
-	// ==========================================
 	http.HandleFunc("/api/finops", jwtAuthMiddleware(config, true, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
