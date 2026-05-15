@@ -40,6 +40,16 @@ func InitDB(ignoredPath string) {
 		log.Fatalf("[FATAL] Failed to open SQLite database: %v", err)
 	}
 
+	// ===============================================
+	// SRE FIX: ANTI "DATABASE IS LOCKED" (WAL MODE)
+	// ===============================================
+	_, err = DB.Exec("PRAGMA journal_mode=WAL;")
+	if err != nil {
+		log.Printf("[WARNING] Could not enable WAL mode: %v", err)
+	}
+	// On dit à la base d'attendre 5 secondes au lieu de crasher si elle est occupée
+	DB.Exec("PRAGMA busy_timeout=5000;")
+
 	// 5. Force a connection to ensure the physical file is actually created right now
 	if err = DB.Ping(); err != nil {
 		log.Fatalf("[FATAL] Failed to ping database: %v", err)
@@ -90,7 +100,6 @@ func InitDB(ignoredPath string) {
 	}
 
 	// 4. Create projects table (CI/CD Gateways mapped to Teams)
-	// Includes repo_path for GitLab/GitHub configurations
 	createProjectsTable := `
 	CREATE TABLE IF NOT EXISTS projects (
 		id TEXT PRIMARY KEY,
@@ -109,8 +118,7 @@ func InitDB(ignoredPath string) {
 		log.Fatalf("[FATAL] Failed to create projects table: %v", err)
 	}
 
-	// 5. Create incidents table with Smart Correlation fields (Fingerprint)
-	// ADDED: error_logs TEXT to cleanly separate STDOUT from stacktraces
+	// 5. Create incidents table
 	createIncidentsTable := `
 	CREATE TABLE IF NOT EXISTS incidents (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -120,7 +128,7 @@ func InitDB(ignoredPath string) {
 		error_message TEXT,
 		console_logs TEXT,
 		error_logs TEXT, 
-		fingerprint TEXT, -- Used for deduplication and correlation
+		fingerprint TEXT, 
 		is_resolved INTEGER DEFAULT 0,
 		resolved_by TEXT,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -131,18 +139,47 @@ func InitDB(ignoredPath string) {
 		log.Fatalf("[FATAL] Failed to create incidents table: %v", err)
 	}
 
-	// 6. Create index to speed up Smart Correlation during high ingestion rates
+	// 6. Create index for Smart Correlation
 	createIndex := `CREATE INDEX IF NOT EXISTS idx_incidents_fingerprint ON incidents(fingerprint, is_resolved);`
 	_, err = DB.Exec(createIndex)
 	if err != nil {
 		log.Printf("[WARNING] Failed to create index for fingerprint: %v", err)
 	}
 
+	// ===============================================
+	// ADDED: Create FinOps Settings Table
+	// ===============================================
+	createFinOpsTable := `
+	CREATE TABLE IF NOT EXISTS finops_settings (
+		id INTEGER PRIMARY KEY,
+		dev_hourly_rate REAL,
+		ci_minute_cost REAL,
+		avg_pipeline_duration REAL,
+		avg_investigation_time REAL
+	);`
+	_, err = DB.Exec(createFinOpsTable)
+	if err != nil {
+		log.Fatalf("[FATAL] Failed to create finops_settings table: %v", err)
+	}
+
+	// ===============================================
+	// ADDED: Create Enterprise License Config Table
+	// ===============================================
+	createEnterpriseTable := `
+	CREATE TABLE IF NOT EXISTS enterprise_config (
+		id INTEGER PRIMARY KEY,
+		license_key TEXT
+	);`
+	_, err = DB.Exec(createEnterpriseTable)
+	if err != nil {
+		log.Fatalf("[FATAL] Failed to create enterprise_config table: %v", err)
+	}
+
 	log.Println("[INFO] Database initialized successfully with Smart Correlation schema.")
 	seedInitialData()
 }
 
-// seedInitialData creates the default Admin user and Root Organization if they don't exist
+// seedInitialData creates the default Admin user, Root Organization, and default FinOps metrics
 func seedInitialData() {
 	// Seed Root Team
 	var teamCount int
@@ -160,7 +197,6 @@ func seedInitialData() {
 	var userCount int
 	DB.QueryRow("SELECT COUNT(*) FROM users").Scan(&userCount)
 	if userCount == 0 {
-		// Default password is "admin"
 		hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("admin"), bcrypt.DefaultCost)
 		_, err := DB.Exec(`INSERT INTO users (username, fullname, password_hash, role, is_active, require_password_change) 
 			VALUES ('admin', 'System Administrator', ?, 'admin', 1, 1)`, string(hashedPassword))
@@ -168,6 +204,20 @@ func seedInitialData() {
 			log.Printf("[WARNING] Could not seed admin user: %v", err)
 		} else {
 			log.Println("[INFO] Default 'admin' user created (password: admin). Please change upon first login.")
+		}
+	}
+
+	// ADDED: Seed FinOps Default Metrics
+	var finopsCount int
+	DB.QueryRow("SELECT COUNT(*) FROM finops_settings").Scan(&finopsCount)
+	if finopsCount == 0 {
+		// Industry averages: $50/h dev, $0.008/min CI, 15min build, 30min investigation
+		_, err := DB.Exec(`INSERT INTO finops_settings (id, dev_hourly_rate, ci_minute_cost, avg_pipeline_duration, avg_investigation_time) 
+			VALUES (1, 50.0, 0.008, 15.0, 30.0)`)
+		if err != nil {
+			log.Printf("[WARNING] Could not seed default FinOps settings: %v", err)
+		} else {
+			log.Println("[INFO] Default FinOps baseline metrics initialized.")
 		}
 	}
 }

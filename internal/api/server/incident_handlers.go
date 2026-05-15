@@ -27,25 +27,20 @@ func registerIncidentRoutes(config *core.Config) {
 
 		if r.Method == http.MethodGet {
 			projectFilter := r.URL.Query().Get("project")
-
 			var query string
 			var args []interface{}
-			var rows *sql.Rows
-			var err error
 
-			// FIX: Changed ORDER BY to 'created_at DESC' and increased LIMIT to 200.
-			// This prevents resolved items from dropping out of the UI and breaking pipeline groups.
 			if claims.Role == "admin" {
 				if projectFilter != "" && projectFilter != "all" {
-					query = "SELECT id, project_name, name, status, error_message, console_logs, is_resolved, resolved_by, created_at, resolved_at FROM incidents WHERE project_name = ? ORDER BY created_at DESC LIMIT 200"
+					query = "SELECT id, project_name, name, status, error_message, console_logs, error_logs, is_resolved, resolved_by, created_at, resolved_at FROM incidents WHERE project_name = ? ORDER BY created_at DESC LIMIT 200"
 					args = []interface{}{projectFilter}
 				} else {
-					query = "SELECT id, project_name, name, status, error_message, console_logs, is_resolved, resolved_by, created_at, resolved_at FROM incidents ORDER BY created_at DESC LIMIT 200"
+					query = "SELECT id, project_name, name, status, error_message, console_logs, error_logs, is_resolved, resolved_by, created_at, resolved_at FROM incidents ORDER BY created_at DESC LIMIT 200"
 				}
 			} else {
 				if projectFilter != "" && projectFilter != "all" {
 					query = `
-						SELECT DISTINCT i.id, i.project_name, i.name, i.status, i.error_message, i.console_logs, i.is_resolved, i.resolved_by, i.created_at, i.resolved_at 
+						SELECT DISTINCT i.id, i.project_name, i.name, i.status, i.error_message, i.console_logs, i.error_logs, i.is_resolved, i.resolved_by, i.created_at, i.resolved_at 
 						FROM incidents i
 						JOIN projects p ON i.project_name = p.name
 						JOIN user_teams ut ON p.team_id = ut.team_id
@@ -56,7 +51,7 @@ func registerIncidentRoutes(config *core.Config) {
 					args = []interface{}{claims.Username, projectFilter}
 				} else {
 					query = `
-						SELECT DISTINCT i.id, i.project_name, i.name, i.status, i.error_message, i.console_logs, i.is_resolved, i.resolved_by, i.created_at, i.resolved_at 
+						SELECT DISTINCT i.id, i.project_name, i.name, i.status, i.error_message, i.console_logs, i.error_logs, i.is_resolved, i.resolved_by, i.created_at, i.resolved_at 
 						FROM incidents i
 						JOIN projects p ON i.project_name = p.name
 						JOIN user_teams ut ON p.team_id = ut.team_id
@@ -68,7 +63,7 @@ func registerIncidentRoutes(config *core.Config) {
 				}
 			}
 
-			rows, err = core.DB.Query(query, args...)
+			rows, err := core.DB.Query(query, args...)
 			if err != nil {
 				log.Println("[DB ERROR] Error fetching incidents:", err)
 				http.Error(w, "Database error", http.StatusInternalServerError)
@@ -79,14 +74,14 @@ func registerIncidentRoutes(config *core.Config) {
 			var incidents []map[string]interface{}
 			for rows.Next() {
 				var id, isResolved int
-				var pName, name, status, errMsg, cLogs string
+				var pName, name, status, errMsg, cLogs, eLogs string
 				var resolvedBy, createdAt, resolvedAt sql.NullString
 
-				rows.Scan(&id, &pName, &name, &status, &errMsg, &cLogs, &isResolved, &resolvedBy, &createdAt, &resolvedAt)
+				rows.Scan(&id, &pName, &name, &status, &errMsg, &cLogs, &eLogs, &isResolved, &resolvedBy, &createdAt, &resolvedAt)
 
 				incidents = append(incidents, map[string]interface{}{
 					"id": id, "project_name": pName, "name": name, "status": status,
-					"error_message": errMsg, "console_logs": cLogs, "is_resolved": isResolved == 1,
+					"error_message": errMsg, "console_logs": cLogs, "error_logs": eLogs, "is_resolved": isResolved == 1,
 					"resolved_by": resolvedBy.String, "created_at": createdAt.String, "resolved_at": resolvedAt.String,
 				})
 			}
@@ -99,15 +94,34 @@ func registerIncidentRoutes(config *core.Config) {
 				return
 			}
 
+			// SUPPORT FOR BULK UPDATES
 			var req struct {
-				ID int `json:"id"`
+				ID  int   `json:"id"`
+				IDs []int `json:"ids"`
 			}
 			json.NewDecoder(r.Body).Decode(&req)
 
-			_, err := core.DB.Exec("UPDATE incidents SET is_resolved = 1, resolved_by = ?, resolved_at = CURRENT_TIMESTAMP WHERE id = ?", claims.Username, req.ID)
-			if err != nil {
-				http.Error(w, "Failed to resolve incident", http.StatusInternalServerError)
-				return
+			idsToResolve := req.IDs
+			if req.ID != 0 {
+				idsToResolve = append(idsToResolve, req.ID)
+			}
+
+			if len(idsToResolve) > 0 {
+				placeholders := make([]string, len(idsToResolve))
+				args := make([]interface{}, len(idsToResolve)+1)
+				args[0] = claims.Username
+				for i, id := range idsToResolve {
+					placeholders[i] = "?"
+					args[i+1] = id
+				}
+
+				query := "UPDATE incidents SET is_resolved = 1, resolved_by = ?, resolved_at = CURRENT_TIMESTAMP WHERE id IN (" + strings.Join(placeholders, ",") + ")"
+				_, err := core.DB.Exec(query, args...)
+				if err != nil {
+					log.Println("[DB ERROR] Bulk Resolve failed:", err)
+					http.Error(w, "Failed to resolve incidents", http.StatusInternalServerError)
+					return
+				}
 			}
 			w.WriteHeader(http.StatusOK)
 
@@ -117,20 +131,103 @@ func registerIncidentRoutes(config *core.Config) {
 				return
 			}
 
+			// SUPPORT FOR BULK DELETION
 			incidentID := r.URL.Query().Get("id")
-			if incidentID == "" {
-				http.Error(w, "Incident ID is required", http.StatusBadRequest)
-				return
-			}
+			incidentIDs := r.URL.Query().Get("ids")
 
-			_, err := core.DB.Exec("DELETE FROM incidents WHERE id = ?", incidentID)
-			if err != nil {
-				log.Println("[DB ERROR] Failed to delete incident:", err)
-				http.Error(w, "Failed to delete incident", http.StatusInternalServerError)
-				return
+			if incidentIDs != "" {
+				idList := strings.Split(incidentIDs, ",")
+				placeholders := make([]string, len(idList))
+				args := make([]interface{}, len(idList))
+				for i, id := range idList {
+					placeholders[i] = "?"
+					args[i] = id
+				}
+				query := "DELETE FROM incidents WHERE id IN (" + strings.Join(placeholders, ",") + ")"
+				_, err := core.DB.Exec(query, args...)
+				if err != nil {
+					http.Error(w, "Failed to delete incidents", http.StatusInternalServerError)
+					return
+				}
+			} else if incidentID != "" {
+				_, err := core.DB.Exec("DELETE FROM incidents WHERE id = ?", incidentID)
+				if err != nil {
+					http.Error(w, "Failed to delete incident", http.StatusInternalServerError)
+					return
+				}
 			}
 			w.WriteHeader(http.StatusOK)
 		}
+	}))
+
+	// ==========================================
+	// WEEKLY REPORT API
+	// ==========================================
+	http.HandleFunc("/api/reports/weekly", jwtAuthMiddleware(config, false, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			return
+		}
+
+		projectFilter := r.URL.Query().Get("project")
+		var query string
+		var args []interface{}
+
+		if projectFilter != "" && projectFilter != "all" {
+			query = `
+				SELECT 
+					project_name, 
+					COUNT(*) as total_failures, 
+					SUM(case when is_resolved = 1 then 1 else 0 end) as total_resolved,
+					SUM(case when name LIKE '[FLAKY]%' then 1 else 0 end) as flaky_count
+				FROM incidents 
+				WHERE created_at >= datetime('now', '-7 days') AND project_name = ?
+				GROUP BY project_name
+				ORDER BY total_failures DESC
+			`
+			args = []interface{}{projectFilter}
+		} else {
+			query = `
+				SELECT 
+					project_name, 
+					COUNT(*) as total_failures, 
+					SUM(case when is_resolved = 1 then 1 else 0 end) as total_resolved,
+					SUM(case when name LIKE '[FLAKY]%' then 1 else 0 end) as flaky_count
+				FROM incidents 
+				WHERE created_at >= datetime('now', '-7 days')
+				GROUP BY project_name
+				ORDER BY total_failures DESC
+			`
+		}
+
+		rows, err := core.DB.Query(query, args...)
+		if err != nil {
+			http.Error(w, "Failed to generate report", http.StatusInternalServerError)
+			return
+		}
+		defer rows.Close()
+
+		var report []map[string]interface{}
+		for rows.Next() {
+			var projName string
+			var total, resolved, flaky int
+			rows.Scan(&projName, &total, &resolved, &flaky)
+
+			healthScore := 100
+			if total > 0 {
+				healthScore = (resolved * 100) / total
+			}
+
+			report = append(report, map[string]interface{}{
+				"pipeline":        projName,
+				"total_alerts":    total,
+				"resolved_alerts": resolved,
+				"flaky_tests":     flaky,
+				"health_score":    healthScore,
+			})
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(report)
 	}))
 
 	// ==========================================
@@ -147,7 +244,6 @@ func registerIncidentRoutes(config *core.Config) {
 		core.DB.QueryRow("SELECT COUNT(*) FROM incidents WHERE name LIKE '[FLAKY]%'").Scan(&flaky)
 
 		var mttrMinutes sql.NullFloat64
-
 		core.DB.QueryRow(`
 			SELECT AVG((julianday(resolved_at) - julianday(created_at)) * 24 * 60) 
 			FROM incidents 

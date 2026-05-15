@@ -1,11 +1,12 @@
 let allUsers = [];
-let allProjects = []; 
-let editingProjectId = null; 
+let allProjects = [];
+let editingProjectId = null;
 
 // Global state
-window.currentIncidents = []; 
+window.currentIncidents = [];
 window.selectedIncidents = new Set();
-window.pausePollingUntil = 0; 
+window.pausePollingUntil = 0;
+window.isFirstLoad = true;
 
 // ==========================================
 // NOTIFICATIONS & THEME
@@ -36,16 +37,16 @@ function parseJwt(token) { try { return JSON.parse(atob(token.split('.')[1])); }
 // ==========================================
 // CUSTOM MODAL LOGIC
 // ==========================================
-window.showConfirmModal = function(title, message, type, confirmCallback) {
+window.showConfirmModal = function (title, message, type, confirmCallback) {
     const modal = document.getElementById('custom-modal');
     const box = document.getElementById('custom-modal-box');
     const titleEl = document.getElementById('custom-modal-title');
-    
+
     titleEl.innerText = title;
     document.getElementById('custom-modal-message').innerText = message;
     document.getElementById('custom-modal-input').style.display = 'none';
-    
-    if(type === 'danger') {
+
+    if (type === 'danger') {
         box.style.borderColor = 'var(--log-fatal)';
         titleEl.style.color = 'var(--log-fatal)';
     } else if (type === 'warning') {
@@ -57,34 +58,34 @@ window.showConfirmModal = function(title, message, type, confirmCallback) {
     }
 
     const confirmBtn = document.getElementById('custom-modal-confirm');
-    confirmBtn.onclick = function() {
+    confirmBtn.onclick = function () {
         closeModal();
         confirmCallback();
     };
     modal.style.display = 'flex';
 };
 
-window.showPromptModal = function(title, message, placeholder, confirmCallback, isPassword = false) {
+window.showPromptModal = function (title, message, placeholder, confirmCallback, isPassword = false) {
     const modal = document.getElementById('custom-modal');
     const box = document.getElementById('custom-modal-box');
     const titleEl = document.getElementById('custom-modal-title');
     const inputEl = document.getElementById('custom-modal-input');
-    
+
     titleEl.innerText = title;
     document.getElementById('custom-modal-message').innerText = message;
-    
+
     inputEl.style.display = 'block';
     inputEl.type = isPassword ? 'password' : 'text';
     inputEl.placeholder = placeholder;
     inputEl.value = '';
-    
+
     box.style.borderColor = 'var(--text-main)';
     titleEl.style.color = 'var(--text-main)';
 
     const confirmBtn = document.getElementById('custom-modal-confirm');
-    confirmBtn.onclick = function() {
+    confirmBtn.onclick = function () {
         const val = inputEl.value;
-        if(val) {
+        if (val) {
             closeModal();
             confirmCallback(val);
         }
@@ -93,7 +94,7 @@ window.showPromptModal = function(title, message, placeholder, confirmCallback, 
     inputEl.focus();
 };
 
-window.closeModal = function() {
+window.closeModal = function () {
     document.getElementById('custom-modal').style.display = 'none';
 };
 
@@ -102,14 +103,14 @@ window.closeModal = function() {
 // ==========================================
 let currentSelectedCI = 'gitlab';
 
-window.selectCI = function(ciName, element) {
+window.selectCI = function (ciName, element) {
     document.querySelectorAll('.ci-card').forEach(card => card.classList.remove('active'));
     element.classList.add('active');
     currentSelectedCI = ciName;
 
     const dynamicField = document.getElementById('dynamic-ci-field');
     const specificInput = document.getElementById('ci-specific');
-    
+
     if (ciName === 'gitlab') {
         dynamicField.querySelector('label').innerText = 'GitLab Repository Path';
         specificInput.placeholder = 'group/project';
@@ -123,7 +124,7 @@ window.selectCI = function(ciName, element) {
 
     const baseUrl = window.location.origin;
     document.getElementById('ci-webhook-url').value = `${baseUrl}/api/webhooks/${ciName}`;
-    
+
     if (!editingProjectId) {
         const apiKeyInput = document.getElementById('ci-api-key');
         if (apiKeyInput) {
@@ -134,13 +135,13 @@ window.selectCI = function(ciName, element) {
     }
 }
 
-window.loadGatewaysData = function() {
+window.loadGatewaysData = function () {
     window.fetchWithAuth(`/api/my-projects?_ts=${Date.now()}`)
         .then(res => res.json())
         .then(projects => {
             allProjects = projects || [];
             const tbody = document.getElementById('projects-table-body');
-            if(!allProjects || allProjects.length === 0) {
+            if (!allProjects || allProjects.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:20px; opacity:0.5;">No pipelines provisioned yet.</td></tr>';
                 return;
             }
@@ -162,31 +163,31 @@ window.loadGatewaysData = function() {
         .then(teams => {
             const select = document.getElementById('ci-team-id');
             select.innerHTML = '<option value="" disabled selected>Select a Team</option>';
-            if(teams) teams.forEach(t => select.innerHTML += `<option value="${t.id}">${t.name}</option>`);
+            if (teams) teams.forEach(t => select.innerHTML += `<option value="${t.id}">${t.name}</option>`);
         });
 }
 
-window.editProject = function(projectId) {
+window.editProject = function (projectId) {
     const p = allProjects.find(item => item.id === projectId);
     if (!p) return;
 
     editingProjectId = projectId;
     document.getElementById('ci-project-name').value = p.name || "";
     document.getElementById('ci-team-id').value = p.team_id || "";
-    document.getElementById('ci-specific').value = p.repo_path || ""; 
-    
+    document.getElementById('ci-specific').value = p.repo_path || "";
+
     const routing = p.routing || {};
     document.getElementById('ci-slack-channel').value = p.slack_channel || routing.slack_channel || "";
     document.getElementById('ci-jira-key').value = p.jira_project_key || routing.jira_project_key || "";
     document.getElementById('ci-teams-webhook').value = p.teams_webhook || routing.teams_webhook || "";
-    
+
     const ciCard = document.querySelector(`.ci-card[onclick*="'${p.ci_system}'"]`);
     if (ciCard) window.selectCI(p.ci_system, ciCard);
 
     const apiKeyInput = document.getElementById('ci-api-key');
     if (apiKeyInput) {
         apiKeyInput.value = p.api_key || "";
-        apiKeyInput.type = 'password'; 
+        apiKeyInput.type = 'password';
     }
 
     const btn = document.querySelector("button[onclick='saveCIConfig()']");
@@ -200,8 +201,8 @@ window.editProject = function(projectId) {
     notify("Editing project: " + p.name, "success");
 }
 
-window.deleteProject = function(projectId) {
-    showConfirmModal("Delete Pipeline Endpoint?", "Are you sure? This will permanently delete this pipeline endpoint and all its routing configurations.", "danger", function() {
+window.deleteProject = function (projectId) {
+    showConfirmModal("Delete Pipeline Endpoint?", "Are you sure? This will permanently delete this pipeline endpoint and all its routing configurations.", "danger", function () {
         window.fetchWithAuth(`/api/config/projects?id=${projectId}`, { method: 'DELETE' })
             .then(res => {
                 if (res.ok) { notify("Pipeline deleted successfully.", "success"); window.loadGatewaysData(); window.loadDashboardFilters(); }
@@ -210,24 +211,24 @@ window.deleteProject = function(projectId) {
     });
 }
 
-window.saveCIConfig = function() {
+window.saveCIConfig = function () {
     const projectName = document.getElementById('ci-project-name').value;
-    const teamId = document.getElementById('ci-team-id').value; 
+    const teamId = document.getElementById('ci-team-id').value;
 
-    if (!projectName) return notify("Error: Project Name is required.", "error"); 
+    if (!projectName) return notify("Error: Project Name is required.", "error");
     if (!teamId) return notify("Error: You must assign this pipeline to a Team.", "error");
 
     const payload = {
         id: editingProjectId || projectName.toLowerCase().replace(/\s+/g, '-'),
         name: projectName,
-        team_id: parseInt(teamId), 
+        team_id: parseInt(teamId),
         ci_system: currentSelectedCI,
         repo_path: document.getElementById('ci-specific').value,
         api_key: document.getElementById('ci-api-key').value,
         routing: {
             slack_channel: document.getElementById('ci-slack-channel').value,
             jira_project_key: document.getElementById('ci-jira-key').value,
-            teams_webhook: document.getElementById('ci-teams-webhook').value 
+            teams_webhook: document.getElementById('ci-teams-webhook').value
         }
     };
 
@@ -237,21 +238,21 @@ window.saveCIConfig = function() {
         .then(res => {
             if (res.ok) {
                 notify(editingProjectId ? "Project updated!" : "Endpoint Provisioned!", "success");
-                
+
                 editingProjectId = null;
                 document.getElementById('ci-project-name').value = "";
                 document.getElementById('ci-specific').value = "";
                 document.getElementById('ci-slack-channel').value = "";
                 document.getElementById('ci-jira-key').value = "";
                 document.getElementById('ci-teams-webhook').value = "";
-                
+
                 const apiKeyInput = document.getElementById('ci-api-key');
                 if (apiKeyInput) {
                     apiKeyInput.type = 'text';
                     const randomHex = Math.random().toString(16).substring(2, 10);
                     apiKeyInput.value = `sre_pk_${currentSelectedCI}_${randomHex}`;
                 }
-                
+
                 const btn = document.querySelector("button[onclick='saveCIConfig()']");
                 if (btn) {
                     btn.innerText = "Provision Project Endpoint";
@@ -259,7 +260,7 @@ window.saveCIConfig = function() {
                     btn.style.color = "";
                 }
 
-                window.loadGatewaysData(); 
+                window.loadGatewaysData();
                 window.loadDashboardFilters();
             } else {
                 notify("Operation failed", "error");
@@ -267,10 +268,10 @@ window.saveCIConfig = function() {
         }).catch(() => notify("Network error", "error"));
 }
 
-window.revealApiKey = function() {
+window.revealApiKey = function () {
     const apiKeyInput = document.getElementById('ci-api-key');
     if (!apiKeyInput) return;
-    
+
     if (apiKeyInput.type === 'text') {
         apiKeyInput.type = 'password';
         return;
@@ -280,20 +281,20 @@ window.revealApiKey = function() {
     if (!token) return;
     const currentUser = parseJwt(token).username;
 
-    showPromptModal("Security Verification", "Please enter your password to reveal this secret API Key.", "Password...", function(password) {
-        fetch('/api/login', { 
-            method: 'POST', 
-            headers: { 'Content-Type': 'application/json' }, 
-            body: JSON.stringify({ username: currentUser, password: password }) 
+    showPromptModal("Security Verification", "Please enter your password to reveal this secret API Key.", "Password...", function (password) {
+        fetch('/api/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: currentUser, password: password })
         })
-        .then(res => {
-            if (res.ok) {
-                apiKeyInput.type = 'text';
-                notify("Secret revealed. It will be masked on reload.", "success");
-            } else {
-                notify("Access Denied: Incorrect password", "error");
-            }
-        }).catch(() => notify("Network error", "error"));
+            .then(res => {
+                if (res.ok) {
+                    apiKeyInput.type = 'text';
+                    notify("Secret revealed. It will be masked on reload.", "success");
+                } else {
+                    notify("Access Denied: Incorrect password", "error");
+                }
+            }).catch(() => notify("Network error", "error"));
     }, true);
 };
 
@@ -329,20 +330,18 @@ window.checkAuth = function () {
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('force-password-screen').style.display = 'none';
     document.getElementById('app-container').style.display = 'flex';
-    
+
     window.applyPermissions();
     window.connectWebSocket();
-    
+
     if (payload.role === 'admin') {
-        window.loadUsers(); 
+        window.loadUsers();
     }
 
     if (document.getElementById('view-dashboard').classList.contains('active')) {
-        window.loadDashboardFilters(); 
-        window.pausePollingUntil = 0; 
-        
-        // FIX : Forcer le premier rendu pour ne pas rester bloqué sur "Loading..."
-        window.fetchIncidents(true); 
+        window.loadDashboardFilters();
+        window.pausePollingUntil = 0;
+        window.fetchIncidents(true);
     }
     if (document.getElementById('view-organizations').classList.contains('active')) window.loadOrganizations();
     if (document.getElementById('view-management').classList.contains('active')) {
@@ -354,7 +353,7 @@ window.checkAuth = function () {
     }
     if (document.getElementById('view-plugins').classList.contains('active')) window.loadPlugins();
     if (document.getElementById('view-ingestion').classList.contains('active')) {
-        if (payload.role === 'admin') window.loadGatewaysData(); 
+        if (payload.role === 'admin') window.loadGatewaysData();
     }
 }
 
@@ -388,13 +387,13 @@ window.switchView = function (id, el) {
 
     if (id === 'dashboard') { window.loadDashboardFilters(); window.pausePollingUntil = 0; window.fetchIncidents(true); }
     if (id === 'organizations') window.loadOrganizations();
-    if (id === 'management' && payload.role === 'admin') window.renderUserTable(allUsers); 
+    if (id === 'management' && payload.role === 'admin') window.renderUserTable(allUsers);
     if (id === 'plugins') window.loadPlugins();
-    if (id === 'settings') { 
+    if (id === 'settings') {
         window.loadConfig();
         window.loadFinOps();
     }
-    if (id === 'ingestion' && payload.role === 'admin') window.loadGatewaysData(); 
+    if (id === 'ingestion' && payload.role === 'admin') window.loadGatewaysData();
 }
 
 window.applyPermissions = function () {
@@ -407,7 +406,7 @@ window.applyPermissions = function () {
 // ==========================================
 let analyticsChart = null;
 
-window.toggleAnalytics = function() {
+window.toggleAnalytics = function () {
     const view = document.getElementById('analytics-view');
     if (view.style.display === 'none') {
         view.style.display = 'block';
@@ -417,51 +416,153 @@ window.toggleAnalytics = function() {
     }
 };
 
-window.loadAnalytics = function() {
+window.loadAnalytics = function () {
     window.fetchWithAuth(`/api/metrics?_ts=${Date.now()}`)
-    .then(res => res.json())
-    .then(data => {
-        document.getElementById('mttr-value').innerText = data.mttr_minutes + " min";
+        .then(res => res.json())
+        .then(data => {
+            document.getElementById('mttr-value').innerText = data.mttr_minutes + " min";
 
-        if (analyticsChart) {
-            analyticsChart.destroy();
-        }
-
-        const ctx = document.getElementById('flakyChart').getContext('2d');
-        analyticsChart = new Chart(ctx, {
-            type: 'doughnut',
-            data: {
-                labels: ['Stable Failures (Real Bugs)', 'Flaky Tests (Unstable)'],
-                datasets: [{
-                    data: [data.stable_failures, data.flaky_tests],
-                    backgroundColor: ['#ff7b72', '#d29922'],
-                    borderColor: '#0d1117',
-                    borderWidth: 2
-                }]
-            },
-            options: {
-                responsive: true,
-                plugins: {
-                    legend: { position: 'bottom', labels: { color: '#c9d1d9' } },
-                    title: { display: true, text: 'Failure Quality Assessment', color: '#c9d1d9' }
-                }
+            if (analyticsChart) {
+                analyticsChart.destroy();
             }
-        });
-    })
-    .catch(err => console.error("Error loading analytics:", err));
+
+            const ctx = document.getElementById('flakyChart').getContext('2d');
+            analyticsChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Stable Failures (Real Bugs)', 'Flaky Tests (Unstable)'],
+                    datasets: [{
+                        data: [data.stable_failures, data.flaky_tests],
+                        backgroundColor: ['#ff7b72', '#d29922'],
+                        borderColor: '#0d1117',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { position: 'bottom', labels: { color: '#c9d1d9' } },
+                        title: { display: true, text: 'Failure Quality Assessment', color: '#c9d1d9' }
+                    }
+                }
+            });
+        })
+        .catch(err => console.error("Error loading analytics:", err));
 };
+
+// ==========================================
+// WEEKLY REPORT GENERATOR (CSV & PDF)
+// ==========================================
+window.downloadWeeklyReportCSV = function () {
+    const filterEl = document.getElementById('project-filter');
+    const projectFilter = filterEl ? filterEl.value : 'all';
+
+    window.fetchWithAuth(`/api/reports/weekly?project=${encodeURIComponent(projectFilter)}&_ts=${Date.now()}`)
+        .then(res => res.json())
+        .then(data => {
+            if (!data || data.length === 0) {
+                return notify("Aucun incident enregistré ces 7 derniers jours.", "warning");
+            }
+
+            let csvContent = "Pipeline Name,Total Alerts,Resolved Alerts,Flaky Tests,Health Score (%)\n";
+
+            data.forEach(row => {
+                csvContent += `${row.pipeline},${row.total_alerts},${row.resolved_alerts},${row.flaky_tests},${row.health_score}%\n`;
+            });
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            const dateStr = new Date().toISOString().split('T')[0];
+            let suffix = projectFilter === 'all' ? 'Global' : projectFilter;
+            a.download = `QA_Capsule_Weekly_Report_${suffix}_${dateStr}.csv`;
+
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            notify("Rapport CSV généré avec succès !", "success");
+        })
+        .catch(() => notify("Erreur lors de la génération du rapport CSV", "error"));
+};
+
+window.downloadWeeklyReportPDF = function () {
+    const filterEl = document.getElementById('project-filter');
+    const projectFilter = filterEl ? filterEl.value : 'all';
+
+    window.fetchWithAuth(`/api/reports/weekly?project=${encodeURIComponent(projectFilter)}&_ts=${Date.now()}`)
+        .then(res => res.json())
+        .then(data => {
+            if (!data || data.length === 0) {
+                return notify("Aucun incident enregistré ces 7 derniers jours.", "warning");
+            }
+
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+
+            // Header Design
+            doc.setFillColor(13, 17, 23);
+            doc.rect(0, 0, 210, 40, 'F');
+
+            doc.setTextColor(88, 166, 255);
+            doc.setFontSize(22);
+            doc.text("QA Flight Recorder", 14, 20);
+
+            doc.setTextColor(201, 209, 217);
+            doc.setFontSize(12);
+            let titleScope = projectFilter === 'all' ? 'Global Organization' : `Project: ${projectFilter}`;
+            doc.text(`Weekly SRE Metrics & Pipeline Health (${titleScope})`, 14, 28);
+
+            doc.setFontSize(10);
+            doc.setTextColor(139, 148, 158);
+            doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 34);
+
+            const tableColumn = ["Pipeline Name", "Total Alerts", "Resolved", "Flaky Tests", "Health Score"];
+            const tableRows = [];
+
+            data.forEach(row => {
+                tableRows.push([
+                    row.pipeline,
+                    row.total_alerts,
+                    row.resolved_alerts,
+                    row.flaky_tests,
+                    row.health_score + "%"
+                ]);
+            });
+
+            doc.autoTable({
+                head: [tableColumn],
+                body: tableRows,
+                startY: 45,
+                theme: 'grid',
+                headStyles: { fillColor: [22, 27, 34], textColor: [201, 209, 217], lineColor: [48, 54, 61], lineWidth: 0.1 },
+                bodyStyles: { fillColor: [13, 17, 23], textColor: [201, 209, 217], lineColor: [48, 54, 61], lineWidth: 0.1 },
+                alternateRowStyles: { fillColor: [22, 27, 34] },
+                styles: { font: 'helvetica', fontSize: 10, cellPadding: 5 }
+            });
+
+            const dateStr = new Date().toISOString().split('T')[0];
+            let suffix = projectFilter === 'all' ? 'Global' : projectFilter;
+            doc.save(`QA_Capsule_Weekly_Report_${suffix}_${dateStr}.pdf`);
+            notify("Rapport PDF généré avec succès !", "success");
+        })
+        .catch(() => notify("Erreur lors de la génération du rapport PDF", "error"));
+};
+
 
 // ==========================================
 // BULK ACTIONS & SELECTIONS LOGIC
 // ==========================================
-window.toggleIncidentSelection = function(id, checked) {
-    window.pausePollingUntil = Date.now() + 10000; 
+window.toggleIncidentSelection = function (id, checked) {
+    window.pausePollingUntil = Date.now() + 10000;
     if (checked) window.selectedIncidents.add(id);
     else window.selectedIncidents.delete(id);
     updateBulkActionUI();
 };
 
-window.toggleGroupSelection = function(groupId, checked) {
+window.toggleGroupSelection = function (groupId, checked) {
     window.pausePollingUntil = Date.now() + 10000;
     const group = window.groupedIncidents[groupId];
     if (!group) return;
@@ -474,7 +575,7 @@ window.toggleGroupSelection = function(groupId, checked) {
     updateBulkActionUI();
 };
 
-window.toggleSelectAll = function(checked) {
+window.toggleSelectAll = function (checked) {
     window.pausePollingUntil = Date.now() + 10000;
     const incidentsToToggle = window.currentIncidents || [];
     incidentsToToggle.forEach(inc => {
@@ -487,11 +588,11 @@ window.toggleSelectAll = function(checked) {
     updateBulkActionUI();
 };
 
-window.updateBulkActionUI = function() {
+window.updateBulkActionUI = function () {
     const count = window.selectedIncidents.size;
     const banner = document.getElementById('bulk-action-banner');
     const label = document.getElementById('bulk-count-label');
-    
+
     if (count === 0) {
         if (banner) banner.style.display = 'none';
     } else {
@@ -502,19 +603,18 @@ window.updateBulkActionUI = function() {
     }
 };
 
-// FIX : Await ajouté pour séquencer les requêtes et éviter le blocage SQLite ("Database is locked")
-window.resolveSelected = async function() {
+window.resolveSelected = async function () {
     if (window.selectedIncidents.size === 0) {
         return notify("Vous devez sélectionner au moins une alerte à résoudre.", "error");
     }
     const userRole = parseJwt(localStorage.getItem('sre-jwt')).role;
     if (userRole === 'viewer') return notify("Viewers cannot resolve incidents.", "error");
 
-    window.pausePollingUntil = Date.now() + 15000; 
+    window.pausePollingUntil = Date.now() + 10000;
     const idsToResolve = Array.from(window.selectedIncidents);
     const currentUser = parseJwt(localStorage.getItem('sre-jwt')).username || 'You';
-    
-    // Optimistic UI
+
+    // Optimistic UI (Immédiat)
     idsToResolve.forEach(id => {
         const inc = window.currentIncidents.find(i => i.id === id);
         if (inc) {
@@ -524,68 +624,65 @@ window.resolveSelected = async function() {
     });
 
     window.selectedIncidents.clear();
-    window.renderIncidentsList(); 
-    window.fetchMetricsOnly(); 
+    window.renderIncidentsList();
+    window.fetchMetricsOnly();
     notify("Résolution en cours...", "success");
 
-    // Traitement API (Avec Await pour SQLite)
-    for (const id of idsToResolve) {
-        try {
-            await window.fetchWithAuth('/api/incidents', { method: 'PUT', body: JSON.stringify({ id: id }) });
-        } catch (e) {
-            console.error("Resolve error");
-        }
+    // BULK API CALL: Une seule requête magique au lieu de 50 !
+    try {
+        await window.fetchWithAuth('/api/incidents', {
+            method: 'PUT',
+            body: JSON.stringify({ ids: idsToResolve })
+        });
+    } catch (e) {
+        console.error("Resolve error");
     }
-    
-    window.pausePollingUntil = 0; 
+
+    window.pausePollingUntil = 0;
     window.fetchIncidents(true);
 };
 
-window.deleteSelected = async function() {
+window.deleteSelected = async function () {
     if (window.selectedIncidents.size === 0) {
         return notify("Vous devez sélectionner au moins une alerte à supprimer.", "error");
     }
     const userRole = parseJwt(localStorage.getItem('sre-jwt')).role;
     if (userRole !== 'admin') return notify("Only administrators can delete records.", "error");
 
-    showConfirmModal("Delete Selected?", `Are you sure you want to permanently erase ${window.selectedIncidents.size} logs?`, "danger", async function() {
-        window.pausePollingUntil = Date.now() + 15000;
+    showConfirmModal("Delete Selected?", `Are you sure you want to permanently erase ${window.selectedIncidents.size} logs?`, "danger", async function () {
+        window.pausePollingUntil = Date.now() + 10000;
         const idsToDelete = Array.from(window.selectedIncidents);
-        
-        // Optimistic Delete
+
         window.currentIncidents = window.currentIncidents.filter(inc => !idsToDelete.includes(inc.id));
         window.selectedIncidents.clear();
         window.renderIncidentsList();
         window.fetchMetricsOnly();
         notify("Suppression en cours...", "success");
 
-        // Traitement API (Avec Await pour SQLite)
-        for (const id of idsToDelete) {
-            try {
-                await window.fetchWithAuth(`/api/incidents?id=${id}`, { method: 'DELETE' });
-            } catch (e) {
-                console.error("Delete error");
-            }
+        // BULK API CALL
+        try {
+            await window.fetchWithAuth(`/api/incidents?ids=${idsToDelete.join(',')}`, { method: 'DELETE' });
+        } catch (e) {
+            console.error("Delete error");
         }
-        
+
         window.pausePollingUntil = 0;
         window.fetchIncidents(true);
     });
 };
-
 // ==========================================
-// GROUP ACTIONS (Depuis le Dropdown)
+// GROUP ACTIONS
 // ==========================================
-window.resolveGroup = async function(groupId, event) {
+window.resolveGroup = async function (groupId, event) {
     if (event) { event.preventDefault(); event.stopPropagation(); }
     const dropdown = document.getElementById(`action-dropdown-${groupId}`);
     if (dropdown) dropdown.style.display = 'none';
 
     const group = window.groupedIncidents[groupId];
-    if(!group) return;
+    if (!group) return;
 
-    window.pausePollingUntil = Date.now() + 15000;
-    
+    window.pausePollingUntil = Date.now() + 10000;
+
     const currentUser = parseJwt(localStorage.getItem('sre-jwt')).username || 'You';
     const unresolvedIds = [];
 
@@ -597,47 +694,51 @@ window.resolveGroup = async function(groupId, event) {
         }
     });
 
-    if (unresolvedIds.length === 0) return;
+    if (unresolvedIds.length === 0) {
+        window.pausePollingUntil = 0;
+        return;
+    }
 
     window.renderIncidentsList();
     window.fetchMetricsOnly();
-    notify("Résolution de l'exécution en cours...", "success");
+    notify("Pipeline entier marqué comme résolu.", "success");
 
-    for (const id of unresolvedIds) {
-        try {
-            await window.fetchWithAuth('/api/incidents', { method: 'PUT', body: JSON.stringify({ id: id }) });
-        } catch(e) {}
-    }
-    
+    // BULK API CALL
+    try {
+        await window.fetchWithAuth('/api/incidents', {
+            method: 'PUT',
+            body: JSON.stringify({ ids: unresolvedIds })
+        });
+    } catch (e) { }
+
     window.pausePollingUntil = 0;
     window.fetchIncidents(true);
 }
 
-window.deleteGroup = async function(groupId, event) {
+window.deleteGroup = async function (groupId, event) {
     if (event) { event.preventDefault(); event.stopPropagation(); }
     const dropdown = document.getElementById(`action-dropdown-${groupId}`);
     if (dropdown) dropdown.style.display = 'none';
 
     const group = window.groupedIncidents[groupId];
-    if(!group) return;
+    if (!group) return;
 
-    showConfirmModal("Delete Pipeline Execution?", `Are you sure you want to permanently delete all logs for this execution?`, "danger", async function() {
-        window.pausePollingUntil = Date.now() + 15000;
-        
+    showConfirmModal("Delete Pipeline Execution?", `Are you sure you want to permanently delete all logs for this execution?`, "danger", async function () {
+        window.pausePollingUntil = Date.now() + 10000;
+
         const groupIds = group.incidents.map(i => i.id);
         window.currentIncidents = window.currentIncidents.filter(inc => !groupIds.includes(inc.id));
         group.incidents.forEach(i => window.selectedIncidents.delete(i.id));
-        
+
         window.renderIncidentsList();
         window.fetchMetricsOnly();
         notify("Suppression du pipeline en cours...", "success");
 
-        for (const inc of group.incidents) {
-            try {
-                await window.fetchWithAuth(`/api/incidents?id=${inc.id}`, { method: 'DELETE' });
-            } catch(e) {}
-        }
-        
+        // BULK API CALL
+        try {
+            await window.fetchWithAuth(`/api/incidents?ids=${groupIds.join(',')}`, { method: 'DELETE' });
+        } catch (e) { }
+
         window.pausePollingUntil = 0;
         window.fetchIncidents(true);
     });
@@ -646,32 +747,31 @@ window.deleteGroup = async function(groupId, event) {
 // ==========================================
 // ACTION DROPDOWN & LOG EXPORT
 // ==========================================
-window.toggleActionDropdown = function(id, event) {
+window.toggleActionDropdown = function (id, event) {
     if (event) {
         event.preventDefault();
-        event.stopPropagation(); // Empêche le clic de se propager et de fermer le menu direct
+        event.stopPropagation();
     }
-    
+
     const dropdown = document.getElementById(`action-dropdown-${id}`);
     if (dropdown) {
         const isCurrentlyHidden = dropdown.style.display === 'none';
-        
-        // Cache les autres
+
         document.querySelectorAll('[id^="action-dropdown-"]').forEach(el => {
             el.style.display = 'none';
         });
 
         if (isCurrentlyHidden) {
             dropdown.style.display = 'block';
-            window.pausePollingUntil = Date.now() + 15000; 
+            window.pausePollingUntil = Date.now() + 15000;
         } else {
             dropdown.style.display = 'none';
-            window.pausePollingUntil = 0; 
+            window.pausePollingUntil = 0;
         }
     }
 }
 
-document.addEventListener('click', function(event) {
+document.addEventListener('click', function (event) {
     if (!event.target.closest('.action-dropdown-container')) {
         document.querySelectorAll('[id^="action-dropdown-"]').forEach(el => {
             el.style.display = 'none';
@@ -679,13 +779,13 @@ document.addEventListener('click', function(event) {
     }
 });
 
-window.downloadGroupLog = function(groupId, type, event) {
+window.downloadGroupLog = function (groupId, type, event) {
     if (event) { event.preventDefault(); event.stopPropagation(); }
     document.getElementById(`action-dropdown-${groupId}`).style.display = 'none';
-    window.pausePollingUntil = 0; 
+    window.pausePollingUntil = 0;
 
     const group = window.groupedIncidents[groupId];
-    if(!group) return notify("Could not retrieve group data.", "error");
+    if (!group) return notify("Could not retrieve group data.", "error");
 
     let fileContent = "";
     let fileName = "";
@@ -710,19 +810,19 @@ window.downloadGroupLog = function(groupId, type, event) {
         fileName = `execution_${groupId}_results.xml`;
         blobType = "application/xml";
         fileContent = `<?xml version="1.0" encoding="UTF-8"?>\n<testsuites>\n  <testsuite name="QA_Capsule_Reconstructed_Suite" tests="${group.incidents.length}" failures="${group.incidents.length}">\n`;
-        
+
         group.incidents.forEach(inc => {
             const safeName = (inc.name || "").replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
             const safeErr = (inc.error_message || "").replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
             const safeLogs = (inc.error_logs || "").replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
             const safeOut = (inc.console_logs || "").replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-            
+
             fileContent += `    <testcase name="${safeName}">\n`;
             fileContent += `      <failure message="${safeErr}">${safeLogs}</failure>\n`;
-            if(safeOut) fileContent += `      <system-out>${safeOut}</system-out>\n`;
+            if (safeOut) fileContent += `      <system-out>${safeOut}</system-out>\n`;
             fileContent += `    </testcase>\n`;
         });
-        
+
         fileContent += `  </testsuite>\n</testsuites>`;
     }
 
@@ -737,12 +837,12 @@ window.downloadGroupLog = function(groupId, type, event) {
     URL.revokeObjectURL(url);
 }
 
-window.toggleSubAlerts = function(groupId, event) {
+window.toggleSubAlerts = function (groupId, event) {
     if (event) { event.preventDefault(); event.stopPropagation(); }
     window.pausePollingUntil = Date.now() + 15000;
     const container = document.getElementById(`sub-alerts-${groupId}`);
     const icon = document.getElementById(`toggle-icon-${groupId}`);
-    if(container.style.display === 'none') {
+    if (container.style.display === 'none') {
         container.style.display = 'block';
         icon.style.transform = 'rotate(180deg)';
     } else {
@@ -755,65 +855,64 @@ window.toggleSubAlerts = function(groupId, event) {
 // ==========================================
 // DASHBOARD RENDER LOGIC 
 // ==========================================
-window.loadDashboardFilters = function() {
+window.loadDashboardFilters = function () {
     window.fetchWithAuth(`/api/my-projects?_ts=${Date.now()}`)
         .then(res => res.json())
         .then(projects => {
             const filter = document.getElementById('project-filter');
             const currentVal = filter.value;
             filter.innerHTML = '<option value="all">All My Projects</option>';
-            if(projects) {
+            if (projects) {
                 projects.forEach(p => filter.innerHTML += `<option value="${p.name}">${p.name}</option>`);
             }
-            if(currentVal) filter.value = currentVal; 
+            if (currentVal) filter.value = currentVal;
         }).catch(e => console.log("Error loading filter"));
 }
 
-window.fetchMetricsOnly = function() {
+window.fetchMetricsOnly = function () {
     window.fetchWithAuth(`/api/metrics?_ts=${Date.now()}`)
-    .then(r => r.json())
-    .then(metrics => {
-        if (metrics) {
-            const active = metrics.total_incidents - metrics.resolved_incidents;
-            document.getElementById('kpi-active').innerText = active;
-            document.getElementById('kpi-active').style.color = active > 0 ? '#ff7b72' : '#3fb950';
-            
-            document.getElementById('kpi-resolved').innerText = metrics.resolved_incidents;
-            
-            const health = metrics.total_incidents > 0 ? Math.round((metrics.resolved_incidents / metrics.total_incidents) * 100) : 100;
-            document.getElementById('kpi-health').innerText = `${health}%`;
-            document.getElementById('kpi-health').style.color = health < 80 ? '#d29922' : '#58a6ff';
+        .then(r => r.json())
+        .then(metrics => {
+            if (metrics) {
+                const active = metrics.total_incidents - metrics.resolved_incidents;
+                document.getElementById('kpi-active').innerText = active;
+                document.getElementById('kpi-active').style.color = active > 0 ? '#ff7b72' : '#3fb950';
 
-            if (metrics.sre_impact && document.getElementById('kpi-cost')) {
-                document.getElementById('kpi-cost').textContent = metrics.sre_impact.estimated_cost_usd.toLocaleString();
+                document.getElementById('kpi-resolved').innerText = metrics.resolved_incidents;
+
+                const health = metrics.total_incidents > 0 ? Math.round((metrics.resolved_incidents / metrics.total_incidents) * 100) : 100;
+                document.getElementById('kpi-health').innerText = `${health}%`;
+                document.getElementById('kpi-health').style.color = health < 80 ? '#d29922' : '#58a6ff';
+
+                if (metrics.sre_impact && document.getElementById('kpi-cost')) {
+                    document.getElementById('kpi-cost').textContent = metrics.sre_impact.estimated_cost_usd.toLocaleString();
+                }
             }
-        }
-    }).catch(e => console.error(e));
+        }).catch(e => console.error(e));
 }
 
-// FIX : forceRender bypass les optimisations et oblige le dessin de l'interface (résout le "Loading...")
-window.fetchIncidents = function(forceRender = false) {
+window.fetchIncidents = function (forceRender = false) {
     if (!forceRender && Date.now() < window.pausePollingUntil) return;
 
     const filterEl = document.getElementById('project-filter');
     const projectFilter = filterEl ? filterEl.value : 'all';
     const url = `/api/incidents?project=${encodeURIComponent(projectFilter)}&_ts=${Date.now()}`;
-    
+
     window.fetchWithAuth(url)
         .then(res => res.json())
         .then(data => {
             if (!forceRender && Date.now() < window.pausePollingUntil) return;
             if (!data) data = [];
-            
+
             const safeData = [...data].sort((a, b) => a.id - b.id);
             const currentData = window.currentIncidents || [];
             const safeCurrent = [...currentData].sort((a, b) => a.id - b.id);
 
             const oldSig = safeCurrent.map(i => `${i.id}:${i.is_resolved}`).join('|');
             const newSig = safeData.map(i => `${i.id}:${i.is_resolved}`).join('|');
-            
+
             if (forceRender || oldSig !== newSig) {
-                window.currentIncidents = safeData; 
+                window.currentIncidents = safeData;
                 window.renderIncidentsList();
             }
             window.fetchMetricsOnly();
@@ -826,19 +925,19 @@ window.fetchIncidents = function(forceRender = false) {
         });
 };
 
-window.renderIncidentsList = function() {
+window.renderIncidentsList = function () {
     const listEl = document.getElementById('incident-list');
     const searchQuery = document.getElementById('incident-search') ? document.getElementById('incident-search').value.toLowerCase() : '';
-    
+
     const openGroups = new Set();
     document.querySelectorAll('[id^="sub-alerts-"]').forEach(el => {
         if (el.style.display === 'block') openGroups.add(el.id.replace('sub-alerts-', ''));
     });
 
     let filteredData = window.currentIncidents || [];
-    if(searchQuery) {
-        filteredData = filteredData.filter(inc => 
-            (inc.name && inc.name.toLowerCase().includes(searchQuery)) || 
+    if (searchQuery) {
+        filteredData = filteredData.filter(inc =>
+            (inc.name && inc.name.toLowerCase().includes(searchQuery)) ||
             (inc.project_name && inc.project_name.toLowerCase().includes(searchQuery)) ||
             (inc.error_message && inc.error_message.toLowerCase().includes(searchQuery))
         );
@@ -869,13 +968,13 @@ window.renderIncidentsList = function() {
     sortedData.forEach(inc => {
         const safeDateStr = inc.created_at ? inc.created_at.replace(' ', 'T') + 'Z' : '';
         const incTime = new Date(safeDateStr).getTime() || 0;
-        
+
         if (!currentGroup) {
             currentGroup = {
                 id: inc.id,
                 project_name: inc.project_name,
                 created_at: inc.created_at,
-                is_resolved: true, 
+                is_resolved: true,
                 incidents: [],
                 lastTime: incTime,
                 lastId: inc.id
@@ -884,7 +983,7 @@ window.renderIncidentsList = function() {
         } else {
             const timeDiffSec = Math.abs(incTime - currentGroup.lastTime) / 1000;
             const idDiff = Math.abs(inc.id - currentGroup.lastId);
-            
+
             if (inc.project_name === currentGroup.project_name && timeDiffSec <= 120 && idDiff <= 100) {
                 currentGroup.lastTime = incTime;
                 currentGroup.lastId = inc.id;
@@ -901,12 +1000,12 @@ window.renderIncidentsList = function() {
                 groupsArray.push(currentGroup);
             }
         }
-        
+
         currentGroup.incidents.push(inc);
         if (!inc.is_resolved) currentGroup.is_resolved = false;
     });
 
-    groupsArray.reverse(); 
+    groupsArray.reverse();
     window.groupedIncidents = {};
     groupsArray.forEach(g => { window.groupedIncidents[g.id] = g; });
 
@@ -921,10 +1020,10 @@ window.renderIncidentsList = function() {
     const iconCode = `<svg style="width:12px;height:12px;margin-right:6px;vertical-align:middle;stroke:currentColor;fill:none;" viewBox="0 0 24 24" stroke-width="2"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>`;
     const iconChevron = `<svg style="width:14px;height:14px;stroke:currentColor;fill:none;transition: transform 0.2s;" viewBox="0 0 24 24" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>`;
     const iconTrash = `<svg style="width:12px;height:12px;margin-right:4px;vertical-align:middle;stroke:currentColor;fill:none;" viewBox="0 0 24 24" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`;
-    const iconGear = `<svg style="width:12px;height:12px;margin-right:4px;vertical-align:middle;stroke:currentColor;fill:none;" viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0 2.83l.06.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>`;
+    const iconGear = `<svg style="width:12px;height:12px;margin-right:4px;vertical-align:middle;stroke:currentColor;fill:none;" viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>`;
 
     const globalAllSelected = window.currentIncidents.length > 0 && window.currentIncidents.every(inc => window.selectedIncidents.has(inc.id));
-    
+
     let htmlContent = `
     <div id="bulk-action-banner" style="display: ${window.selectedIncidents.size > 0 ? 'flex' : 'none'}; margin-bottom: 20px; justify-content: space-between; align-items: center; background: #161b22; padding: 12px 20px; border: 1px solid #58a6ff; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); position: sticky; top: 10px; z-index: 100;">
         <div style="display:flex; align-items:center; gap: 10px;">
@@ -940,8 +1039,8 @@ window.renderIncidentsList = function() {
 
     htmlContent += groupsArray.map(group => {
         let severityColor = group.is_resolved ? '#3fb950' : '#ff7b72';
-        
-        let resolvedBadge = group.is_resolved 
+
+        let resolvedBadge = group.is_resolved
             ? `<span style="display:inline-flex; align-items:center; background: rgba(63, 185, 80, 0.1); color: #3fb950; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: bold;">${iconCheck} EXECUTION RESOLVED</span>`
             : `<span style="display:inline-flex; align-items:center; background: rgba(255, 123, 114, 0.1); color: #ff7b72; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: bold;">${iconAlert} PIPELINE FAILED</span>`;
 
@@ -950,12 +1049,12 @@ window.renderIncidentsList = function() {
             const flakyBadge = isFlaky ? `<span style="color: #d29922; margin-right: 8px;">${iconWarning} FLAKY</span>` : ``;
             const cleanName = inc.name.replace("[FLAKY] ", "");
             const displayLog = inc.error_logs || inc.error_message || "No logs available.";
-            
+
             const textDecoration = inc.is_resolved ? 'text-decoration: line-through;' : '';
             const textColor = inc.is_resolved ? '#3fb950' : 'var(--text-main)';
             const isChecked = window.selectedIncidents.has(inc.id) ? 'checked' : '';
 
-            const subAlertFlag = inc.is_resolved 
+            const subAlertFlag = inc.is_resolved
                 ? `<span style="display:inline-flex; align-items:center; background: rgba(63, 185, 80, 0.1); color: #3fb950; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: bold; margin-left: 10px;">${iconCheck} RESOLVED BY ${inc.resolved_by || 'SYSTEM'}</span>`
                 : `<span style="display:inline-flex; align-items:center; background: rgba(255, 123, 114, 0.1); color: #ff7b72; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: bold; margin-left: 10px;">${iconAlert} ACTIVE TEST</span>`;
 
@@ -1016,10 +1115,10 @@ window.renderIncidentsList = function() {
 
         </div>`;
     }).join('');
-    
+
     listEl.innerHTML = htmlContent;
     window.updateBulkActionUI();
-    
+
     openGroups.forEach(groupId => {
         const el = document.getElementById(`sub-alerts-${groupId}`);
         const icon = document.getElementById(`toggle-icon-${groupId}`);
@@ -1049,7 +1148,7 @@ window.connectWebSocket = function () {
 // ==========================================
 let currentSelectedOrgId = null;
 
-window.loadOrganizations = function() {
+window.loadOrganizations = function () {
     window.fetchWithAuth(`/api/teams?_ts=${Date.now()}`)
         .then(res => res.json())
         .then(data => {
@@ -1058,7 +1157,7 @@ window.loadOrganizations = function() {
                 treeContainer.innerHTML = "<p>No organizations found.</p>";
                 return;
             }
-            
+
             const treeMap = {};
             const roots = [];
             data.forEach(node => { treeMap[node.id] = { ...node, children: [] }; });
@@ -1071,7 +1170,7 @@ window.loadOrganizations = function() {
             });
 
             treeContainer.innerHTML = roots.map(root => renderTreeNode(root)).join('');
-            if(roots.length > 0) window.selectOrg(roots[0].id, roots[0].name);
+            if (roots.length > 0) window.selectOrg(roots[0].id, roots[0].name);
         })
         .catch(err => notify("Failed to load directory", "error"));
 };
@@ -1079,7 +1178,7 @@ window.loadOrganizations = function() {
 function renderTreeNode(node) {
     const hasChildren = node.children && node.children.length > 0;
     const toggleIcon = hasChildren ? `<span class="tree-toggle" onclick="toggleTree(event, 'tree-children-${node.id}')">▼</span>` : `<span style="width:20px; display:inline-block;"></span>`;
-    
+
     let html = `
     <div class="tree-node" id="node-container-${node.id}" style="${!node.parent_id ? 'margin-left: 0; border-left: none; padding-left: 0;' : ''}">
         <div style="display:flex; align-items:center;">
@@ -1089,7 +1188,7 @@ function renderTreeNode(node) {
                 ${node.name}
             </div>
         </div>`;
-    
+
     if (hasChildren) {
         html += `<div id="tree-children-${node.id}" style="display:block;">` + node.children.map(child => renderTreeNode(child)).join('') + `</div>`;
     }
@@ -1097,11 +1196,11 @@ function renderTreeNode(node) {
     return html;
 }
 
-window.toggleTree = function(e, id) {
+window.toggleTree = function (e, id) {
     e.stopPropagation();
     const el = document.getElementById(id);
     const icon = e.target;
-    if(el.style.display === 'none') {
+    if (el.style.display === 'none') {
         el.style.display = 'block';
         icon.innerText = '▼';
     } else {
@@ -1110,29 +1209,29 @@ window.toggleTree = function(e, id) {
     }
 }
 
-window.selectOrg = function(id, name) {
+window.selectOrg = function (id, name) {
     currentSelectedOrgId = id;
     document.querySelectorAll('.tree-item').forEach(el => el.classList.remove('active'));
     const selectedEl = document.getElementById(`org-node-${id}`);
-    if(selectedEl) selectedEl.classList.add('active');
+    if (selectedEl) selectedEl.classList.add('active');
 
     document.getElementById('org-management-panel').style.display = 'block';
     document.getElementById('org-selected-name').innerText = name;
     document.getElementById('org-selected-id').innerText = `Internal DB ID: ${id}`;
-    
+
     window.loadOrgMembers(id);
 };
 
-window.promptRenameGroup = function() {
+window.promptRenameGroup = function () {
     if (!currentSelectedOrgId) return;
     const currentName = document.getElementById('org-selected-name').innerText;
-    
-    showPromptModal("Rename Group", `Enter a new name for '${currentName}':`, currentName, function(newName) {
-        if (newName === currentName || !newName) return; 
-        
-        window.fetchWithAuth('/api/teams', { 
-            method: 'PUT', 
-            body: JSON.stringify({ id: currentSelectedOrgId, name: newName }) 
+
+    showPromptModal("Rename Group", `Enter a new name for '${currentName}':`, currentName, function (newName) {
+        if (newName === currentName || !newName) return;
+
+        window.fetchWithAuth('/api/teams', {
+            method: 'PUT',
+            body: JSON.stringify({ id: currentSelectedOrgId, name: newName })
         }).then(res => {
             if (res.ok) { notify("Group renamed successfully!", "success"); window.loadOrganizations(); }
             else notify("Failed to rename group. Name might exist.", "error");
@@ -1140,7 +1239,7 @@ window.promptRenameGroup = function() {
     });
 };
 
-window.loadOrgMembers = function(orgId) {
+window.loadOrgMembers = function (orgId) {
     window.fetchWithAuth(`/api/teams/members?team_id=${orgId}&_ts=${Date.now()}`)
         .then(res => res.json())
         .then(members => {
@@ -1164,19 +1263,19 @@ window.loadOrgMembers = function(orgId) {
         });
 };
 
-window.removeUserFromOrg = function(username, teamId) {
-    showConfirmModal("Remove User?", `Are you sure you want to remove '${username}' from this group?`, "warning", function() {
-        window.fetchWithAuth(`/api/teams/members?username=${username}&team_id=${teamId}`, {method: 'DELETE'})
-        .then(res => {
-            if(res.ok) { notify("User removed successfully", "success"); window.loadOrgMembers(teamId); }
-            else notify("Failed to remove user", "error");
-        });
+window.removeUserFromOrg = function (username, teamId) {
+    showConfirmModal("Remove User?", `Are you sure you want to remove '${username}' from this group?`, "warning", function () {
+        window.fetchWithAuth(`/api/teams/members?username=${username}&team_id=${teamId}`, { method: 'DELETE' })
+            .then(res => {
+                if (res.ok) { notify("User removed successfully", "success"); window.loadOrgMembers(teamId); }
+                else notify("Failed to remove user", "error");
+            });
     });
 }
 
-window.promptCreateSubGroup = function() {
+window.promptCreateSubGroup = function () {
     if (!currentSelectedOrgId) return notify("Please select a parent group first.", "error");
-    showPromptModal("Create Sub-Group", "Enter the name of the new sub-group:", "e.g. Backend Squad", function(name) {
+    showPromptModal("Create Sub-Group", "Enter the name of the new sub-group:", "e.g. Backend Squad", function (name) {
         window.fetchWithAuth('/api/teams', { method: 'POST', body: JSON.stringify({ name: name, parent_id: currentSelectedOrgId }) })
             .then(res => {
                 if (res.ok) { notify("Sub-group created!", "success"); window.loadOrganizations(); }
@@ -1185,26 +1284,26 @@ window.promptCreateSubGroup = function() {
     });
 };
 
-window.promptDeleteGroup = function() {
+window.promptDeleteGroup = function () {
     if (!currentSelectedOrgId) return;
-    showConfirmModal("Delete Branch?", "WARNING: Deleting this group will ALSO DELETE ALL of its Sub-Groups. Are you absolutely sure?", "danger", function() {
+    showConfirmModal("Delete Branch?", "WARNING: Deleting this group will ALSO DELETE ALL of its Sub-Groups. Are you absolutely sure?", "danger", function () {
         window.fetchWithAuth(`/api/teams?id=${currentSelectedOrgId}`, { method: 'DELETE' })
             .then(res => {
-                if (res.ok) { notify("Branch deleted successfully.", "success"); document.getElementById('org-management-panel').style.display='none'; window.loadOrganizations(); }
+                if (res.ok) { notify("Branch deleted successfully.", "success"); document.getElementById('org-management-panel').style.display = 'none'; window.loadOrganizations(); }
                 else notify("Cannot delete Root Organization or error occurred.", "error");
             });
     });
 };
 
-window.handleUserSearch = function() {
+window.handleUserSearch = function () {
     const val = document.getElementById('org-add-user-email').value.toLowerCase();
     const list = document.getElementById('user-autocomplete-list');
     list.innerHTML = '';
-    if(!val) { list.style.display = 'none'; return; }
-    
+    if (!val) { list.style.display = 'none'; return; }
+
     const matches = allUsers.filter(u => u.username.toLowerCase().includes(val) || (u.fullname && u.fullname.toLowerCase().includes(val)));
-    if(matches.length === 0) { list.style.display = 'none'; return; }
-    
+    if (matches.length === 0) { list.style.display = 'none'; return; }
+
     matches.forEach(m => {
         const div = document.createElement('div');
         div.innerHTML = `<strong>${m.fullname}</strong> <span style="opacity:0.6">(${m.username})</span>`;
@@ -1217,7 +1316,7 @@ window.handleUserSearch = function() {
     list.style.display = 'block';
 };
 
-window.assignUserToGroup = function() {
+window.assignUserToGroup = function () {
     if (!currentSelectedOrgId) return;
     const username = document.getElementById('org-add-user-email').value;
     const role = document.getElementById('org-add-user-role').value;
@@ -1238,32 +1337,32 @@ window.assignUserToGroup = function() {
 let currentlyManagedUser = null;
 let allTeamsFlatList = [];
 
-window.openUserTeamsModal = function(username) {
+window.openUserTeamsModal = function (username) {
     currentlyManagedUser = username;
     document.getElementById('manage-teams-username').innerText = username;
     document.getElementById('user-add-team-input').value = '';
     document.getElementById('user-teams-modal').style.display = 'flex';
-    
+
     window.fetchWithAuth(`/api/teams?_ts=${Date.now()}`).then(res => res.json()).then(data => { allTeamsFlatList = data || []; });
     window.refreshUserTeamsModal();
 }
 
-window.closeUserTeamsModal = function() {
+window.closeUserTeamsModal = function () {
     document.getElementById('user-teams-modal').style.display = 'none';
 }
 
-window.refreshUserTeamsModal = function() {
+window.refreshUserTeamsModal = function () {
     window.fetchWithAuth(`/api/users/teams?username=${currentlyManagedUser}&_ts=${Date.now()}`)
-    .then(res => res.json())
-    .then(teams => {
-        const tbody = document.getElementById('user-teams-list');
-        if(!teams || teams.length === 0) {
-            tbody.innerHTML = '<tr><td style="text-align:center; padding:20px; opacity:0.5; color:#8b949e;">User is not assigned to any groups.</td></tr>';
-            return;
-        }
-        tbody.innerHTML = teams.map(t => {
-            let roleColor = t.role === 'team_admin' ? '#d33833' : (t.role === 'team_operator' ? '#d29922' : '#58a6ff');
-            return `
+        .then(res => res.json())
+        .then(teams => {
+            const tbody = document.getElementById('user-teams-list');
+            if (!teams || teams.length === 0) {
+                tbody.innerHTML = '<tr><td style="text-align:center; padding:20px; opacity:0.5; color:#8b949e;">User is not assigned to any groups.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = teams.map(t => {
+                let roleColor = t.role === 'team_admin' ? '#d33833' : (t.role === 'team_operator' ? '#d29922' : '#58a6ff');
+                return `
             <tr style="border-bottom:1px solid #30363d;">
                 <td style="padding:10px 15px; font-size:14px; font-weight:bold; color:#c9d1d9;">${t.name}</td>
                 <td style="padding:10px 15px;"><span style="border: 1px solid ${roleColor}; color: ${roleColor}; padding: 2px 6px; border-radius: 12px; font-size: 9px; font-weight: bold; text-transform:uppercase;">${t.role.replace('team_', '')}</span></td>
@@ -1271,28 +1370,28 @@ window.refreshUserTeamsModal = function() {
                     <button class="btn-secondary" style="font-size:10px; padding:4px 8px; color:#ff7b72; border-color:#ff7b72;" onclick="window.removeUserFromTeamModal(${t.id})">REMOVE</button>
                 </td>
             </tr>`;
-        }).join('');
-    });
+            }).join('');
+        });
 }
 
-window.removeUserFromTeamModal = function(teamId) {
-    window.fetchWithAuth(`/api/teams/members?username=${currentlyManagedUser}&team_id=${teamId}`, {method: 'DELETE'})
-    .then(res => {
-        if(res.ok) { notify("Removed from group", "success"); window.refreshUserTeamsModal(); }
-        else notify("Failed to remove", "error");
-    });
+window.removeUserFromTeamModal = function (teamId) {
+    window.fetchWithAuth(`/api/teams/members?username=${currentlyManagedUser}&team_id=${teamId}`, { method: 'DELETE' })
+        .then(res => {
+            if (res.ok) { notify("Removed from group", "success"); window.refreshUserTeamsModal(); }
+            else notify("Failed to remove", "error");
+        });
 }
 
-window.handleTeamSearch = function() {
+window.handleTeamSearch = function () {
     const val = document.getElementById('user-add-team-input').value.toLowerCase();
     const list = document.getElementById('team-autocomplete-list');
     list.innerHTML = '';
-    
-    if(!val) { list.style.display = 'none'; return; }
-    
+
+    if (!val) { list.style.display = 'none'; return; }
+
     const matches = allTeamsFlatList.filter(t => t.name.toLowerCase().includes(val));
-    if(matches.length === 0) { list.style.display = 'none'; return; }
-    
+    if (matches.length === 0) { list.style.display = 'none'; return; }
+
     matches.forEach(m => {
         const div = document.createElement('div');
         div.innerHTML = `<span style="color:#58a6ff; margin-right:5px;">#${m.id}</span> <strong>${m.name}</strong>`;
@@ -1306,12 +1405,12 @@ window.handleTeamSearch = function() {
     list.style.display = 'block';
 }
 
-window.assignUserToTeamFromModal = function(teamId) {
+window.assignUserToTeamFromModal = function (teamId) {
     window.fetchWithAuth('/api/teams/members', { method: 'POST', body: JSON.stringify({ username: currentlyManagedUser, team_id: teamId }) })
-    .then(res => {
-        if (res.ok) { notify("Added to group!", "success"); window.refreshUserTeamsModal(); }
-        else notify("Failed to assign group", "error");
-    });
+        .then(res => {
+            if (res.ok) { notify("Added to group!", "success"); window.refreshUserTeamsModal(); }
+            else notify("Failed to assign group", "error");
+        });
 }
 
 // ==========================================
@@ -1378,13 +1477,13 @@ window.createUser = function () {
 window.toggleUserStatus = function (username, current) {
     window.fetchWithAuth('/api/users/status', { method: 'POST', body: JSON.stringify({ username, is_active: !current }) })
         .then(res => {
-            if (res.ok) { notify("Status updated", "success"); window.loadUsers(); } 
+            if (res.ok) { notify("Status updated", "success"); window.loadUsers(); }
             else notify("Update failed", "error");
         });
 }
 
 window.adminResetPassword = function (username) {
-    showConfirmModal("Reset Password?", `Are you sure you want to force a password reset for '${username}'?`, "warning", function() {
+    showConfirmModal("Reset Password?", `Are you sure you want to force a password reset for '${username}'?`, "warning", function () {
         window.fetchWithAuth('/api/users/reset-password', { method: 'POST', body: JSON.stringify({ username }) })
             .then(res => {
                 if (res.ok) notify("New password emailed", "success");
@@ -1394,9 +1493,9 @@ window.adminResetPassword = function (username) {
 }
 
 window.deleteUser = function (username) {
-    showConfirmModal("Delete Identity?", `Are you absolutely sure you want to completely remove the user '${username}'? This action cannot be undone.`, "danger", function() {
+    showConfirmModal("Delete Identity?", `Are you absolutely sure you want to completely remove the user '${username}'? This action cannot be undone.`, "danger", function () {
         window.fetchWithAuth(`/api/users/delete?username=${username}`, { method: 'DELETE' }).then(res => {
-            if (res.ok) { notify("Identity deleted", "success"); window.loadUsers(); } 
+            if (res.ok) { notify("Identity deleted", "success"); window.loadUsers(); }
             else notify("Deletion failed", "error");
         });
     });
@@ -1405,7 +1504,7 @@ window.deleteUser = function (username) {
 // ==========================================
 // PLUGINS & CONFIG 
 // ==========================================
-window.loadPlugins = function() {
+window.loadPlugins = function () {
     window.fetchWithAuth(`/api/plugins?_ts=${Date.now()}`).then(res => res.json()).then(data => {
         if (!data || data.length === 0) { document.getElementById('plugin-list').innerHTML = "<div style='text-align:center; padding:40px; opacity:0.5;'>No modules detected in the plugins directory.</div>"; return; }
         const configIcon = `<svg style="width:14px;height:14px;margin-right:5px;vertical-align:middle;stroke:currentColor;fill:none;" viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1 0-2.83 2 2 0 0 1 0-2.83l.06.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>`;
@@ -1476,11 +1575,11 @@ window.savePluginConfig = function (path, idx, keysStr) {
         .then(res => { if (res.ok) notify("Configuration saved", "success"); else notify("Failed to save", "error"); })
 }
 
-window.runPlugin = function(path, idx) {
+window.runPlugin = function (path, idx) {
     const btn = document.getElementById(`btn-run-${idx}`);
     const logsContainer = document.getElementById(`logs-container-${idx}`);
     const logsEl = document.getElementById(`logs-${idx}`);
-    
+
     btn.innerHTML = `Running...`;
     btn.disabled = true; btn.style.opacity = '0.7';
     logsContainer.style.display = 'block'; logsEl.style.color = '#8b949e'; logsEl.innerHTML = 'Init...';
@@ -1488,7 +1587,7 @@ window.runPlugin = function(path, idx) {
     window.fetchWithAuth('/api/plugins/run', { method: 'POST', body: JSON.stringify({ file_path: path }) }).then(async (res) => {
         const data = await res.json();
         btn.innerHTML = `Execute`; btn.disabled = false; btn.style.opacity = '1';
-        if(res.ok) { notify("Success", "success"); logsEl.style.color = '#00ff00'; } 
+        if (res.ok) { notify("Success", "success"); logsEl.style.color = '#00ff00'; }
         else { notify("Error", "error"); logsEl.style.color = '#ff7b72'; }
         logsEl.innerText = data.logs || "No output.";
     });
@@ -1517,20 +1616,20 @@ window.saveSMTPConfig = function () {
 // ==========================================
 // FINOPS CONTROLLER
 // ==========================================
-window.loadFinOps = async function() {
+window.loadFinOps = async function () {
     try {
         const res = await window.fetchWithAuth(`/api/finops?_ts=${Date.now()}`);
         if (res.ok) {
             const data = await res.json();
             const devRateInput = document.getElementById('finops-dev-rate');
             if (devRateInput) devRateInput.value = data.dev_hourly_rate;
-            
+
             const ciCostInput = document.getElementById('finops-ci-cost');
             if (ciCostInput) ciCostInput.value = data.ci_minute_cost;
-            
+
             const durationInput = document.getElementById('finops-duration');
             if (durationInput) durationInput.value = data.avg_pipeline_duration;
-            
+
             const invTimeInput = document.getElementById('finops-investigation');
             if (invTimeInput) invTimeInput.value = data.avg_investigation_time;
         }
@@ -1539,7 +1638,7 @@ window.loadFinOps = async function() {
     }
 }
 
-window.saveFinOps = async function() {
+window.saveFinOps = async function () {
     const payload = {
         dev_hourly_rate: parseFloat(document.getElementById('finops-dev-rate').value) || 50,
         ci_minute_cost: parseFloat(document.getElementById('finops-ci-cost').value) || 0.008,
@@ -1556,7 +1655,7 @@ window.saveFinOps = async function() {
         if (res.ok) {
             notify('FinOps settings updated. Dashboard metrics will recalculate.', 'success');
             if (document.getElementById('view-dashboard').classList.contains('active')) {
-                window.fetchIncidents(true); 
+                window.fetchIncidents(true);
             }
         } else {
             notify('Failed to update FinOps settings', 'error');
@@ -1569,15 +1668,15 @@ window.saveFinOps = async function() {
 // ==========================================
 // ENTERPRISE LICENSE & SSO CONTROLLER
 // ==========================================
-window.checkSSOStatus = function() {
+window.checkSSOStatus = function () {
     fetch('/api/sso/status')
         .then(res => res.json())
         .then(data => {
             const ssoContainer = document.getElementById('sso-container');
             const ssoLocked = document.getElementById('sso-locked');
-            
+
             if (ssoContainer && ssoLocked) {
-                if(data.enterprise_active) {
+                if (data.enterprise_active) {
                     ssoContainer.style.display = 'block';
                     ssoLocked.style.display = 'none';
                 } else {
@@ -1588,7 +1687,7 @@ window.checkSSOStatus = function() {
         }).catch(err => console.log("Enterprise check failed"));
 };
 
-window.triggerSSO = function() {
+window.triggerSSO = function () {
     fetch('/api/sso/login')
         .then(res => {
             if (res.status === 402) {
@@ -1598,7 +1697,7 @@ window.triggerSSO = function() {
             return res.json();
         })
         .then(data => {
-            if(data && data.sso_url) {
+            if (data && data.sso_url) {
                 notify(data.message, "success");
                 setTimeout(() => { alert("Redirecting to: " + data.sso_url); }, 1500);
             }
@@ -1608,7 +1707,7 @@ window.triggerSSO = function() {
 // ==========================================
 // INITIALIZATION
 // ==========================================
-window.onload = function() {
+window.onload = function () {
     window.checkAuth();
-    window.checkSSOStatus(); 
+    window.checkSSOStatus();
 };

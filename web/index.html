@@ -7,9 +7,7 @@
     <link rel="stylesheet" href="/style.css">
     <style>
         /* Form Inputs */
-        input,
-        select,
-        textarea {
+        input, select, textarea {
             background-color: #161b22 !important;
             color: #c9d1d9 !important;
             border: 1px solid #30363d !important;
@@ -22,187 +20,62 @@
             transition: border-color 0.2s ease, box-shadow 0.2s ease;
         }
 
-        input:focus,
-        select:focus,
-        textarea:focus {
+        input:focus, select:focus, textarea:focus {
             outline: none !important;
             border-color: #58a6ff !important;
             box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.3) !important;
         }
 
-        input::placeholder,
-        textarea::placeholder {
-            color: #8b949e !important;
-        }
+        input::placeholder, textarea::placeholder { color: #8b949e !important; }
 
         /* CI/CD Cards */
-        .ci-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 15px;
-        }
-
+        .ci-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
         .ci-card {
-            background-color: #ffffff;
-            border: 1px solid #d0d7de;
-            color: #24292f;
-            border-radius: 8px;
-            padding: 15px;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-            font-weight: bold;
+            background-color: #ffffff; border: 1px solid #d0d7de; color: #24292f;
+            border-radius: 8px; padding: 15px; text-align: center; cursor: pointer;
+            transition: all 0.2s ease; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; gap: 10px; font-weight: bold;
         }
+        .ci-card:hover { border-color: #0969da; background-color: #f6f8fa; }
+        .ci-card.active { border-color: #0969da; background-color: rgba(9, 105, 218, 0.1); color: #0969da; box-shadow: 0 0 10px rgba(9, 105, 218, 0.1); }
+        .ci-icon { width: 32px; height: 32px; }
 
-        .ci-card:hover {
-            border-color: #0969da;
-            background-color: #f6f8fa;
-        }
-
-        .ci-card.active {
-            border-color: #0969da;
-            background-color: rgba(9, 105, 218, 0.1);
-            color: #0969da;
-            box-shadow: 0 0 10px rgba(9, 105, 218, 0.1);
-        }
-
-        .ci-icon {
-            width: 32px;
-            height: 32px;
-        }
-
-        body[data-theme="dark"] .ci-card {
-            background-color: #161b22;
-            border-color: #30363d;
-            color: #8b949e;
-        }
-
-        body[data-theme="dark"] .ci-card:hover {
-            border-color: #8b949e;
-            background-color: #21262d;
-        }
-
-        body[data-theme="dark"] .ci-card.active {
-            border-color: #58a6ff;
-            background-color: rgba(88, 166, 255, 0.1);
-            color: #c9d1d9;
-            box-shadow: 0 0 10px rgba(88, 166, 255, 0.2);
-        }
+        body[data-theme="dark"] .ci-card { background-color: #161b22; border-color: #30363d; color: #8b949e; }
+        body[data-theme="dark"] .ci-card:hover { border-color: #8b949e; background-color: #21262d; }
+        body[data-theme="dark"] .ci-card.active { border-color: #58a6ff; background-color: rgba(88, 166, 255, 0.1); color: #c9d1d9; box-shadow: 0 0 10px rgba(88, 166, 255, 0.2); }
 
         /* Tree View Styles */
-        .tree-node {
-            margin-left: 15px;
-            border-left: 1px dashed #30363d;
-            padding-left: 5px;
-            margin-top: 5px;
-        }
-
-        .tree-item {
-            cursor: pointer;
-            padding: 6px;
-            border-radius: 4px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 14px;
-            transition: 0.2s;
-            flex-grow: 1;
-        }
-
-        .tree-item:hover {
-            background-color: #21262d;
-            color: #58a6ff;
-        }
-
-        .tree-item.active {
-            background-color: rgba(88, 166, 255, 0.1);
-            color: #58a6ff;
-            font-weight: bold;
-            border-left: 3px solid #58a6ff;
-        }
-
-        .tree-toggle {
-            cursor: pointer;
-            width: 20px;
-            text-align: center;
-            color: #8b949e;
-            user-select: none;
-            font-size: 12px;
-            display: inline-block;
-            transition: transform 0.2s;
-        }
-
-        .tree-toggle:hover {
-            color: #58a6ff;
-        }
+        .tree-node { margin-left: 15px; border-left: 1px dashed #30363d; padding-left: 5px; margin-top: 5px; }
+        .tree-item { cursor: pointer; padding: 6px; border-radius: 4px; display: flex; align-items: center; gap: 8px; font-size: 14px; transition: 0.2s; flex-grow: 1; }
+        .tree-item:hover { background-color: #21262d; color: #58a6ff; }
+        .tree-item.active { background-color: rgba(88, 166, 255, 0.1); color: #58a6ff; font-weight: bold; border-left: 3px solid #58a6ff; }
+        .tree-toggle { cursor: pointer; width: 20px; text-align: center; color: #8b949e; user-select: none; font-size: 12px; display: inline-block; transition: transform 0.2s; }
+        .tree-toggle:hover { color: #58a6ff; }
 
         /* Autocomplete List */
         .autocomplete-items {
-            position: absolute;
-            border: 1px solid #d0d7de;
-            border-radius: 6px;
-            background-color: #ffffff;
-            z-index: 99;
-            top: 100%;
-            left: 0;
-            right: 0;
-            max-height: 200px;
-            overflow-y: auto;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            position: absolute; border: 1px solid #d0d7de; border-radius: 6px; background-color: #ffffff;
+            z-index: 99; top: 100%; left: 0; right: 0; max-height: 200px; overflow-y: auto; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
         }
+        .autocomplete-items div { padding: 10px; cursor: pointer; border-bottom: 1px solid #d0d7de; font-size: 13px; color: #24292f; }
+        .autocomplete-items div:hover { background-color: #f6f8fa; }
 
-        .autocomplete-items div {
-            padding: 10px;
-            cursor: pointer;
-            border-bottom: 1px solid #d0d7de;
-            font-size: 13px;
-            color: #24292f;
-        }
+        body[data-theme="dark"] .autocomplete-items { background-color: #161b22; border-color: #30363d; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5); }
+        body[data-theme="dark"] .autocomplete-items div { border-color: #30363d; color: #c9d1d9; }
+        body[data-theme="dark"] .autocomplete-items div:hover { background-color: #21262d; }
 
-        .autocomplete-items div:hover {
-            background-color: #f6f8fa;
-        }
-
-        body[data-theme="dark"] .autocomplete-items {
-            background-color: #161b22;
-            border-color: #30363d;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
-        }
-
-        body[data-theme="dark"] .autocomplete-items div {
-            border-color: #30363d;
-            color: #c9d1d9;
-        }
-
-        body[data-theme="dark"] .autocomplete-items div:hover {
-            background-color: #21262d;
-        }
-
-        /* NEW: Sidebar Logo Integration */
-        .sidebar-logo {
-            width: 36px;
-            height: auto;
-            border-radius: 6px;
-            object-fit: contain;
-        }
+        .sidebar-logo { width: 36px; height: auto; border-radius: 6px; object-fit: contain; }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
 </head>
 
 <body>
-    <div id="notification-container"
-        style="position: fixed; top: 20px; right: 20px; z-index: 100000; display: flex; flex-direction: column; gap: 10px;">
-    </div>
+    <div id="notification-container" style="position: fixed; top: 20px; right: 20px; z-index: 100000; display: flex; flex-direction: column; gap: 10px;"></div>
 
-    <div id="custom-modal"
-        style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.8); z-index:99999; align-items:center; justify-content:center; backdrop-filter: blur(5px);">
-        <div id="custom-modal-box"
-            style="background:var(--bg-surface); border:2px solid var(--border-main); padding:30px; width:400px; box-shadow: 10px 10px 0px rgba(0,0,0,0.5);">
+    <div id="custom-modal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.8); z-index:99999; align-items:center; justify-content:center; backdrop-filter: blur(5px);">
+        <div id="custom-modal-box" style="background:var(--bg-surface); border:2px solid var(--border-main); padding:30px; width:400px; box-shadow: 10px 10px 0px rgba(0,0,0,0.5);">
             <h3 id="custom-modal-title" style="margin-top:0; text-transform:uppercase; letter-spacing:1px;">Confirm Action</h3>
             <p id="custom-modal-message" style="color:var(--text-main); opacity:0.8; line-height:1.5; font-size:14px; margin-bottom:20px;"></p>
             <input type="text" id="custom-modal-input" class="login-input" style="display:none; margin-bottom:20px; background:#0d1117;" autocomplete="off">
@@ -251,8 +124,7 @@
     <div id="force-password-screen" class="login-container" style="display: none;">
         <div class="login-box" style="border-color: #d29922;">
             <h2 style="color: #d29922; margin-bottom: 10px;">SECURITY PROTOCOL</h2>
-            <p style="opacity: 0.8; font-size: 13px; margin-bottom: 25px; line-height: 1.5;">Your identity uses a
-                temporary passphrase. You must secure your account before accessing the Control Plane.</p>
+            <p style="opacity: 0.8; font-size: 13px; margin-bottom: 25px; line-height: 1.5;">Your identity uses a temporary passphrase. You must secure your account before accessing the Control Plane.</p>
             <input type="password" id="force-new-pass" class="login-input" placeholder="New Secure Passphrase">
             <input type="password" id="force-new-pass-confirm" class="login-input" placeholder="Confirm Passphrase">
             <button class="btn-primary" style="width: 100%; margin-top: 15px; border-color: #d29922; color: #d29922;" onclick="submitNewPassword()">SECURE IDENTITY</button>
@@ -265,28 +137,20 @@
                 <h2 style="color: #58a6ff; margin: 0; font-size: 1.2rem;">Group Memberships</h2>
                 <button class="btn-secondary" style="border:none; padding:5px; color:#8b949e; cursor:pointer;" onclick="closeUserTeamsModal()">✖</button>
             </div>
-
             <div style="background: #0d1117; padding: 12px; border-radius: 6px; border: 1px solid #30363d; margin-bottom: 20px; text-align: left;">
                 <span style="font-size: 12px; color: #8b949e; display: block;">MANAGING IDENTITY:</span>
                 <strong id="manage-teams-username" style="color: var(--text-main); font-size: 16px;"></strong>
             </div>
-
             <div style="position: relative; display: flex; gap: 10px; margin-bottom: 20px; text-align: left;">
                 <div style="flex-grow: 1; position: relative;">
-                    <input type="text" id="user-add-team-input" class="login-input" style="margin: 0;"
-                        placeholder="Search to add user to a new group..." oninput="handleTeamSearch()"
-                        autocomplete="off">
-                    <div id="team-autocomplete-list" class="autocomplete-items" style="display:none; text-align: left;">
-                    </div>
+                    <input type="text" id="user-add-team-input" class="login-input" style="margin: 0;" placeholder="Search to add user to a new group..." oninput="handleTeamSearch()" autocomplete="off">
+                    <div id="team-autocomplete-list" class="autocomplete-items" style="display:none; text-align: left;"></div>
                 </div>
             </div>
-
             <div style="max-height: 250px; overflow-y: auto; border: 1px solid #30363d; border-radius: 6px; background: #0d1117;">
                 <table style="width:100%; border-collapse:collapse; text-align: left;">
                     <tbody id="user-teams-list">
-                        <tr>
-                            <td style="text-align:center; padding:20px; opacity:0.5;">Loading...</td>
-                        </tr>
+                        <tr><td style="text-align:center; padding:20px; opacity:0.5;">Loading...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -300,7 +164,7 @@
                 <img src="assets/logo.png" alt="QA Capsule Logo" class="sidebar-logo" style="width: 75px">
                 <div>
                     QA Capsule<br>
-                    <span style="font-size: 10px; opacity: 0.5; font-weight: normal;">SRE MONITORING</span>
+                    <span style="font-size: 10px; opacity: 0.5; font-weight: normal;">SRE SYSTEMS MONITORING</span>
                 </div>
             </div>
 
@@ -343,7 +207,7 @@
             <div class="nav-item admin-only" onclick="switchView('settings', this)">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <circle cx="12" cy="12" r="3"></circle>
-                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1 0-2.83 2 2 0 0 1 0-2.83l.06.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
                 </svg> Settings
             </div>
 
@@ -391,6 +255,28 @@
                                 <line x1="6" y1="20" x2="6" y2="14"></line>
                             </svg> Analytics
                         </button>
+                        
+                        <div style="display: flex; gap: 5px;">
+                            <button class="btn-secondary" onclick="downloadWeeklyReportCSV()" style="border-color: #3fb950; color: #3fb950; display: flex; align-items: center; gap: 6px;" title="Download CSV Report">
+                                <svg style="width:14px;height:14px;stroke:currentColor;fill:none;" viewBox="0 0 24 24" stroke-width="2">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                    <polyline points="14 2 14 8 20 8"></polyline>
+                                    <line x1="8" y1="13" x2="16" y2="13"></line>
+                                    <line x1="8" y1="17" x2="16" y2="17"></line>
+                                    <polyline points="10 9 9 9 8 9"></polyline>
+                                </svg> CSV
+                            </button>
+                            <button class="btn-secondary" onclick="downloadWeeklyReportPDF()" style="border-color: #ff7b72; color: #ff7b72; display: flex; align-items: center; gap: 6px;" title="Download PDF Report">
+                                <svg style="width:14px;height:14px;stroke:currentColor;fill:none;" viewBox="0 0 24 24" stroke-width="2">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                    <polyline points="14 2 14 8 20 8"></polyline>
+                                    <path d="M9 15v-4"></path>
+                                    <path d="M12 15v-4"></path>
+                                    <path d="M15 15v-4"></path>
+                                </svg> PDF
+                            </button>
+                        </div>
+
                     </div>
                 </div>
                 
@@ -452,14 +338,12 @@
                         <p style="margin: 5px 0 0 0; opacity: 0.6; font-size: 14px;">Manage hierarchical teams and granular access control.</p>
                     </div>
                 </div>
-
                 <div style="display: grid; grid-template-columns: 350px 1fr; gap: 30px;">
                     <div class="data-card" style="height: 65vh; overflow-y: auto;">
                         <h3 style="margin-top: 0;">Directory Tree</h3>
                         <p style="font-size:0.7rem; opacity:0.6; margin-bottom:15px;">Select a group to manage its members and sub-groups.</p>
                         <div id="organization-tree">Loading directory...</div>
                     </div>
-
                     <div class="data-card" id="org-management-panel" style="display: none;">
                         <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid var(--border-main); padding-bottom: 15px; margin-bottom: 20px;">
                             <div>
@@ -472,7 +356,6 @@
                                 <button class="btn-secondary" style="border-color: #ff7b72; color: #ff7b72;" onclick="promptDeleteGroup()">Delete Branch</button>
                             </div>
                         </div>
-
                         <div class="admin-only" style="background: #0d1117; padding: 15px; border-radius: 6px; border: 1px dashed #30363d; margin-bottom: 25px;">
                             <h4 style="margin: 0 0 15px 0; font-size: 13px; color: #58a6ff; text-transform: uppercase;">Assign Identity to Group</h4>
                             <div style="display: flex; gap: 10px; position: relative;">
@@ -488,7 +371,6 @@
                                 <button class="btn-primary" onclick="assignUserToGroup()">Add Member</button>
                             </div>
                         </div>
-
                         <h4 style="margin: 0 0 10px 0; font-size: 14px; color: #8b949e; text-transform: uppercase;">Group Members</h4>
                         <table style="width:100%; border-collapse:collapse; text-align: left;">
                             <thead>
@@ -529,7 +411,6 @@
                         <button class="btn-primary" style="white-space: nowrap;" onclick="createUser()">Deploy Identity</button>
                     </div>
                 </div>
-
                 <div class="data-card" style="margin-top: 20px;">
                     <div style="display:flex; gap:10px; margin-bottom:15px;">
                         <input type="text" id="user-search" class="login-input" style="margin:0" placeholder="Search users..." onkeyup="filterUsers()">
@@ -565,7 +446,6 @@
                         <p style="margin: 5px 0 0 0; opacity: 0.6; font-size: 14px;">Provision dedicated Webhook endpoints to ingest telemetry from external pipelines.</p>
                     </div>
                 </div>
-
                 <div style="display: flex; gap: 30px;">
                     <div style="flex: 1; background: var(--bg-surface); padding: 25px; border: 1px solid var(--border-main); border-radius: 6px; position: sticky; top: 0;">
                         <h3 style="margin-top: 0; font-size: 14px; text-transform: uppercase; color: #8b949e; letter-spacing: 1px; margin-bottom: 20px;">Provision New Endpoint</h3>
@@ -599,7 +479,6 @@
                         <div id="ci-config-form" style="padding-top: 10px; border-top: 1px solid var(--border-main);">
                             <label style="font-size: 12px; font-weight: bold; margin-bottom: 8px; display: block; margin-top: 15px;">3. Pipeline Identifier</label>
                             <input type="text" id="ci-project-name" class="login-input" placeholder="e.g. payment-api-core" style="margin-bottom: 15px;">
-
                             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
                                 <div id="dynamic-ci-field" style="grid-column: span 2;">
                                     <label style="font-size: 12px; font-weight: bold; margin-bottom: 8px; display: block; color: #8b949e;">GitLab Repository Path</label>
@@ -638,7 +517,6 @@
                                     </button>
                                 </div>
                             </div>
-
                             <button class="btn-primary" style="width: 100%; margin-top: 20px; font-size: 14px; padding: 12px;" onclick="saveCIConfig()">Provision Project Endpoint</button>
                         </div>
                     </div>
@@ -731,5 +609,4 @@
 
     <script src="app.js"></script>
 </body>
-
 </html>

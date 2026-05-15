@@ -14,6 +14,15 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+func isEnterpriseActive() bool {
+	var key string
+	err := core.DB.QueryRow("SELECT license_key FROM enterprise_config WHERE id = 1").Scan(&key)
+	if err != nil || key == "" {
+		return false
+	}
+	return true
+}
+
 // registerAuthRoutes binds authentication and user management endpoints
 func registerAuthRoutes(config *core.Config) {
 
@@ -32,7 +41,11 @@ func registerAuthRoutes(config *core.Config) {
 				LicenseKey string `json:"license_key"`
 			}
 			json.NewDecoder(r.Body).Decode(&req)
-			core.DB.Exec("UPDATE enterprise_config SET license_key = ? WHERE id = 1", req.LicenseKey)
+			
+			// Crée la table si elle n'existe pas
+			core.DB.Exec("CREATE TABLE IF NOT EXISTS enterprise_config (id INTEGER PRIMARY KEY, license_key TEXT)")
+			core.DB.Exec("INSERT OR REPLACE INTO enterprise_config (id, license_key) VALUES (1, ?)", req.LicenseKey)
+			
 			w.WriteHeader(http.StatusOK)
 		}
 	}))
@@ -44,14 +57,23 @@ func registerAuthRoutes(config *core.Config) {
 	})
 
 	// Protected SSO Login Route
-	http.HandleFunc("/api/sso/login", enterpriseMiddleware(func(w http.ResponseWriter, r *http.Request) {
-		// Mock implementation for Identity Provider redirect
+	http.HandleFunc("/api/sso/login", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
+		
+		if !isEnterpriseActive() {
+			w.WriteHeader(http.StatusPaymentRequired) // Code HTTP 402
+			json.NewEncoder(w).Encode(map[string]string{
+				"message": "QA Capsule PRO License is missing or expired.",
+			})
+			return
+		}
+
+		// Mock implementation for Identity Provider redirect
 		json.NewEncoder(w).Encode(map[string]string{
 			"message": "Enterprise License Verified. Redirecting to Identity Provider...",
 			"sso_url": "https://accounts.google.com/o/oauth2/v2/auth?client_id=...",
 		})
-	}))
+	})
 
 	// Standard Login
 	http.HandleFunc("/api/login", func(w http.ResponseWriter, r *http.Request) {

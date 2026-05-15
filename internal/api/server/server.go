@@ -98,17 +98,6 @@ func jwtAuthMiddleware(config *core.Config, requireAdmin bool, next http.Handler
 	}
 }
 
-// isEnterpriseActive checks if a valid license key is present in the database
-func isEnterpriseActive() bool {
-	var key string
-	err := core.DB.QueryRow("SELECT license_key FROM enterprise_config WHERE id = 1").Scan(&key)
-	if err != nil || key == "" {
-		return false
-	}
-	// Basic validation rule: License must start with "QACAPSULE-PRO-"
-	return strings.HasPrefix(key, "QACAPSULE-PRO-")
-}
-
 // enterpriseMiddleware blocks access to premium features if no valid license is found
 func enterpriseMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
