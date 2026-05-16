@@ -656,8 +656,23 @@ window.resolveSelected = async function () {
     if (window.selectedIncidents.size === 0) return;
     
     const ids = Array.from(window.selectedIncidents);
-    window.selectedIncidents.clear(); // English Comment: Clear selection immediately for UX
+    // English Comment: Pause polling to block auto-refresh during action
+    window.pausePollingUntil = Date.now() + 15000; 
     
+    // English Comment: Implement Optimistic UI Update so user sees instant feedback
+    const currentUser = parseJwt(localStorage.getItem('sre-jwt')).username || 'You';
+    window.currentIncidents.forEach(inc => {
+        if (ids.includes(inc.id)) {
+            inc.is_resolved = true;
+            inc.status = 'resolved';
+            inc.resolved_by = currentUser;
+        }
+    });
+
+    window.selectedIncidents.clear();
+    // English Comment: Re-render DOM immediately before API completes
+    window.renderIncidentsList(); 
+
     try {
         const res = await window.fetchWithAuth('/api/incidents', {
             method: 'PUT',
@@ -666,12 +681,17 @@ window.resolveSelected = async function () {
 
         if (res.ok) {
             notify("Alerts resolved", "success");
-            // English Comment: FORCE a full reload to update filters and KPI counters
+            // English Comment: Force a full sync to update exact server states
             window.pausePollingUntil = 0;
             await window.fetchIncidents(true); 
+        } else {
+            throw new Error("Update failed on server side");
         }
     } catch (e) {
-        notify("API error", "error");
+        notify("API error while resolving incidents", "error");
+        // English Comment: Revert optimistic update by refetching data
+        window.pausePollingUntil = 0;
+        window.fetchIncidents(true);
     }
 };
 
@@ -720,9 +740,11 @@ window.resolveGroup = async function (groupId, event) {
     const currentUser = parseJwt(localStorage.getItem('sre-jwt')).username || 'You';
     const unresolvedIds = [];
 
+    // English Comment: Apply Optimistic UI update correctly across all child incidents
     group.incidents.forEach(inc => {
         if (!inc.is_resolved) {
             inc.is_resolved = true;
+            inc.status = 'resolved'; // English Comment: Ensure textual status property is also mapped
             inc.resolved_by = currentUser;
             unresolvedIds.push(inc.id);
         }
@@ -733,6 +755,7 @@ window.resolveGroup = async function (groupId, event) {
         return;
     }
 
+    // English Comment: Render the success state instantly
     window.renderIncidentsList();
     notify("Pipeline entier marqué comme résolu.", "success");
 
@@ -742,12 +765,19 @@ window.resolveGroup = async function (groupId, event) {
             method: 'PUT',
             body: JSON.stringify({ ids: unresolvedIds })
         });
+        
         if (res.ok) {
             window.pausePollingUntil = 0;
             await window.fetchIncidents(true);
             await window.fetchMetricsOnly();
+        } else {
+            throw new Error("Update failure");
         }
-    } catch (e) { }
+    } catch (e) { 
+        notify("Erreur lors de la résolution du pipeline", "error");
+        window.pausePollingUntil = 0;
+        window.fetchIncidents(true);
+    }
 }
 
 window.deleteGroup = async function (groupId, event) {

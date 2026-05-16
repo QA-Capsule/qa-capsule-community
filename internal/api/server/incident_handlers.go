@@ -81,7 +81,13 @@ func registerIncidentRoutes(config *core.Config) {
 				ID  int   `json:"id"`
 				IDs []int `json:"ids"`
 			}
-			json.NewDecoder(r.Body).Decode(&req)
+
+			// English Comment: Added error handling to catch JSON decode failures properly
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				http.Error(w, "Invalid JSON payload", http.StatusBadRequest)
+				return
+			}
+
 			idsToResolve := req.IDs
 			if req.ID != 0 {
 				idsToResolve = append(idsToResolve, req.ID)
@@ -95,9 +101,16 @@ func registerIncidentRoutes(config *core.Config) {
 					placeholders[i] = "?"
 					args[i+1] = id
 				}
+
 				// English Comment: Update both is_resolved flag and textual status
 				query := "UPDATE incidents SET is_resolved = 1, status = 'resolved', resolved_by = ?, resolved_at = CURRENT_TIMESTAMP WHERE id IN (" + strings.Join(placeholders, ",") + ")"
-				core.DB.Exec(query, args...)
+
+				// English Comment: Added proper SQL error capture to prevent silent failures
+				_, err := core.DB.Exec(query, args...)
+				if err != nil {
+					http.Error(w, "Database update failed", http.StatusInternalServerError)
+					return
+				}
 			}
 			w.WriteHeader(http.StatusOK)
 		}
