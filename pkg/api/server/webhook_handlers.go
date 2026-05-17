@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"strings"
 
-	"qacapsule/internal/core"
+	"github.com/QA-Capsule/qa-capsule-community/pkg/core"
 )
 
 // registerWebhookRoutes binds the endpoints responsible for CI/CD telemetry ingestion

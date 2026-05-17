@@ -1,8 +1,8 @@
 package main
 
 import (
-	"qacapsule/internal/api/server"
-	"qacapsule/internal/core"
+	"github.com/QA-Capsule/qa-capsule-community/pkg/api/server"
+	"github.com/QA-Capsule/qa-capsule-community/pkg/core"
 )
 
 func main() {

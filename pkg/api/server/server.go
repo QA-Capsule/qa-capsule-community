@@ -10,7 +10,7 @@ import (
 	"net/smtp"
 	"strings"
 
-	"qacapsule/internal/core"
+	"github.com/QA-Capsule/qa-capsule-community/pkg/core"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/websocket"

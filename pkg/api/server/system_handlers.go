@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"qacapsule/internal/core"
+	"github.com/QA-Capsule/qa-capsule-community/pkg/core"
 
 	"github.com/gorilla/websocket"
 	"gopkg.in/yaml.v3"
