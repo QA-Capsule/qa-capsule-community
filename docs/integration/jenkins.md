@@ -8,6 +8,10 @@ Jenkins remains the workhorse of enterprise CI/CD. By integrating Jenkins with Q
 
 This guide will walk you through provisioning the endpoint in QA Capsule and securely injecting the telemetry agent into your `Jenkinsfile`.
 
+!!! tip "Recommended: JUnit XML Upload"
+    Publish JUnit test results in Jenkins, then `curl` the XML file to `/api/webhooks/upload`.
+    See [JUnit XML Upload](junit-xml-upload.md).
+
 ---
 
 ## Prerequisites

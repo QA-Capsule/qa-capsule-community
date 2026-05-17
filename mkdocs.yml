@@ -1,9 +1,10 @@
 site_name: QA Flight Recorder (QA Capsule)
-site_description: The Ultimate SRE Control Plane for E2E Testing and CI/CD Telemetry
+site_description: Enterprise SRE Control Plane for CI/CD Telemetry, E2E Testing, and Incident Response
 site_author: QA Capsule Team
 site_url: https://qa-capsule.github.io/qa-capsule-community/
-repo_name: https://github.com/QA-Capsule/qa-capsule-community
+repo_name: QA-Capsule/qa-capsule-community
 repo_url: https://github.com/QA-Capsule/qa-capsule-community
+edit_uri: edit/main/docs/
 
 theme:
   name: material
@@ -11,21 +12,23 @@ theme:
     - navigation.tabs
     - navigation.sections
     - navigation.top
+    - navigation.expand
     - search.suggest
     - search.highlight
     - content.code.copy
+    - content.code.annotate
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default
-      primary: custom blue
-      accent: deep purple
+      primary: indigo
+      accent: indigo
       toggle:
         icon: material/brightness-7
         name: Switch to dark mode
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
-      primary: custom blue
-      accent: deep purple
+      primary: indigo
+      accent: indigo
       toggle:
         icon: material/brightness-4
         name: Switch to light mode
@@ -34,25 +37,37 @@ markdown_extensions:
   - admonition
   - pymdownx.details
   - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
   - pymdownx.highlight:
       anchor_linenums: true
   - pymdownx.inlinehilite
   - pymdownx.snippets
   - tables
+  - toc:
+      permalink: true
   - pymdownx.emoji:
       emoji_index: !!python/name:material.extensions.emoji.twemoji
       emoji_generator: !!python/name:material.extensions.emoji.to_svg
 
 nav:
-  - Welcome to QA Capsule: index.md
+  - Home: index.md
   - Setup & Installation:
       - Docker Deployment: setup/docker.md
       - System Configuration: setup/config.md
-  - CI/CD Integrations:
-      - The SRE Agent Concept: integration/agent.md
+      - RBAC & Teams: setup/rbac-teams.md
+  - CI/CD Integration:
+      - Overview & Architecture: integration/cicd-overview.md
+      - JUnit XML Upload (Recommended): integration/junit-xml-upload.md
+      - The SRE Agent: integration/agent.md
       - GitHub Actions: integration/github.md
       - GitLab CI: integration/gitlab.md
       - Jenkins: integration/jenkins.md
+  - Dashboard & Operations:
+      - Dashboard Guide: guides/dashboard-operations.md
+      - Incident Lifecycle: guides/incident-lifecycle.md
+      - Analytics & FinOps: guides/finops-analytics.md
+      - End-to-End Testing: guides/testing.md
   - Plugin Engine:
       - How Plugins Work: plugins/overview.md
       - Jira Integration: plugins/jira.md
@@ -60,11 +75,11 @@ nav:
       - MS Teams Integration: plugins/teams.md
   - API Reference:
       - Webhooks API: api/webhooks.md
-  - Guides & Tutorials:
-      - End-to-End Testing: guides/testing.md
+      - Incidents API: api/incidents-api.md
+  - Deployment:
+      - Documentation CI/CD: deployment/docs-pipeline.md
 
 extra:
-  announce: "**New version !** QA Capsule supports Multi-Tenancy and RBAC."
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/QA-Capsule/
+      link: https://github.com/QA-Capsule/qa-capsule-community
