@@ -1341,7 +1341,7 @@ window.connectWebSocket = function () {
         if (dashboard && dashboard.classList.contains('active')) {
             window.fetchIncidents();
         }
-    }, 3000);
+    }, 15000);
 }
 
 // ==========================================
