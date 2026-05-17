@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"time"
 
 	"golang.org/x/crypto/bcrypt"
 	_ "modernc.org/sqlite" // SQLite driver
@@ -40,14 +41,19 @@ func InitDB(ignoredPath string) {
 		log.Fatalf("[FATAL] Failed to open SQLite database: %v", err)
 	}
 
-	// ===============================================
-	// SRE FIX: ANTI "DATABASE IS LOCKED" (WAL MODE)
-	// ===============================================
+	// ====================================================================
+	// SRE CRITICAL FIX: SÉRIALISATION STRICTE ET PROTECTION ANTI-CONTENTION
+	// ====================================================================
+	// SQLite ne gère pas nativement les accès concurrents multi-connexions en écriture.
+	// Limiter à 1 connexion active élimine à 100% l'isolement périmé des lectures/écritures.
+	DB.SetMaxOpenConns(1)
+	DB.SetMaxIdleConns(1)
+	DB.SetConnMaxLifetime(time.Hour)
+
 	_, err = DB.Exec("PRAGMA journal_mode=WAL;")
 	if err != nil {
 		log.Printf("[WARNING] Could not enable WAL mode: %v", err)
 	}
-	// On dit à la base d'attendre 5 secondes au lieu de crasher si elle est occupée
 	DB.Exec("PRAGMA busy_timeout=5000;")
 
 	// 5. Force a connection to ensure the physical file is actually created right now
@@ -146,9 +152,7 @@ func InitDB(ignoredPath string) {
 		log.Printf("[WARNING] Failed to create index for fingerprint: %v", err)
 	}
 
-	// ===============================================
-	// ADDED: Create FinOps Settings Table
-	// ===============================================
+	// Create FinOps Settings Table
 	createFinOpsTable := `
 	CREATE TABLE IF NOT EXISTS finops_settings (
 		id INTEGER PRIMARY KEY,
@@ -162,9 +166,7 @@ func InitDB(ignoredPath string) {
 		log.Fatalf("[FATAL] Failed to create finops_settings table: %v", err)
 	}
 
-	// ===============================================
-	// ADDED: Create Enterprise License Config Table
-	// ===============================================
+	// Create Enterprise License Config Table
 	createEnterpriseTable := `
 	CREATE TABLE IF NOT EXISTS enterprise_config (
 		id INTEGER PRIMARY KEY,
@@ -179,9 +181,7 @@ func InitDB(ignoredPath string) {
 	seedInitialData()
 }
 
-// seedInitialData creates the default Admin user, Root Organization, and default FinOps metrics
 func seedInitialData() {
-	// Seed Root Team
 	var teamCount int
 	DB.QueryRow("SELECT COUNT(*) FROM teams").Scan(&teamCount)
 	if teamCount == 0 {
@@ -193,7 +193,6 @@ func seedInitialData() {
 		}
 	}
 
-	// Seed Admin User
 	var userCount int
 	DB.QueryRow("SELECT COUNT(*) FROM users").Scan(&userCount)
 	if userCount == 0 {
@@ -207,11 +206,9 @@ func seedInitialData() {
 		}
 	}
 
-	// ADDED: Seed FinOps Default Metrics
 	var finopsCount int
 	DB.QueryRow("SELECT COUNT(*) FROM finops_settings").Scan(&finopsCount)
 	if finopsCount == 0 {
-		// Industry averages: $50/h dev, $0.008/min CI, 15min build, 30min investigation
 		_, err := DB.Exec(`INSERT INTO finops_settings (id, dev_hourly_rate, ci_minute_cost, avg_pipeline_duration, avg_investigation_time) 
 			VALUES (1, 50.0, 0.008, 15.0, 30.0)`)
 		if err != nil {
@@ -222,11 +219,6 @@ func seedInitialData() {
 	}
 }
 
-// ==========================================
-// UTILITY FUNCTIONS FOR DATABASE LOOKUPS
-// ==========================================
-
-// GetProjectByAPIKey fetches project details based on the X-API-Key header
 func GetProjectByAPIKey(apiKey string) (ProjectConfig, error) {
 	var p ProjectConfig
 	err := DB.QueryRow(`

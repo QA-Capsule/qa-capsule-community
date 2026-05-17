@@ -6,6 +6,7 @@ import (
 	"math"
 	"net/http"
 	"strings"
+	"time" // SRE FIX: Ajouté pour gérer les délais d'attente lors des re-tentatives de verrous
 
 	"qacapsule/internal/core"
 
@@ -82,7 +83,6 @@ func registerIncidentRoutes(config *core.Config) {
 				IDs []int `json:"ids"`
 			}
 
-			// English Comment: Added error handling to catch JSON decode failures properly
 			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 				http.Error(w, "Invalid JSON payload", http.StatusBadRequest)
 				return
@@ -96,19 +96,86 @@ func registerIncidentRoutes(config *core.Config) {
 			if len(idsToResolve) > 0 {
 				placeholders := make([]string, len(idsToResolve))
 				args := make([]interface{}, len(idsToResolve)+1)
-				args[0] = claims.Username
+
+				resolvedUser := claims.Username
+				if resolvedUser == "" {
+					resolvedUser = "authenticated_user"
+				}
+				args[0] = resolvedUser
+
 				for i, id := range idsToResolve {
 					placeholders[i] = "?"
 					args[i+1] = id
 				}
 
-				// English Comment: Update both is_resolved flag and textual status
 				query := "UPDATE incidents SET is_resolved = 1, status = 'resolved', resolved_by = ?, resolved_at = CURRENT_TIMESTAMP WHERE id IN (" + strings.Join(placeholders, ",") + ")"
 
-				// English Comment: Added proper SQL error capture to prevent silent failures
-				_, err := core.DB.Exec(query, args...)
-				if err != nil {
-					http.Error(w, "Database update failed", http.StatusInternalServerError)
+				// =================================================================
+				// SRE FIX INTERNE : BOUCLE DE RETRY ROBUSTE CONTRE LES VERROUS SQLITE
+				// =================================================================
+				var dbErr error
+				for attempt := 1; attempt <= 5; attempt++ {
+					_, dbErr = core.DB.Exec(query, args...)
+					if dbErr == nil {
+						break // Succès de la mise à jour !
+					}
+
+					// Si l'erreur est liée à un verrouillage transitoire, on attend et on re-tente
+					errStr := strings.ToLower(dbErr.Error())
+					if strings.Contains(errStr, "locked") || strings.Contains(errStr, "busy") {
+						time.Sleep(time.Duration(attempt*50) * time.Millisecond) // Backoff exponentiel léger
+						continue
+					}
+					break // Autre erreur critique non liée au verrouillage, on stoppe
+				}
+
+				if dbErr != nil {
+					http.Error(w, "Database write contention failed: "+dbErr.Error(), http.StatusInternalServerError)
+					return
+				}
+			}
+			w.WriteHeader(http.StatusOK)
+
+		} else if r.Method == http.MethodDelete {
+			if claims.Role != "admin" {
+				http.Error(w, "Only administrators can delete records.", http.StatusForbidden)
+				return
+			}
+
+			idsStr := r.URL.Query().Get("ids")
+			if idsStr == "" {
+				http.Error(w, "Missing fields: ids parameter required", http.StatusBadRequest)
+				return
+			}
+
+			idList := strings.Split(idsStr, ",")
+			if len(idList) > 0 {
+				placeholders := make([]string, len(idList))
+				args := make([]interface{}, len(idList))
+				for i, id := range idList {
+					placeholders[i] = "?"
+					args[i] = id
+				}
+
+				query := "DELETE FROM incidents WHERE id IN (" + strings.Join(placeholders, ",") + ")"
+
+				// Application de la même protection anti-lock pour la suppression
+				var dbErr error
+				for attempt := 1; attempt <= 5; attempt++ {
+					_, dbErr = core.DB.Exec(query, args...)
+					if dbErr == nil {
+						break
+					}
+					errStr := strings.ToLower(dbErr.Error())
+					if strings.Contains(errStr, "locked") || strings.Contains(errStr, "busy") {
+						time.Sleep(time.Duration(attempt*50) * time.Millisecond)
+						continue
+					}
+					break
+				}
+
+				if dbErr != nil {
+					http.Error(w, "Database delete contention failed", http.StatusInternalServerError)
 					return
 				}
 			}
@@ -116,7 +183,7 @@ func registerIncidentRoutes(config *core.Config) {
 		}
 	}))
 
-	// Weekly Report & Metrics APIs (unchanged logic, kept for file completeness)
+	// Weekly Report & Metrics APIs
 	http.HandleFunc("/api/reports/weekly", jwtAuthMiddleware(config, false, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			return
@@ -253,11 +320,38 @@ func registerIncidentRoutes(config *core.Config) {
 				"avg_investigation_time": avgInvestigation,
 			})
 		} else if r.Method == http.MethodPut {
-			var req map[string]float64
-			json.NewDecoder(r.Body).Decode(&req)
+			var req struct {
+				DevHourlyRate        float64 `json:"dev_hourly_rate"`
+				CiMinuteCost         float64 `json:"ci_minute_cost"`
+				AvgPipelineDuration  float64 `json:"avg_pipeline_duration"`
+				AvgInvestigationTime float64 `json:"avg_investigation_time"`
+				Currency             string  `json:"currency"`
+			}
 
-			core.DB.Exec(`UPDATE finops_settings SET dev_hourly_rate = ?, ci_minute_cost = ?, avg_pipeline_duration = ?, avg_investigation_time = ? WHERE id = 1`,
-				req["dev_hourly_rate"], req["ci_minute_cost"], req["avg_pipeline_duration"], req["avg_investigation_time"])
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				http.Error(w, "Invalid JSON payload", http.StatusBadRequest)
+				return
+			}
+
+			var dbErr error
+			for attempt := 1; attempt <= 5; attempt++ {
+				_, dbErr = core.DB.Exec(`UPDATE finops_settings SET dev_hourly_rate = ?, ci_minute_cost = ?, avg_pipeline_duration = ?, avg_investigation_time = ? WHERE id = 1`,
+					req.DevHourlyRate, req.CiMinuteCost, req.AvgPipelineDuration, req.AvgInvestigationTime)
+				if dbErr == nil {
+					break
+				}
+				errStr := strings.ToLower(dbErr.Error())
+				if strings.Contains(errStr, "locked") || strings.Contains(errStr, "busy") {
+					time.Sleep(time.Duration(attempt*50) * time.Millisecond)
+					continue
+				}
+				break
+			}
+
+			if dbErr != nil {
+				http.Error(w, "Database update failed", http.StatusInternalServerError)
+				return
+			}
 			w.WriteHeader(http.StatusOK)
 		}
 	}))

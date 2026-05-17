@@ -1,7 +1,7 @@
 /**
- * web/app.js
- * Main controller for QA Capsule Control Plane
- */
+* web/app.js
+* Main controller for QA Capsule Control Plane
+*/
 
 let allUsers = [];
 let allProjects = [];
@@ -581,25 +581,19 @@ window.downloadWeeklyReportPDF = function () {
 // BULK ACTIONS & SELECTIONS LOGIC
 // ==========================================
 
-/**
- * Handles individual incident selection
- * English Comment: Logic added to uncheck "Select All" if a child is deselected
- */
 window.toggleIncidentSelection = function (id, checked) {
-    // English Comment: Pause polling to prevent UI flickering during selection
-    window.pausePollingUntil = Date.now() + 15000; 
-    
-    if (checked) window.selectedIncidents.add(id);
-    else window.selectedIncidents.delete(id);
-    
-    // English Comment: Sync the "Select All" checkbox state manually
+    window.pausePollingUntil = Date.now() + 15000;
+    const strId = String(id);
+
+    if (checked) window.selectedIncidents.add(strId);
+    else window.selectedIncidents.delete(strId);
+
     const masterCb = document.getElementById('select-all-cb');
     if (masterCb) {
-        // English Comment: Check master only if ALL currently displayed incidents are selected
-        const allChecked = window.currentIncidents.every(inc => window.selectedIncidents.has(inc.id));
+        const allChecked = window.currentIncidents.length > 0 && window.currentIncidents.every(inc => window.selectedIncidents.has(String(inc.id)));
         masterCb.checked = allChecked;
     }
-    updateBulkActionUI();
+    window.updateBulkActionUI();
 };
 
 window.toggleGroupSelection = function (groupId, checked) {
@@ -608,33 +602,33 @@ window.toggleGroupSelection = function (groupId, checked) {
     if (!group) return;
 
     group.incidents.forEach(inc => {
+        const strId = String(inc.id);
         const cb = document.getElementById(`cb-inc-${inc.id}`);
         if (cb) cb.checked = checked;
-        if (checked) window.selectedIncidents.add(inc.id);
-        else window.selectedIncidents.delete(inc.id);
+        if (checked) window.selectedIncidents.add(strId);
+        else window.selectedIncidents.delete(strId);
     });
 
-    // English Comment: Sync master checkbox after group toggle
     const masterCb = document.getElementById('select-all-cb');
     if (masterCb) {
-        const allChecked = window.currentIncidents.every(inc => window.selectedIncidents.has(inc.id));
+        const allChecked = window.currentIncidents.length > 0 && window.currentIncidents.every(inc => window.selectedIncidents.has(String(inc.id)));
         masterCb.checked = allChecked;
     }
-    updateBulkActionUI();
+    window.updateBulkActionUI();
 };
 
 window.toggleSelectAll = function (checked) {
     window.pausePollingUntil = Date.now() + 15000;
     window.currentIncidents.forEach(inc => {
-        if (checked) window.selectedIncidents.add(inc.id);
-        else window.selectedIncidents.delete(inc.id);
-        
+        const strId = String(inc.id);
+        if (checked) window.selectedIncidents.add(strId);
+        else window.selectedIncidents.delete(strId);
+
         const cb = document.getElementById(`cb-inc-${inc.id}`);
         if (cb) cb.checked = checked;
     });
-    // English Comment: Update all group checkboxes visually
     document.querySelectorAll('[id^="cb-group-"]').forEach(cb => cb.checked = checked);
-    updateBulkActionUI();
+    window.updateBulkActionUI();
 };
 
 window.updateBulkActionUI = function () {
@@ -656,10 +650,10 @@ window.resolveSelected = async function () {
     if (window.selectedIncidents.size === 0) return;
     
     const ids = Array.from(window.selectedIncidents);
-    // English Comment: Pause polling to block auto-refresh during action
+    // Bloque le rafraîchissement d'arrière plan durant l'action
     window.pausePollingUntil = Date.now() + 15000; 
     
-    // English Comment: Implement Optimistic UI Update so user sees instant feedback
+    // UI Optimiste : On passe visuellement les éléments au vert immédiatement
     const currentUser = parseJwt(localStorage.getItem('sre-jwt')).username || 'You';
     window.currentIncidents.forEach(inc => {
         if (ids.includes(inc.id)) {
@@ -670,7 +664,6 @@ window.resolveSelected = async function () {
     });
 
     window.selectedIncidents.clear();
-    // English Comment: Re-render DOM immediately before API completes
     window.renderIncidentsList(); 
 
     try {
@@ -681,44 +674,54 @@ window.resolveSelected = async function () {
 
         if (res.ok) {
             notify("Alerts resolved", "success");
-            // English Comment: Force a full sync to update exact server states
-            window.pausePollingUntil = 0;
-            await window.fetchIncidents(true); 
+            // CORRECTIF IHM : On laisse 1.5s de buffer pour éviter de pull des données SQLite non synchronisées
+            window.pausePollingUntil = Date.now() + 1500;
+            setTimeout(async () => {
+                await window.fetchIncidents(true); 
+            }, 1500);
         } else {
             throw new Error("Update failed on server side");
         }
     } catch (e) {
         notify("API error while resolving incidents", "error");
-        // English Comment: Revert optimistic update by refetching data
         window.pausePollingUntil = 0;
         window.fetchIncidents(true);
     }
 };
 
 window.deleteSelected = async function () {
-    if (window.selectedIncidents.size === 0) {
-        return notify("Vous devez sélectionner au moins une alerte à supprimer.", "error");
-    }
+    if (window.selectedIncidents.size === 0) return notify("Sélectionnez au moins une alerte.", "error");
+    
     const userRole = parseJwt(localStorage.getItem('sre-jwt')).role;
-    if (userRole !== 'admin') return notify("Only administrators can delete records.", "error");
+    if (userRole !== 'admin') return notify("Seuls les admins peuvent supprimer.", "error");
 
-    showConfirmModal("Delete Selected?", `Are you sure you want to permanently erase ${window.selectedIncidents.size} logs?`, "danger", async function () {
-        window.pausePollingUntil = Date.now() + 10000;
-        const idsToDelete = Array.from(window.selectedIncidents);
+    showConfirmModal("Delete Selected?", `Supprimer définitivement ${window.selectedIncidents.size} alertes ?`, "danger", async function () {
+        window.pausePollingUntil = Date.now() + 15000;
+        
+        const ids = Array.from(window.selectedIncidents).map(id => parseInt(id, 10)).filter(id => !isNaN(id));
 
-        window.currentIncidents = window.currentIncidents.filter(inc => !idsToDelete.includes(inc.id));
+        window.currentIncidents = window.currentIncidents.filter(inc => !ids.includes(parseInt(inc.id, 10)));
         window.selectedIncidents.clear();
         window.renderIncidentsList();
         notify("Suppression en cours...", "success");
 
-        // BULK API CALL
         try {
-            await window.fetchWithAuth(`/api/incidents?ids=${idsToDelete.join(',')}`, { method: 'DELETE' });
+            // ENVOI INDIVIDUEL DE CHAQUE SUPPRESSION AVEC LE PARAMÈTRE "id="
+            const promises = ids.map(id => {
+                return window.fetchWithAuth(`/api/incidents?id=${id}&ids=${id}`, { method: 'DELETE' });
+            });
+
+            await Promise.all(promises);
+
+            setTimeout(() => {
+                window.pausePollingUntil = 0;
+                window.fetchIncidents(true);
+                window.fetchMetricsOnly();
+            }, 1200);
+        } catch (e) {
+            console.error("Delete error", e);
             window.pausePollingUntil = 0;
             window.fetchIncidents(true);
-            window.fetchMetricsOnly();
-        } catch (e) {
-            console.error("Delete error");
         }
     });
 };
@@ -735,45 +738,54 @@ window.resolveGroup = async function (groupId, event) {
     const group = window.groupedIncidents[groupId];
     if (!group) return;
 
-    window.pausePollingUntil = Date.now() + 10000;
-
+    window.pausePollingUntil = Date.now() + 15000;
     const currentUser = parseJwt(localStorage.getItem('sre-jwt')).username || 'You';
-    const unresolvedIds = [];
 
-    // English Comment: Apply Optimistic UI update correctly across all child incidents
-    group.incidents.forEach(inc => {
+    const selectedInGroup = group.incidents.filter(inc => window.selectedIncidents.has(String(inc.id)));
+    const targetIncidents = selectedInGroup.length > 0 ? selectedInGroup : group.incidents;
+
+    const ids = [];
+    targetIncidents.forEach(inc => {
         if (!inc.is_resolved) {
             inc.is_resolved = true;
-            inc.status = 'resolved'; // English Comment: Ensure textual status property is also mapped
+            inc.status = 'resolved';
             inc.resolved_by = currentUser;
-            unresolvedIds.push(inc.id);
+            ids.push(parseInt(inc.id, 10));
         }
     });
 
-    if (unresolvedIds.length === 0) {
+    if (ids.length === 0) {
         window.pausePollingUntil = 0;
         return;
     }
 
-    // English Comment: Render the success state instantly
+    targetIncidents.forEach(i => window.selectedIncidents.delete(String(i.id)));
     window.renderIncidentsList();
-    notify("Pipeline entier marqué comme résolu.", "success");
+    notify("Pipelines marqués comme résolus.", "success");
 
-    // BULK API CALL
     try {
-        const res = await window.fetchWithAuth('/api/incidents', {
-            method: 'PUT',
-            body: JSON.stringify({ ids: unresolvedIds })
+        // ENVOI INDIVIDUEL DE LA RÉSOLUTION
+        const promises = ids.filter(id => !isNaN(id)).map(id => {
+            return window.fetchWithAuth('/api/incidents', {
+                method: 'PUT',
+                body: JSON.stringify({ 
+                    id: id, 
+                    ids: [id], 
+                    is_resolved: true, 
+                    status: 'resolved', 
+                    resolved_by: currentUser 
+                })
+            });
         });
-        
-        if (res.ok) {
+
+        await Promise.all(promises);
+
+        setTimeout(async () => {
             window.pausePollingUntil = 0;
             await window.fetchIncidents(true);
             await window.fetchMetricsOnly();
-        } else {
-            throw new Error("Update failure");
-        }
-    } catch (e) { 
+        }, 1200);
+    } catch (e) {
         notify("Erreur lors de la résolution du pipeline", "error");
         window.pausePollingUntil = 0;
         window.fetchIncidents(true);
@@ -788,23 +800,34 @@ window.deleteGroup = async function (groupId, event) {
     const group = window.groupedIncidents[groupId];
     if (!group) return;
 
-    showConfirmModal("Delete Pipeline Execution?", `Are you sure you want to permanently delete all logs for this execution?`, "danger", async function () {
-        window.pausePollingUntil = Date.now() + 10000;
+    showConfirmModal("Delete Pipeline Execution?", `Supprimer définitivement l'exécution ?`, "danger", async function () {
+        window.pausePollingUntil = Date.now() + 15000;
 
-        const groupIds = group.incidents.map(i => i.id);
-        window.currentIncidents = window.currentIncidents.filter(inc => !groupIds.includes(inc.id));
-        group.incidents.forEach(i => window.selectedIncidents.delete(i.id));
+        const ids = group.incidents.map(i => parseInt(i.id, 10)).filter(id => !isNaN(id));
+
+        window.currentIncidents = window.currentIncidents.filter(inc => !ids.includes(parseInt(inc.id, 10)));
+        group.incidents.forEach(i => window.selectedIncidents.delete(String(i.id)));
 
         window.renderIncidentsList();
         notify("Suppression du pipeline en cours...", "success");
 
-        // BULK API CALL
         try {
-            await window.fetchWithAuth(`/api/incidents?ids=${groupIds.join(',')}`, { method: 'DELETE' });
+            // ENVOI INDIVIDUEL DE LA SUPPRESSION AVEC "?id="
+            const promises = ids.map(id => {
+                return window.fetchWithAuth(`/api/incidents?id=${id}&ids=${id}`, { method: 'DELETE' });
+            });
+
+            await Promise.all(promises);
+
+            setTimeout(() => {
+                window.pausePollingUntil = 0;
+                window.fetchIncidents(true);
+                window.fetchMetricsOnly();
+            }, 1200);
+        } catch (e) {
             window.pausePollingUntil = 0;
             window.fetchIncidents(true);
-            window.fetchMetricsOnly();
-        } catch (e) { }
+        }
     });
 }
 
@@ -916,7 +939,6 @@ window.toggleSubAlerts = function (groupId, event) {
     }
 }
 
-
 // ==========================================
 // DASHBOARD RENDER LOGIC 
 // ==========================================
@@ -937,23 +959,22 @@ window.loadDashboardFilters = function () {
 
 window.setStatusFilter = function (status) {
     window.statusFilter = status;
-    
-    // Update button styles with improved visuals
+
     const allBtn = document.getElementById('status-all-btn');
     const activeBtn = document.getElementById('status-active-btn');
     const resolvedBtn = document.getElementById('status-resolved-btn');
-    
+
     if (status === 'all') {
         allBtn.style.borderColor = '#58a6ff';
         allBtn.style.color = '#ffffff';
         allBtn.style.background = 'rgba(88, 166, 255, 0.25)';
         allBtn.style.fontWeight = 'bold';
-        
+
         activeBtn.style.borderColor = '#30363d';
         activeBtn.style.color = '#8b949e';
         activeBtn.style.background = 'transparent';
         activeBtn.style.fontWeight = 'normal';
-        
+
         resolvedBtn.style.borderColor = '#30363d';
         resolvedBtn.style.color = '#8b949e';
         resolvedBtn.style.background = 'transparent';
@@ -963,12 +984,12 @@ window.setStatusFilter = function (status) {
         allBtn.style.color = '#8b949e';
         allBtn.style.background = 'transparent';
         allBtn.style.fontWeight = 'normal';
-        
+
         activeBtn.style.borderColor = '#ff7b72';
         activeBtn.style.color = '#ffffff';
         activeBtn.style.background = 'rgba(255, 123, 114, 0.25)';
         activeBtn.style.fontWeight = 'bold';
-        
+
         resolvedBtn.style.borderColor = '#30363d';
         resolvedBtn.style.color = '#8b949e';
         resolvedBtn.style.background = 'transparent';
@@ -978,25 +999,21 @@ window.setStatusFilter = function (status) {
         allBtn.style.color = '#8b949e';
         allBtn.style.background = 'transparent';
         allBtn.style.fontWeight = 'normal';
-        
+
         activeBtn.style.borderColor = '#30363d';
         activeBtn.style.color = '#8b949e';
         activeBtn.style.background = 'transparent';
         activeBtn.style.fontWeight = 'normal';
-        
+
         resolvedBtn.style.borderColor = '#3fb950';
         resolvedBtn.style.color = '#ffffff';
         resolvedBtn.style.background = 'rgba(63, 185, 80, 0.25)';
         resolvedBtn.style.fontWeight = 'bold';
     }
-    
+
     window.fetchIncidents(true);
 }
 
-/**
- * Fetches real-time system stats to update KPI boxes
- * English Comment: Logic added to ensure KPI counters are synced after resolution
- */
 window.fetchMetricsOnly = function () {
     window.fetchWithAuth(`/api/metrics?_ts=${Date.now()}`)
         .then(r => r.json())
@@ -1004,7 +1021,6 @@ window.fetchMetricsOnly = function () {
             if (metrics) {
                 document.getElementById('kpi-active').innerText = metrics.total_incidents - metrics.resolved_incidents;
                 document.getElementById('kpi-resolved').innerText = metrics.resolved_incidents;
-                // English Comment: pipeline health update logic
                 const health = metrics.total_incidents > 0 ? Math.round((metrics.resolved_incidents / metrics.total_incidents) * 100) : 100;
                 document.getElementById('kpi-health').innerText = `${health}%`;
             }
@@ -1016,9 +1032,17 @@ window.fetchIncidents = function (forceRender = false) {
 
     const filterEl = document.getElementById('project-filter');
     const projectFilter = filterEl ? filterEl.value : 'all';
-    const url = `/api/incidents?project=${encodeURIComponent(projectFilter)}&_ts=${Date.now()}`;
+    
+    // ANTI-CACHE ULTRA AGRESSIF
+    const url = `/api/incidents?project=${encodeURIComponent(projectFilter)}&_ts=${Date.now()}&_bust=${Math.random()}`;
 
-    window.fetchWithAuth(url)
+    window.fetchWithAuth(url, {
+        headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+        }
+    })
         .then(res => res.json())
         .then(data => {
             if (!forceRender && Date.now() < window.pausePollingUntil) return;
@@ -1055,14 +1079,13 @@ window.renderIncidentsList = function () {
     });
 
     let filteredData = window.currentIncidents || [];
-    
-    // Apply status filter
+
     if (window.statusFilter === 'active') {
         filteredData = filteredData.filter(inc => !inc.is_resolved);
     } else if (window.statusFilter === 'resolved') {
         filteredData = filteredData.filter(inc => inc.is_resolved);
     }
-    
+
     if (searchQuery) {
         filteredData = filteredData.filter(inc =>
             (inc.name && inc.name.toLowerCase().includes(searchQuery)) ||
@@ -1086,9 +1109,6 @@ window.renderIncidentsList = function () {
     document.getElementById('kpi-health').innerText = `${health}%`;
     document.getElementById('kpi-health').style.color = health < 80 ? '#d29922' : '#58a6ff';
 
-    // ==========================================
-    // SEPARATION INFAILLIBLE DES PIPELINES
-    // ==========================================
     const sortedData = [...filteredData].sort((a, b) => a.id - b.id);
     const groupsArray = [];
     let currentGroup = null;
@@ -1150,7 +1170,7 @@ window.renderIncidentsList = function () {
     const iconTrash = `<svg style="width:12px;height:12px;margin-right:4px;vertical-align:middle;stroke:currentColor;fill:none;" viewBox="0 0 24 24" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`;
     const iconGear = `<svg style="width:12px;height:12px;margin-right:4px;vertical-align:middle;stroke:currentColor;fill:none;" viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>`;
 
-    const globalAllSelected = window.currentIncidents.length > 0 && window.currentIncidents.every(inc => window.selectedIncidents.has(inc.id));
+    const globalAllSelected = window.currentIncidents.length > 0 && window.currentIncidents.every(inc => window.selectedIncidents.has(String(inc.id)));
 
     let htmlContent = `
     <div id="bulk-action-banner" style="display: ${window.selectedIncidents.size > 0 ? 'flex' : 'none'}; margin-bottom: 20px; justify-content: space-between; align-items: center; background: #161b22; padding: 12px 20px; border: 1px solid #58a6ff; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); position: sticky; top: 10px; z-index: 100;">
@@ -1166,11 +1186,12 @@ window.renderIncidentsList = function () {
     `;
 
     htmlContent += groupsArray.map(group => {
-        let severityColor = group.is_resolved ? '#3fb950' : '#ff7b72';
+        const activeSubAlerts = group.incidents.filter(i => !i.is_resolved).length;
+        let severityColor = activeSubAlerts > 0 ? '#ff7b72' : '#3fb950';
 
-        let resolvedBadge = group.is_resolved
+        let resolvedBadge = activeSubAlerts === 0
             ? `<span style="display:inline-flex; align-items:center; background: rgba(63, 185, 80, 0.1); color: #3fb950; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: bold;">${iconCheck} EXECUTION RESOLVED</span>`
-            : `<span style="display:inline-flex; align-items:center; background: rgba(255, 123, 114, 0.1); color: #ff7b72; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: bold;">${iconAlert} PIPELINE FAILED</span>`;
+            : `<span style="display:inline-flex; align-items:center; background: rgba(255, 123, 114, 0.1); color: #ff7b72; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: bold;">${iconAlert} ${activeSubAlerts} ACTIVE / ${group.incidents.length} TOTAL</span>`;
 
         let subAlertsHTML = group.incidents.map(inc => {
             const isFlaky = inc.name.includes("[FLAKY]");
@@ -1178,19 +1199,25 @@ window.renderIncidentsList = function () {
             const cleanName = inc.name.replace("[FLAKY] ", "");
             const displayLog = inc.error_logs || inc.error_message || "No logs available.";
 
-            const textDecoration = inc.is_resolved ? 'text-decoration: line-through;' : '';
-            const textColor = inc.is_resolved ? '#3fb950' : 'var(--text-main)';
-            const isChecked = window.selectedIncidents.has(inc.id) ? 'checked' : '';
+            const isResolved = inc.is_resolved;
+            const textDecoration = isResolved ? 'text-decoration: line-through;' : '';
+            const textColor = isResolved ? '#3fb950' : 'var(--text-main)';
+            // English Comment: Convert inc.id to String to safely test against Set populated via HTML
+            const isChecked = window.selectedIncidents.has(String(inc.id)) ? 'checked' : '';
 
-            const subAlertFlag = inc.is_resolved
+            const bgStyle = isResolved ? 'background: rgba(63, 185, 80, 0.05); border-left: 3px solid #3fb950;' : 'background: #0d1117; border-left: 3px solid #30363d;';
+
+            const subAlertFlag = isResolved
                 ? `<span style="display:inline-flex; align-items:center; background: rgba(63, 185, 80, 0.1); color: #3fb950; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: bold; margin-left: 10px;">${iconCheck} RESOLVED BY ${inc.resolved_by || 'SYSTEM'}</span>`
                 : `<span style="display:inline-flex; align-items:center; background: rgba(255, 123, 114, 0.1); color: #ff7b72; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: bold; margin-left: 10px;">${iconAlert} ACTIVE TEST</span>`;
 
+            // English Comment: CRITICAL BUG FIX - Added single quotes around '${inc.id}' to prevent ReferenceErrors 
+            // when passing UUID strings to inline JS functions, preventing crashes that caused polling logic to fail.
             return `
-            <div style="background: #0d1117; border: 1px solid #30363d; border-radius: 6px; margin-top: 10px; padding: 12px; border-left: 3px solid ${inc.is_resolved ? '#3fb950' : '#30363d'};">
+            <div style="${bgStyle} border: 1px solid #30363d; border-radius: 6px; margin-top: 10px; padding: 12px; transition: all 0.3s ease;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                     <div style="display:flex; align-items:center; gap: 10px;">
-                        <input type="checkbox" id="cb-inc-${inc.id}" onclick="toggleIncidentSelection(${inc.id}, this.checked)" ${isChecked} style="width: 14px; height: 14px; cursor: pointer;">
+                        <input type="checkbox" id="cb-inc-${inc.id}" onclick="toggleIncidentSelection('${inc.id}', this.checked)" ${isChecked} style="width: 14px; height: 14px; cursor: pointer;">
                         <strong style="font-size: 13px; color: ${textColor}; ${textDecoration}">${flakyBadge}${cleanName}</strong>
                         ${subAlertFlag}
                     </div>
@@ -1201,19 +1228,19 @@ window.renderIncidentsList = function () {
 
         let actionDropdown = `
             <div style="position: relative; display: inline-block;" class="action-dropdown-container">
-                <button class="btn-secondary" style="font-size: 11px; padding: 5px 10px; display: flex; align-items: center;" onclick="toggleActionDropdown(${group.id}, event)">${iconGear} Actions</button>
+                <button class="btn-secondary" style="font-size: 11px; padding: 5px 10px; display: flex; align-items: center;" onclick="toggleActionDropdown('${group.id}', event)">${iconGear} Actions</button>
                 <div id="action-dropdown-${group.id}" style="display: none; position: absolute; right: 0; top: 30px; background: #161b22; border: 1px solid #30363d; z-index: 10; border-radius: 6px; min-width: 180px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); overflow: hidden;">
-                    ${(!group.is_resolved && canResolve) ? `<a href="#" onclick="resolveGroup(${group.id}, event)" style="display: flex; align-items: center; padding: 10px 12px; color: #3fb950; text-decoration: none; font-size: 12px; border-bottom: 1px solid #30363d; transition: background 0.2s;"><span style="flex-grow:1;">${iconCheck} Resolve Execution</span></a>` : ''}
-                    ${isAdmin ? `<a href="#" onclick="deleteGroup(${group.id}, event)" style="display: flex; align-items: center; padding: 10px 12px; color: #ff7b72; text-decoration: none; font-size: 12px; border-bottom: 1px solid #30363d; transition: background 0.2s;"><span style="flex-grow:1;">${iconTrash} Delete Execution</span></a>` : ''}
+                    ${(!group.is_resolved && canResolve) ? `<a href="#" onclick="resolveGroup('${group.id}', event)" style="display: flex; align-items: center; padding: 10px 12px; color: #3fb950; text-decoration: none; font-size: 12px; border-bottom: 1px solid #30363d; transition: background 0.2s;"><span style="flex-grow:1;">${iconCheck} Resolve Execution</span></a>` : ''}
+                    ${isAdmin ? `<a href="#" onclick="deleteGroup('${group.id}', event)" style="display: flex; align-items: center; padding: 10px 12px; color: #ff7b72; text-decoration: none; font-size: 12px; border-bottom: 1px solid #30363d; transition: background 0.2s;"><span style="flex-grow:1;">${iconTrash} Delete Execution</span></a>` : ''}
                     
-                    <a href="#" onclick="downloadGroupLog(${group.id}, 'error', event)" style="display: flex; align-items: center; padding: 10px 12px; color: #ff7b72; text-decoration: none; font-size: 12px; border-bottom: 1px solid #30363d; transition: background 0.2s;"><span style="flex-grow:1;">${iconAlert} Export Errors</span></a>
-                    <a href="#" onclick="downloadGroupLog(${group.id}, 'full', event)" style="display: flex; align-items: center; padding: 10px 12px; color: #c9d1d9; text-decoration: none; font-size: 12px; border-bottom: 1px solid #30363d; transition: background 0.2s;"><span style="flex-grow:1;">${iconFile} Export Full Logs</span></a>
-                    <a href="#" onclick="downloadGroupLog(${group.id}, 'xml', event)" style="display: flex; align-items: center; padding: 10px 12px; color: #58a6ff; text-decoration: none; font-size: 12px; transition: background 0.2s;"><span style="flex-grow:1;">${iconCode} Generate JUnit XML</span></a>
+                    <a href="#" onclick="downloadGroupLog('${group.id}', 'error', event)" style="display: flex; align-items: center; padding: 10px 12px; color: #ff7b72; text-decoration: none; font-size: 12px; border-bottom: 1px solid #30363d; transition: background 0.2s;"><span style="flex-grow:1;">${iconAlert} Export Errors</span></a>
+                    <a href="#" onclick="downloadGroupLog('${group.id}', 'full', event)" style="display: flex; align-items: center; padding: 10px 12px; color: #c9d1d9; text-decoration: none; font-size: 12px; border-bottom: 1px solid #30363d; transition: background 0.2s;"><span style="flex-grow:1;">${iconFile} Export Full Logs</span></a>
+                    <a href="#" onclick="downloadGroupLog('${group.id}', 'xml', event)" style="display: flex; align-items: center; padding: 10px 12px; color: #58a6ff; text-decoration: none; font-size: 12px; transition: background 0.2s;"><span style="flex-grow:1;">${iconCode} Generate JUnit XML</span></a>
                 </div>
             </div>
         `;
 
-        const groupAllSelected = group.incidents.length > 0 && group.incidents.every(inc => window.selectedIncidents.has(inc.id));
+        const groupAllSelected = group.incidents.length > 0 && group.incidents.every(inc => window.selectedIncidents.has(String(inc.id)));
         const groupChecked = groupAllSelected ? 'checked' : '';
 
         return `
@@ -1221,7 +1248,7 @@ window.renderIncidentsList = function () {
             
             <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #30363d; padding-bottom: 15px;">
                 <div style="display: flex; align-items: center; gap: 15px;">
-                    <input type="checkbox" id="cb-group-${group.id}" onclick="toggleGroupSelection(${group.id}, this.checked)" ${groupChecked} style="width: 16px; height: 16px; cursor: pointer;">
+                    <input type="checkbox" id="cb-group-${group.id}" onclick="toggleGroupSelection('${group.id}', this.checked)" ${groupChecked} style="width: 16px; height: 16px; cursor: pointer;">
                     <div>
                         <div style="font-size: 11px; color: #8b949e; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 1px;">Pipeline Execution</div>
                         <strong style="font-size: 16px; color: var(--text-main);">${group.project_name}</strong>
@@ -1231,7 +1258,7 @@ window.renderIncidentsList = function () {
                 <div style="display: flex; align-items: center; gap: 10px;">
                     ${resolvedBadge}
                     ${actionDropdown}
-                    <button class="btn-secondary" style="border: none; background: #161b22; padding: 6px 12px; display: flex; align-items: center; gap: 6px;" onclick="toggleSubAlerts(${group.id}, event)">
+                    <button class="btn-secondary" style="border: none; background: #161b22; padding: 6px 12px; display: flex; align-items: center; gap: 6px;" onclick="toggleSubAlerts('${group.id}', event)">
                         ${group.incidents.length} Alert(s) <span id="toggle-icon-${group.id}" style="display: inline-block;">${iconChevron}</span>
                     </button>
                 </div>
@@ -1766,7 +1793,7 @@ window.loadFinOps = async function () {
 
             const invTimeInput = document.getElementById('finops-investigation');
             if (invTimeInput) invTimeInput.value = data.avg_investigation_time;
-            
+
             // Load currency preference
             const currencySelector = document.getElementById('finops-currency');
             if (currencySelector && data.currency) {
