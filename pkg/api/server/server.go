@@ -98,13 +98,28 @@ func jwtAuthMiddleware(config *core.Config, requireAdmin bool, next http.Handler
 	}
 }
 
+var IsEnterpriseActive = func() bool {
+	return false
+}
+
+// SSOLoginHandler est une variable globale modifiable par l'Enterprise Edition.
+// Par défaut, elle bloque la connexion SSO.
+var SSOLoginHandler = func(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusPaymentRequired)
+	json.NewEncoder(w).Encode(map[string]string{
+		"error": "QA Capsule PRO License Required for SSO",
+	})
+}
+
 // enterpriseMiddleware blocks access to premium features if no valid license is found
-func enterpriseMiddleware(next http.HandlerFunc) http.HandlerFunc {
+func enterpriseMiddleware(config *core.Config, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !isEnterpriseActive() {
+		// On utilise la variable exportée (le Hook)
+		if !IsEnterpriseActive() {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusPaymentRequired)
-			json.NewEncoder(w).Encode(map[string]string{"error": "QA Capsule Enterprise License Required"})
+			json.NewEncoder(w).Encode(map[string]string{"error": "Enterprise license required"})
 			return
 		}
 		next.ServeHTTP(w, r)

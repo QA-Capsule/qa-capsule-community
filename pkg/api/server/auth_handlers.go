@@ -41,38 +41,31 @@ func registerAuthRoutes(config *core.Config) {
 				LicenseKey string `json:"license_key"`
 			}
 			json.NewDecoder(r.Body).Decode(&req)
-			
+
 			// Crée la table si elle n'existe pas
 			core.DB.Exec("CREATE TABLE IF NOT EXISTS enterprise_config (id INTEGER PRIMARY KEY, license_key TEXT)")
 			core.DB.Exec("INSERT OR REPLACE INTO enterprise_config (id, license_key) VALUES (1, ?)", req.LicenseKey)
-			
+
 			w.WriteHeader(http.StatusOK)
 		}
 	}))
 
 	// Public endpoint to check SSO status
 	http.HandleFunc("/api/sso/status", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]bool{"enterprise_active": isEnterpriseActive()})
+		if r.Method == http.MethodGet {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]bool{
+				"enterprise_active": IsEnterpriseActive(),
+			})
+		}
 	})
 
 	// Protected SSO Login Route
 	http.HandleFunc("/api/sso/login", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		
-		if !isEnterpriseActive() {
-			w.WriteHeader(http.StatusPaymentRequired) // Code HTTP 402
-			json.NewEncoder(w).Encode(map[string]string{
-				"message": "QA Capsule PRO License is missing or expired.",
-			})
-			return
+		if r.Method == http.MethodGet {
+			// Appelle la variable globale (qui sera écrasée par l'Enterprise)
+			SSOLoginHandler(w, r)
 		}
-
-		// Mock implementation for Identity Provider redirect
-		json.NewEncoder(w).Encode(map[string]string{
-			"message": "Enterprise License Verified. Redirecting to Identity Provider...",
-			"sso_url": "https://accounts.google.com/o/oauth2/v2/auth?client_id=...",
-		})
 	})
 
 	// Standard Login
