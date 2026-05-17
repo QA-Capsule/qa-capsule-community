@@ -334,6 +334,7 @@ window.downloadGroupLog = function (groupId, type, event) {
     document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
 }
 
+// LOGIC TO TOGGLE THE INCIDENT PIPELINE GROUP
 window.toggleSubAlerts = function (groupId, event) {
     if (event) { event.preventDefault(); event.stopPropagation(); }
     window.pausePollingUntil = Date.now() + 15000;
@@ -342,6 +343,25 @@ window.toggleSubAlerts = function (groupId, event) {
     if (container.style.display === 'none') { container.style.display = 'block'; icon.style.transform = 'rotate(180deg)'; }
     else { container.style.display = 'none'; icon.style.transform = 'rotate(0deg)'; }
 }
+
+// LOGIC TO TOGGLE INDIVIDUAL LOGS
+window.toggleIncidentLog = function (id, event) {
+    if (event) { event.preventDefault(); event.stopPropagation(); }
+    window.pausePollingUntil = Date.now() + 15000;
+    const logContent = document.getElementById(`log-content-${id}`);
+    const logIcon = document.getElementById(`log-icon-${id}`);
+    const logText = document.getElementById(`log-text-${id}`);
+    
+    if (logContent.style.display === 'none') {
+        logContent.style.display = 'block';
+        if (logIcon) logIcon.style.transform = 'rotate(180deg)';
+        if (logText) logText.innerText = 'Réduire les logs';
+    } else {
+        logContent.style.display = 'none';
+        if (logIcon) logIcon.style.transform = 'rotate(0deg)';
+        if (logText) logText.innerText = 'Afficher les logs';
+    }
+};
 
 window.loadDashboardFilters = function () {
     fetchWithAuth(`/api/my-projects?_ts=${Date.now()}`)
@@ -414,8 +434,13 @@ window.fetchIncidents = function (forceRender = false, opts = {}) {
 window.renderIncidentsList = function () {
     const listEl = document.getElementById('incident-list');
     const searchQuery = document.getElementById('incident-search') ? document.getElementById('incident-search').value.toLowerCase() : '';
+    
+    // TRACK OPEN UI STATES TO PRESERVE THEM DURING POLLING
     const openGroups = new Set();
     document.querySelectorAll('[id^="sub-alerts-"]').forEach(el => { if (el.style.display === 'block') openGroups.add(el.id.replace('sub-alerts-', '')); });
+
+    const openLogs = new Set();
+    document.querySelectorAll('[id^="log-content-"]').forEach(el => { if (el.style.display === 'block') openLogs.add(el.id.replace('log-content-', '')); });
 
     let filteredData = window.currentIncidents || [];
     if (window.statusFilter === 'active') filteredData = filteredData.filter(inc => !normalizeIsResolved(inc));
@@ -439,16 +464,20 @@ window.renderIncidentsList = function () {
     sortedData.forEach(inc => {
         const safeDateStr = inc.created_at ? inc.created_at.replace(' ', 'T') + 'Z' : '';
         const incTime = new Date(safeDateStr).getTime() || 0;
+        
         if (!currentGroup) {
-            currentGroup = { id: inc.id, project_name: inc.project_name, created_at: inc.created_at, is_resolved: true, incidents: [], lastTime: incTime, lastId: inc.id };
+            currentGroup = { id: inc.id, project_name: inc.project_name, created_at: inc.created_at, is_resolved: true, incidents: [], firstTime: incTime, lastTime: incTime, lastId: inc.id };
             groupsArray.push(currentGroup);
         } else {
-            const timeDiffSec = Math.abs(incTime - currentGroup.lastTime) / 1000;
+            // FIX: Bound the entire pipeline grouping window strictly to 120 seconds from the FIRST test failure.
+            // This prevents tests from chaining together indefinitely across multiple pipeline executions.
+            const timeDiffSec = Math.abs(incTime - currentGroup.firstTime) / 1000;
             const idDiff = Math.abs(inc.id - currentGroup.lastId);
+            
             if (inc.project_name === currentGroup.project_name && timeDiffSec <= 120 && idDiff <= 100) {
                 currentGroup.lastTime = incTime; currentGroup.lastId = inc.id;
             } else {
-                currentGroup = { id: inc.id, project_name: inc.project_name, created_at: inc.created_at, is_resolved: true, incidents: [], lastTime: incTime, lastId: inc.id };
+                currentGroup = { id: inc.id, project_name: inc.project_name, created_at: inc.created_at, is_resolved: true, incidents: [], firstTime: incTime, lastTime: incTime, lastId: inc.id };
                 groupsArray.push(currentGroup);
             }
         }
@@ -498,6 +527,7 @@ window.renderIncidentsList = function () {
             const flakyBadge = isFlaky ? `<span style="color: #d29922; margin-right: 8px;">${iconWarning} FLAKY</span>` : ``;
             const cleanName = inc.name.replace("[FLAKY] ", "");
             const displayLog = inc.error_logs || inc.error_message || "No logs available.";
+            
             const isResolved = normalizeIsResolved(inc);
             const textDecoration = isResolved ? 'text-decoration: line-through;' : '';
             const textColor = isResolved ? '#3fb950' : 'var(--text-main)';
@@ -508,16 +538,29 @@ window.renderIncidentsList = function () {
                 ? `<span style="display:inline-flex; align-items:center; background: rgba(63, 185, 80, 0.1); color: #3fb950; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: bold; margin-left: 10px;">${iconCheck} RESOLVED BY ${inc.resolved_by || 'SYSTEM'}</span>`
                 : `<span style="display:inline-flex; align-items:center; background: rgba(255, 123, 114, 0.1); color: #ff7b72; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: bold; margin-left: 10px;">${iconAlert} ACTIVE TEST</span>`;
 
+            // State management for logs
+            const isLogOpen = openLogs.has(String(inc.id));
+            const logDisplay = isLogOpen ? 'block' : 'none';
+            const iconTransform = isLogOpen ? 'rotate(180deg)' : 'rotate(0deg)';
+            const textLabel = isLogOpen ? 'Réduire les logs' : 'Afficher les logs';
+
             return `
             <div style="${bgStyle} border: 1px solid #30363d; border-radius: 6px; margin-top: 10px; padding: 12px; transition: all 0.3s ease;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
                     <div style="display:flex; align-items:center; gap: 10px;">
                         <input type="checkbox" id="cb-inc-${inc.id}" onclick="toggleIncidentSelection('${inc.id}', this.checked)" ${isChecked} style="width: 14px; height: 14px; cursor: pointer;">
                         <strong style="font-size: 13px; color: ${textColor}; ${textDecoration}">${flakyBadge}${cleanName}</strong>
                         ${subAlertFlag}
                     </div>
                 </div>
-                <div style="font-family: monospace; font-size: 11px; color: #8b949e; background: #161b22; padding: 10px; border-radius: 4px; overflow-x: auto; white-space: pre-wrap; max-height: 150px; overflow-y: auto;">${displayLog}</div>
+                
+                <div style="margin-top: 8px;">
+                    <button class="btn-secondary" style="font-size: 10px; padding: 2px 6px; border: none; background: transparent; color: #58a6ff; cursor: pointer; display: flex; align-items: center; gap: 4px;" onclick="window.toggleIncidentLog('${inc.id}', event)">
+                        <svg id="log-icon-${inc.id}" style="width:12px;height:12px;stroke:currentColor;fill:none;transition: transform 0.2s; transform: ${iconTransform};" viewBox="0 0 24 24" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        <span id="log-text-${inc.id}">${textLabel}</span>
+                    </button>
+                    <div id="log-content-${inc.id}" style="display: ${logDisplay}; font-family: monospace; font-size: 11px; color: #8b949e; background: #161b22; padding: 10px; border-radius: 4px; overflow-x: auto; white-space: pre-wrap; max-height: 150px; overflow-y: auto; border: 1px solid #30363d; margin-top: 5px;">${displayLog}</div>
+                </div>
             </div>`;
         }).join('');
 
@@ -567,6 +610,8 @@ window.renderIncidentsList = function () {
         const icon = document.getElementById(`toggle-icon-${groupId}`);
         if (el) { el.style.display = 'block'; if (icon) icon.style.transform = 'rotate(180deg)'; }
     });
+    
+    // Safety check: if logs were manually opened but the group was closed, the logs stay open inside the DOM state
 };
 
 window.connectWebSocket = function () {

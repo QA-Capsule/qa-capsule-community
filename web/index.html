@@ -317,15 +317,30 @@
 
                 <div id="analytics-view" style="display: none; background: #161b22; padding: 20px; border-radius: 8px; border: 1px solid #30363d; margin-top: 20px; margin-bottom: 20px;">
                     <h3 style="color: #58a6ff; margin-top: 0; margin-bottom: 15px;">System Analytics & Quality</h3>
-                    <div style="display: flex; gap: 20px; justify-content: center; flex-wrap: wrap;">
-                        <div style="background: #0d1117; padding: 20px; border-radius: 8px; text-align: center; width: 250px; border: 1px solid #30363d; display: flex; flex-direction: column; justify-content: center;">
+                    
+                    <div style="display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; margin-bottom: 20px;">
+                        
+                        <div style="background: #0d1117; padding: 20px; border-radius: 8px; text-align: center; width: 200px; border: 1px solid #30363d; display: flex; flex-direction: column; justify-content: center;">
                             <h4 style="color: #8b949e; margin: 0;">MTTR</h4>
-                            <h1 id="mttr-value" style="color: #3fb950; font-size: 3em; margin: 10px 0;">-- min</h1>
+                            <h1 id="mttr-value" style="color: #3fb950; font-size: 2.5em; margin: 10px 0;">-- min</h1>
                             <small style="color: #8b949e;">Mean Time To Resolution</small>
+                        </div>
+
+                        <div style="background: #0d1117; padding: 20px; border-radius: 8px; text-align: center; width: 200px; border: 1px solid #30363d; display: flex; flex-direction: column; justify-content: center;">
+                            <h4 style="color: #8b949e; margin: 0;">MTTF</h4>
+                            <h1 id="mttf-value" style="color: #58a6ff; font-size: 2.5em; margin: 10px 0;">-- min</h1>
+                            <small style="color: #8b949e;">Mean Time To Failure</small>
                         </div>
 
                         <div style="width: 300px; background: #0d1117; padding: 15px; border-radius: 8px; border: 1px solid #30363d;">
                             <canvas id="flakyChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div style="width: 100%; background: #0d1117; padding: 20px; border-radius: 8px; border: 1px solid #30363d; box-sizing: border-box;">
+                        <h4 style="color: #c9d1d9; margin-top: 0; margin-bottom: 15px;">5-Week Evolution (Alert Volume vs. Resolution Time)</h4>
+                        <div style="height: 280px; width: 100%;">
+                            <canvas id="evolutionChart"></canvas>
                         </div>
                     </div>
                 </div>

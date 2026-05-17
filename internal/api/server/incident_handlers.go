@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"math"
 	"net/http"
-	"strconv" // SRE FIX: Pour la conversion type-safe stricte des IDs
+	"strconv"
 	"strings"
 	"time"
 
@@ -31,7 +31,6 @@ func registerIncidentRoutes(config *core.Config) {
 			var query string
 			var args []interface{}
 
-			// English Comment: Admin can see everything, users only their project incidents
 			if claims.Role == "admin" {
 				if projectFilter != "" && projectFilter != "all" {
 					query = "SELECT id, project_name, name, status, error_message, console_logs, error_logs, is_resolved, resolved_by, created_at, resolved_at FROM incidents WHERE project_name = ? ORDER BY created_at DESC LIMIT 200"
@@ -40,7 +39,6 @@ func registerIncidentRoutes(config *core.Config) {
 					query = "SELECT id, project_name, name, status, error_message, console_logs, error_logs, is_resolved, resolved_by, created_at, resolved_at FROM incidents ORDER BY created_at DESC LIMIT 200"
 				}
 			} else {
-				// English Comment: Permission check based on teams
 				query = `SELECT DISTINCT i.id, i.project_name, i.name, i.status, i.error_message, i.console_logs, i.error_logs, i.is_resolved, i.resolved_by, i.created_at, i.resolved_at 
 						 FROM incidents i
 						 JOIN projects p ON i.project_name = p.name
@@ -78,7 +76,6 @@ func registerIncidentRoutes(config *core.Config) {
 			json.NewEncoder(w).Encode(incidents)
 
 		} else if r.Method == http.MethodPut {
-			// English Comment: Handle resolution (Bulk and single)
 			var req struct {
 				ID  int   `json:"id"`
 				IDs []int `json:"ids"`
@@ -148,7 +145,6 @@ func registerIncidentRoutes(config *core.Config) {
 			var args []interface{}
 			var placeholders []string
 
-			// SRE FIX : On s'assure de convertir les IDs en vrais entiers avant exécution SQL
 			for _, idStr := range idList {
 				idStr = strings.TrimSpace(idStr)
 				if idStr == "" {
@@ -266,6 +262,7 @@ func registerIncidentRoutes(config *core.Config) {
 		core.DB.QueryRow("SELECT COUNT(*) FROM incidents WHERE is_resolved = 1").Scan(&resolved)
 		core.DB.QueryRow("SELECT COUNT(*) FROM incidents WHERE name LIKE '[FLAKY]%'").Scan(&flaky)
 
+		// 1. CALCULATE MTTR
 		var mttrMinutes sql.NullFloat64
 		core.DB.QueryRow(`
 			SELECT AVG((julianday(resolved_at) - julianday(created_at)) * 24 * 60) 
@@ -286,6 +283,57 @@ func registerIncidentRoutes(config *core.Config) {
 			mttrDisplay = 1
 		}
 
+		// 2. CALCULATE MTTF
+		var mttfMinutes sql.NullFloat64
+		core.DB.QueryRow(`
+			SELECT 
+				CASE 
+					WHEN COUNT(*) > 1 THEN ((julianday(MAX(created_at)) - julianday(MIN(created_at))) * 24 * 60) / (COUNT(*) - 1)
+					ELSE 0 
+				END
+			FROM incidents
+		`).Scan(&mttfMinutes)
+
+		mttfDisplay := int(math.Round(mttfMinutes.Float64))
+
+		// 3. CALCULATE 5-WEEK EVOLUTION TRENDS (ADDED FLAKY COUNT)
+		type WeekEvolution struct {
+			WeekStart     string  `json:"week_start"`
+			TotalFailures int     `json:"total_failures"`
+			FlakyCount    int     `json:"flaky_count"`
+			MTTR          float64 `json:"mttr"`
+		}
+
+		var evolution []WeekEvolution
+		rowsEvo, errEvo := core.DB.Query(`
+			SELECT 
+				date(created_at, 'weekday 0', '-6 days') as week_start,
+				COUNT(*) as total_failures,
+				SUM(CASE WHEN name LIKE '[FLAKY]%' THEN 1 ELSE 0 END) as flaky_count,
+				AVG(CASE WHEN is_resolved = 1 AND resolved_at IS NOT NULL THEN (julianday(resolved_at) - julianday(created_at)) * 24 * 60 ELSE 0 END) as mttr
+			FROM incidents
+			WHERE created_at >= datetime('now', '-35 days')
+			GROUP BY week_start
+			ORDER BY week_start ASC
+		`)
+
+		if errEvo == nil {
+			defer rowsEvo.Close()
+			for rowsEvo.Next() {
+				var wStart string
+				var tFailures, fCount int
+				var wMttr sql.NullFloat64
+				rowsEvo.Scan(&wStart, &tFailures, &fCount, &wMttr)
+				evolution = append(evolution, WeekEvolution{
+					WeekStart:     wStart,
+					TotalFailures: tFailures,
+					FlakyCount:    fCount,
+					MTTR:          wMttr.Float64,
+				})
+			}
+		}
+
+		// 4. FINANCIAL CALCULATIONS
 		var devRate, ciCost, avgDuration, avgInvestigation float64
 		core.DB.QueryRow("SELECT dev_hourly_rate, ci_minute_cost, avg_pipeline_duration, avg_investigation_time FROM finops_settings WHERE id = 1").Scan(&devRate, &ciCost, &avgDuration, &avgInvestigation)
 
@@ -303,6 +351,8 @@ func registerIncidentRoutes(config *core.Config) {
 			"flaky_tests":        flaky,
 			"stable_failures":    total - flaky,
 			"mttr_minutes":       mttrDisplay,
+			"mttf_minutes":       mttfDisplay,
+			"evolution":          evolution,
 			"sre_impact": map[string]interface{}{
 				"ci_minutes_lost":      int(totalMinutesLost),
 				"flaky_minutes_lost":   int(flakyMinutesLost),
