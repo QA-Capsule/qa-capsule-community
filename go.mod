@@ -1,4 +1,4 @@
-module qacapsule
+module github.com/QA-Capsule/qa-capsule-community
 
 go 1.25.0
 
