@@ -1,3 +1,7 @@
+---
+icon: material/monitor-dashboard
+---
+
 # Dashboard Operations Guide
 
 The **Telemetry Stream** dashboard is the primary interface for monitoring, filtering, resolving, and exporting pipeline failures.

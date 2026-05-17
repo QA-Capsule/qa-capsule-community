@@ -1,3 +1,7 @@
+---
+icon: material/webhook
+---
+
 # Webhooks API Reference
 
 The Webhooks API is the primary ingestion gateway for CI/CD telemetry. It accepts both **JSON payloads** (pipeline-level alerts) and is complemented by the [JUnit XML Upload](../integration/junit-xml-upload.md) endpoint for structured test reports.

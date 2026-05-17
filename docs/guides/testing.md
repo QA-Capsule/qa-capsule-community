@@ -1,5 +1,5 @@
 ---
-icon: material/test-tube
+icon: material/play-box-multiple
 ---
 
 # End-to-End Testing Guide
