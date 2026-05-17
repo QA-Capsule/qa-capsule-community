@@ -9,13 +9,19 @@ export let allProjects = [];
 let editingProjectId = null;
 let currentSelectedCI = 'gitlab';
 export let selectedCurrency = 'USD';
-let analyticsChart = null;
+
+export let analyticsChart = null;
+export let evolutionChart = null;
 
 export const currencySymbols = {
     'USD': '$', 'EUR': '€', 'GBP': '£', 'JPY': '¥', 'AUD': 'A$',
     'CAD': 'C$', 'CHF': 'Fr', 'INR': '₹', 'CNY': '¥', 'MXN': '$',
     'SGD': 'S$', 'NZD': 'NZ$'
 };
+
+// --- GLOBAL CHART.JS DESIGN DEFAULTS ---
+Chart.defaults.color = '#8b949e';
+Chart.defaults.font.family = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
 
 export function setSelectedCurrency(val) { selectedCurrency = val; }
 
@@ -218,42 +224,132 @@ export function toggleAnalytics() {
     const view = document.getElementById('analytics-view');
     if (view.style.display === 'none') {
         view.style.display = 'block';
-        loadAnalytics();
+        loadAnalytics(false);
     } else {
         view.style.display = 'none';
     }
 }
 
-export function loadAnalytics() {
-    fetchWithAuth(`/api/metrics?_ts=${Date.now()}`)
+export function loadAnalytics(isExport = false) {
+    return fetchWithAuth(`/api/metrics?_ts=${Date.now()}`)
         .then(res => res.json())
         .then(data => {
             document.getElementById('mttr-value').innerText = data.mttr_minutes + " min";
-
-            if (analyticsChart) {
-                analyticsChart.destroy();
+            
+            const mttfElement = document.getElementById('mttf-value');
+            if (mttfElement) {
+                mttfElement.innerText = data.mttf_minutes > 0 ? data.mttf_minutes + " min" : "N/A";
             }
 
-            const ctx = document.getElementById('flakyChart').getContext('2d');
-            analyticsChart = new Chart(ctx, {
+            if (analyticsChart) analyticsChart.destroy();
+            if (evolutionChart) evolutionChart.destroy();
+
+            // 1. Doughnut Chart (High Quality Pie)
+            const ctxFlaky = document.getElementById('flakyChart').getContext('2d');
+            analyticsChart = new Chart(ctxFlaky, {
                 type: 'doughnut',
                 data: {
-                    labels: ['Stable Failures (Real Bugs)', 'Flaky Tests (Unstable)'],
+                    labels: ['Stable Failures', 'Flaky Tests'],
                     datasets: [{
                         data: [data.stable_failures, data.flaky_tests],
                         backgroundColor: ['#ff7b72', '#d29922'],
                         borderColor: '#0d1117',
-                        borderWidth: 2
+                        borderWidth: 4,
+                        hoverOffset: 5
                     }]
                 },
                 options: {
                     responsive: true,
+                    maintainAspectRatio: false,
+                    animation: isExport ? false : { duration: 800, easing: 'easeOutQuart' },
+                    cutout: '75%',
                     plugins: {
-                        legend: { position: 'bottom', labels: { color: '#c9d1d9' } },
-                        title: { display: true, text: 'Failure Quality Assessment', color: '#c9d1d9' }
+                        legend: { 
+                            position: 'bottom', 
+                            labels: { color: '#c9d1d9', usePointStyle: true, padding: 15, font: { size: 11 } } 
+                        },
+                        title: { display: true, text: 'Failure Quality Assessment', color: '#8b949e', font: { size: 12, weight: 'normal' } }
                     }
                 }
             });
+
+            // 2. 5-Week Evolution Combined Chart (Pro Design)
+            if (data.evolution && data.evolution.length > 0) {
+                const ctxEvo = document.getElementById('evolutionChart').getContext('2d');
+                
+                const labels = data.evolution.map(e => e.week_start);
+                const totals = data.evolution.map(e => e.total_failures);
+                const flakies = data.evolution.map(e => e.flaky_count);
+                const mttrs = data.evolution.map(e => Math.round(e.mttr));
+
+                evolutionChart = new Chart(ctxEvo, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            {
+                                label: 'Total Incidents',
+                                type: 'bar',
+                                data: totals,
+                                backgroundColor: 'rgba(88, 166, 255, 0.6)',
+                                hoverBackgroundColor: '#58a6ff',
+                                borderRadius: 4,
+                                barPercentage: 0.5,
+                                yAxisID: 'y'
+                            },
+                            {
+                                label: 'Flaky Tests',
+                                type: 'bar',
+                                data: flakies,
+                                backgroundColor: 'rgba(210, 153, 34, 0.6)',
+                                hoverBackgroundColor: '#d29922',
+                                borderRadius: 4,
+                                barPercentage: 0.5,
+                                yAxisID: 'y'
+                            },
+                            {
+                                label: 'Avg MTTR (min)',
+                                type: 'line',
+                                data: mttrs,
+                                borderColor: '#3fb950',
+                                backgroundColor: 'rgba(63, 185, 80, 0.08)',
+                                fill: true,
+                                borderWidth: 3,
+                                tension: 0.4,
+                                pointRadius: isExport ? 4 : 0, // Points visible on print export
+                                pointHoverRadius: 6,
+                                pointBackgroundColor: '#3fb950',
+                                yAxisID: 'y1'
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        animation: isExport ? false : { duration: 1000, easing: 'easeOutQuart' },
+                        interaction: { mode: 'index', intersect: false },
+                        scales: {
+                            x: { ticks: { color: '#8b949e' }, grid: { display: false } },
+                            y: {
+                                type: 'linear', display: true, position: 'left',
+                                title: { display: true, text: 'Incidents Volume', color: '#8b949e', font: { size: 11 } },
+                                ticks: { color: '#8b949e', stepSize: 1 }, 
+                                grid: { color: 'rgba(48, 54, 61, 0.3)', borderDash: [4, 4] },
+                                border: { display: false }
+                            },
+                            y1: {
+                                type: 'linear', display: true, position: 'right',
+                                title: { display: true, text: 'MTTR (min)', color: '#3fb950', font: { size: 11 } },
+                                ticks: { color: '#3fb950' }, 
+                                grid: { drawOnChartArea: false },
+                                border: { display: false }
+                            }
+                        },
+                        plugins: { legend: { labels: { color: '#c9d1d9', usePointStyle: true } } }
+                    }
+                });
+            }
+            return data;
         })
         .catch(err => console.error("Error loading analytics:", err));
 }
@@ -293,69 +389,174 @@ export function downloadWeeklyReportCSV() {
         .catch(() => notify("Erreur lors de la génération du rapport CSV", "error"));
 }
 
-export function downloadWeeklyReportPDF() {
+export async function downloadWeeklyReportPDF() {
     const filterEl = document.getElementById('project-filter');
     const projectFilter = filterEl ? filterEl.value : 'all';
 
-    fetchWithAuth(`/api/reports/weekly?project=${encodeURIComponent(projectFilter)}&_ts=${Date.now()}`)
-        .then(res => res.json())
-        .then(data => {
-            if (!data || data.length === 0) {
-                return notify("Aucun incident enregistré ces 7 derniers jours.", "warning");
-            }
+    try {
+        const view = document.getElementById('analytics-view');
+        const wasHidden = view.style.display === 'none';
+        
+        // English Comment: Force rendering context to capture active canvas textures
+        if (wasHidden) {
+            view.style.display = 'block';
+            view.style.position = 'absolute';
+            view.style.visibility = 'hidden';
+        }
 
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF();
+        // English Comment: Fetch fresh metrics using synchronous export flag (no chart animations)
+        const metricsData = await loadAnalytics(true);
+        
+        const res = await fetchWithAuth(`/api/reports/weekly?project=${encodeURIComponent(projectFilter)}&_ts=${Date.now()}`);
+        const tableData = await res.json();
 
-            doc.setFillColor(13, 17, 23);
-            doc.rect(0, 0, 210, 40, 'F');
-            doc.setTextColor(88, 166, 255);
-            doc.setFontSize(22);
-            doc.text("QA Flight Recorder", 14, 20);
-            doc.setTextColor(201, 209, 217);
-            doc.setFontSize(12);
-            let titleScope = projectFilter === 'all' ? 'Global Organization' : `Project: ${projectFilter}`;
-            doc.text(`Weekly SRE Metrics & Pipeline Health (${titleScope})`, 14, 28);
-            doc.setFontSize(10);
+        if (!tableData || tableData.length === 0) {
+            if (wasHidden) { view.style.display = 'none'; view.style.position = ''; view.style.visibility = ''; }
+            return notify("Aucun incident enregistré ces 7 derniers jours.", "warning");
+        }
+
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+
+        // ==========================================
+        // 1. CORPORATE HEADER BLOCK
+        // ==========================================
+        doc.setFillColor(13, 17, 23);
+        doc.rect(0, 0, 210, 38, 'F');
+        doc.setTextColor(88, 166, 255);
+        doc.setFontSize(22);
+        doc.setFont("helvetica", "bold");
+        doc.text("QA Flight Recorder", 14, 16);
+        
+        doc.setTextColor(201, 209, 217);
+        doc.setFontSize(11);
+        doc.setFont("helvetica", "normal");
+        let titleScope = projectFilter === 'all' ? 'Global Organization' : `Project: ${projectFilter}`;
+        doc.text(`Executive SRE Observability Report • ${titleScope}`, 14, 24);
+        
+        doc.setFontSize(9);
+        doc.setTextColor(139, 148, 158);
+        doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 31);
+
+        // ==========================================
+        // 2. DESIGNED METRICS KPI CARDS (SNAPSHOT ROW)
+        // ==========================================
+        const kpis = [
+            { label: "MEAN TIME TO RESOLVE", val: `${metricsData.mttr_minutes} min`, color: [63, 185, 80] },
+            { label: "MEAN TIME TO FAILURE", val: metricsData.mttf_minutes > 0 ? `${metricsData.mttf_minutes} min` : "N/A", color: [88, 166, 255] },
+            { label: "STABLE CRITICAL BUGS", val: `${metricsData.stable_failures}`, color: [255, 123, 114] },
+            { label: "FLAKY FLICKERING TESTS", val: `${metricsData.flaky_tests}`, color: [210, 153, 34] }
+        ];
+
+        const cardW = 42;
+        const cardH = 18;
+        const gap = 4;
+        const startX = 14;
+        const startY = 44;
+
+        kpis.forEach((kpi, index) => {
+            let x = startX + index * (cardW + gap);
+            // Draw background card body
+            doc.setFillColor(22, 27, 34);
+            doc.rect(x, startY, cardW, cardH, 'F');
+            // Accent indicator top band
+            doc.setFillColor(kpi.color[0], kpi.color[1], kpi.color[2]);
+            doc.rect(x, startY, cardW, 2, 'F');
+            
+            // Label rendering
+            doc.setFontSize(7);
             doc.setTextColor(139, 148, 158);
-            doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 34);
+            doc.setFont("helvetica", "bold");
+            doc.text(kpi.label, x + 3, startY + 6);
+            
+            // Metric digits rendering
+            doc.setFontSize(14);
+            doc.setTextColor(kpi.color[0], kpi.color[1], kpi.color[2]);
+            doc.text(kpi.val, x + 3, startY + 14);
+        });
 
-            const tableColumn = ["Pipeline Name", "Total Alerts", "Resolved", "Flaky Tests", "Health Score"];
-            const tableRows = [];
+        // ==========================================
+        // 3. PIE CHART LINE (DEDICATED ROW 1)
+        // ==========================================
+        let currentY = 68;
+        if (analyticsChart) {
+            doc.setFontSize(11);
+            doc.setTextColor(36, 41, 47);
+            doc.setFont("helvetica", "bold");
+            doc.text("Failure Quality Distribution", 14, currentY);
+            currentY += 4;
+            
+            doc.setFillColor(13, 17, 23);
+            doc.rect(14, currentY, 182, 48, 'F'); // Bound panel background
+            
+            const pieImg = analyticsChart.toBase64Image();
+            // Center square pie textures inside the wide banner row
+            doc.addImage(pieImg, 'PNG', 84, currentY + 2, 44, 44);
+            currentY += 48;
+        }
 
-            data.forEach(row => {
-                tableRows.push([
-                    row.pipeline,
-                    row.total_alerts,
-                    row.resolved_alerts,
-                    row.flaky_tests,
-                    row.health_score + "%"
-                ]);
-            });
+        // ==========================================
+        // 4. HISTORICAL EVOLUTION LINE (DEDICATED ROW 2)
+        // ==========================================
+        currentY += 6;
+        if (evolutionChart) {
+            doc.setFontSize(11);
+            doc.setTextColor(36, 41, 47);
+            doc.setFont("helvetica", "bold");
+            doc.text("5-Week Historical Metrics Trends (Alerts vs MTTR)", 14, currentY);
+            currentY += 4;
+            
+            doc.setFillColor(13, 17, 23);
+            doc.rect(14, currentY, 182, 54, 'F');
+            
+            const evoImg = evolutionChart.toBase64Image();
+            doc.addImage(evoImg, 'PNG', 16, currentY + 3, 178, 48);
+            currentY += 54;
+        }
 
-            doc.autoTable({
-                head: [tableColumn],
-                body: tableRows,
-                startY: 45,
-                theme: 'grid',
-                headStyles: { fillColor: [22, 27, 34], textColor: [201, 209, 217], lineColor: [48, 54, 61], lineWidth: 0.1 },
-                bodyStyles: { fillColor: [13, 17, 23], textColor: [201, 209, 217], lineColor: [48, 54, 61], lineWidth: 0.1 },
-                alternateRowStyles: { fillColor: [22, 27, 34] },
-                styles: { font: 'helvetica', fontSize: 10, cellPadding: 5 }
-            });
+        // ==========================================
+        // 5. DATA GRID SUMMARY TABLE
+        // ==========================================
+        currentY += 8;
+        const tableColumn = ["Pipeline Name", "Total Alerts", "Resolved", "Flaky Tests", "Health Score"];
+        const tableRows = [];
+        tableData.forEach(row => {
+            tableRows.push([row.pipeline, row.total_alerts, row.resolved_alerts, row.flaky_tests, row.health_score + "%"]);
+        });
 
-            const dateStr = new Date().toISOString().split('T')[0];
-            let suffix = projectFilter === 'all' ? 'Global' : projectFilter;
-            doc.save(`QA_Capsule_Weekly_Report_${suffix}_${dateStr}.pdf`);
-            notify("Rapport PDF généré avec succès !", "success");
-        })
-        .catch(() => notify("Erreur lors de la génération du rapport PDF", "error"));
+        doc.autoTable({
+            head: [tableColumn],
+            body: tableRows,
+            startY: currentY,
+            theme: 'grid',
+            headStyles: { fillColor: [22, 27, 34], textColor: [201, 209, 217], lineColor: [48, 54, 61], lineWidth: 0.1 },
+            bodyStyles: { fillColor: [255, 255, 255], textColor: [36, 41, 47], lineColor: [208, 215, 222], lineWidth: 0.1 },
+            alternateRowStyles: { fillColor: [246, 248, 250] },
+            styles: { font: 'helvetica', fontSize: 10, cellPadding: 5 }
+        });
+
+        const dateStr = new Date().toISOString().split('T')[0];
+        let suffix = projectFilter === 'all' ? 'Global' : projectFilter;
+        doc.save(`QA_Capsule_Executive_Report_${suffix}_${dateStr}.pdf`);
+        notify("Rapport PDF généré avec succès !", "success");
+
+        // English Comment: Clean up temporary layout parameters
+        if (wasHidden) {
+            view.style.display = 'none';
+            view.style.position = '';
+            view.style.visibility = '';
+        }
+
+    } catch (err) {
+        console.error("PDF Gen Error:", err);
+        notify("Erreur lors de la génération du rapport PDF", "error");
+    }
 }
 
 export function loadPlugins() {
     fetchWithAuth(`/api/plugins?_ts=${Date.now()}`).then(res => res.json()).then(data => {
         if (!data || data.length === 0) { document.getElementById('plugin-list').innerHTML = "<div style='text-align:center; padding:40px; opacity:0.5;'>No modules detected in the plugins directory.</div>"; return; }
-        const configIcon = `<svg style="width:14px;height:14px;margin-right:5px;vertical-align:middle;stroke:currentColor;fill:none;" viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1 0-2.83 2 2 0 0 1 0-2.83l.06.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>`;
+        const configIcon = `<svg style="width:14px;height:14px;margin-right:5px;vertical-align:middle;stroke:currentColor;fill:none;" viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>`;
         const runIcon = `<svg style="width:14px;height:14px;margin-right:5px;vertical-align:middle;stroke:currentColor;fill:none;" viewBox="0 0 24 24" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>`;
         const saveIcon = `<svg style="width:14px;height:14px;margin-right:5px;vertical-align:middle;stroke:currentColor;fill:none;" viewBox="0 0 24 24" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>`;
         const consoleIcon = `<svg style="width:12px;height:12px;margin-right:5px;vertical-align:middle;stroke:currentColor;fill:none;" viewBox="0 0 24 24" stroke-width="2"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>`;
