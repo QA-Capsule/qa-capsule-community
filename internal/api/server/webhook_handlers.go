@@ -78,11 +78,20 @@ func registerWebhookRoutes(config *core.Config) {
 			err = core.DB.QueryRow("SELECT id FROM incidents WHERE fingerprint = ? AND project_name = ? AND is_resolved = 0",
 				fingerprint, projectName).Scan(&existingID)
 
-			// FIX: Duplicate suppression
+			// FIX: Duplicate suppression for open incidents
 			if err == nil {
 				// DO NOT overwrite 'created_at'. The MTTR clock must start from the very first failure.
 				// We simply skip creating a new incident to prevent spam.
 				log.Printf("[CORRELATION] Incident %d is already open. Skipping duplicate.", existingID)
+				continue
+			}
+
+			// Skip re-opening alerts that were already resolved (prevents CI re-ingestion
+			// from undoing manual "Resolve" actions on the same failing test).
+			err = core.DB.QueryRow("SELECT id FROM incidents WHERE fingerprint = ? AND project_name = ? AND is_resolved = 1",
+				fingerprint, projectName).Scan(&existingID)
+			if err == nil {
+				log.Printf("[CORRELATION] Incident %d is already resolved. Skipping duplicate.", existingID)
 				continue
 			}
 

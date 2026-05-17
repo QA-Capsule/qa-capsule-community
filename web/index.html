@@ -236,52 +236,57 @@
                         <p style="margin: 5px 0 0 0; opacity: 0.6; font-size: 14px;">Real-time incident monitoring and correlation.</p>
                     </div>
 
-                    <div style="display: flex; align-items: center; gap: 15px;">
-                        <div style="position: relative;">
-                            <input type="text" id="incident-search" class="login-input" style="width: 250px; padding: 6px 12px; margin: 0;" placeholder="Search error or project..." oninput="fetchIncidents()">
+                    <div class="dashboard-toolbar">
+                        <div class="dashboard-toolbar-group">
+                            <input type="text" id="incident-search" class="login-input dashboard-control" style="width: 250px;" placeholder="Search error or project..." oninput="fetchIncidents()">
                         </div>
 
-                        <div style="display: flex; align-items: center; gap: 10px;">
-                            <label for="project-filter" style="font-size: 0.8rem; color: #8b949e; margin-bottom: 0;">Filter:</label>
-                            <select id="project-filter" class="login-input" style="width: 200px; padding: 6px; margin: 0;" onchange="fetchIncidents()">
+                        <div class="dashboard-toolbar-group">
+                            <label for="project-filter" class="dashboard-toolbar-label">Filter:</label>
+                            <select id="project-filter" class="login-input dashboard-control" style="width: 200px;" onchange="fetchIncidents()">
                                 <option value="all">All My Projects</option>
                             </select>
                         </div>
 
-                        <div style="display: flex; gap: 8px; align-items: center; background: rgba(88, 166, 255, 0.05); padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(88, 166, 255, 0.2);">
-                            <label style="font-size: 0.75rem; color: #8b949e; margin-bottom: 0; font-weight: bold; letter-spacing: 0.5px;">STATUS:</label>
-                            <button class="btn-secondary" id="status-all-btn" onclick="setStatusFilter('all')" style="padding: 6px 12px; font-size: 12px; border-color: #58a6ff; color: #58a6ff; background: rgba(88, 166, 255, 0.15); border-radius: 6px; transition: all 0.2s ease; display: flex; align-items: center; gap: 4px;">◆ All</button>
-                            <button class="btn-secondary" id="status-active-btn" onclick="setStatusFilter('active')" style="padding: 6px 12px; font-size: 12px; border-radius: 6px; transition: all 0.2s ease; display: flex; align-items: center; gap: 4px;">⏱ Active</button>
-                            <button class="btn-secondary" id="status-resolved-btn" onclick="setStatusFilter('resolved')" style="padding: 6px 12px; font-size: 12px; border-radius: 6px; transition: all 0.2s ease; display: flex; align-items: center; gap: 4px;">✓ Resolved</button>
+                        <div class="status-filter-group">
+                            <span class="dashboard-toolbar-label">Status:</span>
+                            <div class="status-filter-buttons">
+                                <button type="button" class="status-filter-btn active-all" id="status-all-btn" onclick="setStatusFilter('all')">All</button>
+                                <button type="button" class="status-filter-btn" id="status-active-btn" onclick="setStatusFilter('active')">Active</button>
+                                <button type="button" class="status-filter-btn" id="status-resolved-btn" onclick="setStatusFilter('resolved')">Resolved</button>
+                            </div>
                         </div>
 
-                        <button class="btn-secondary" onclick="fetchIncidents()">↻ Refresh</button>
-                        <button class="btn-secondary" onclick="toggleAnalytics()" style="border-color: #58a6ff; color: #58a6ff; font-weight: bold; display: flex; align-items: center; gap: 6px;">
-                            <svg style="width:14px;height:14px;stroke:currentColor;fill:none;" viewBox="0 0 24 24" stroke-width="2">
+                        <button type="button" class="dashboard-toolbar-btn" onclick="fetchIncidents()">↻ Refresh</button>
+                        <button type="button" class="dashboard-toolbar-btn btn-accent" onclick="toggleAnalytics()">
+                            <svg style="width:14px;height:14px;stroke:currentColor;fill:none;flex-shrink:0;" viewBox="0 0 24 24" stroke-width="2">
                                 <line x1="18" y1="20" x2="18" y2="10"></line>
                                 <line x1="12" y1="20" x2="12" y2="4"></line>
                                 <line x1="6" y1="20" x2="6" y2="14"></line>
-                            </svg> Analytics
+                            </svg>
+                            Analytics
                         </button>
-                        
-                        <div style="display: flex; gap: 5px;">
-                            <button class="btn-secondary" onclick="downloadWeeklyReportCSV()" style="border-color: #3fb950; color: #3fb950; display: flex; align-items: center; gap: 6px;" title="Download CSV Report">
-                                <svg style="width:14px;height:14px;stroke:currentColor;fill:none;" viewBox="0 0 24 24" stroke-width="2">
+
+                        <div class="dashboard-btn-group">
+                            <button type="button" class="dashboard-toolbar-btn btn-success" onclick="downloadWeeklyReportCSV()" title="Download CSV Report">
+                                <svg style="width:14px;height:14px;stroke:currentColor;fill:none;flex-shrink:0;" viewBox="0 0 24 24" stroke-width="2">
                                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
                                     <polyline points="14 2 14 8 20 8"></polyline>
                                     <line x1="8" y1="13" x2="16" y2="13"></line>
                                     <line x1="8" y1="17" x2="16" y2="17"></line>
                                     <polyline points="10 9 9 9 8 9"></polyline>
-                                </svg> CSV
+                                </svg>
+                                CSV
                             </button>
-                            <button class="btn-secondary" onclick="downloadWeeklyReportPDF()" style="border-color: #ff7b72; color: #ff7b72; display: flex; align-items: center; gap: 6px;" title="Download PDF Report">
-                                <svg style="width:14px;height:14px;stroke:currentColor;fill:none;" viewBox="0 0 24 24" stroke-width="2">
+                            <button type="button" class="dashboard-toolbar-btn btn-danger" onclick="downloadWeeklyReportPDF()" title="Download PDF Report">
+                                <svg style="width:14px;height:14px;stroke:currentColor;fill:none;flex-shrink:0;" viewBox="0 0 24 24" stroke-width="2">
                                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
                                     <polyline points="14 2 14 8 20 8"></polyline>
                                     <path d="M9 15v-4"></path>
                                     <path d="M12 15v-4"></path>
                                     <path d="M15 15v-4"></path>
-                                </svg> PDF
+                                </svg>
+                                PDF
                             </button>
                         </div>
 
