@@ -5,8 +5,9 @@ import (
 	"encoding/json"
 	"math"
 	"net/http"
+	"strconv" // SRE FIX: Pour la conversion type-safe stricte des IDs
 	"strings"
-	"time" // SRE FIX: Ajouté pour gérer les délais d'attente lors des re-tentatives de verrous
+	"time"
 
 	"qacapsule/internal/core"
 
@@ -110,23 +111,18 @@ func registerIncidentRoutes(config *core.Config) {
 
 				query := "UPDATE incidents SET is_resolved = 1, status = 'resolved', resolved_by = ?, resolved_at = CURRENT_TIMESTAMP WHERE id IN (" + strings.Join(placeholders, ",") + ")"
 
-				// =================================================================
-				// SRE FIX INTERNE : BOUCLE DE RETRY ROBUSTE CONTRE LES VERROUS SQLITE
-				// =================================================================
 				var dbErr error
 				for attempt := 1; attempt <= 5; attempt++ {
 					_, dbErr = core.DB.Exec(query, args...)
 					if dbErr == nil {
-						break // Succès de la mise à jour !
+						break
 					}
-
-					// Si l'erreur est liée à un verrouillage transitoire, on attend et on re-tente
 					errStr := strings.ToLower(dbErr.Error())
 					if strings.Contains(errStr, "locked") || strings.Contains(errStr, "busy") {
-						time.Sleep(time.Duration(attempt*50) * time.Millisecond) // Backoff exponentiel léger
+						time.Sleep(time.Duration(attempt*50) * time.Millisecond)
 						continue
 					}
-					break // Autre erreur critique non liée au verrouillage, on stoppe
+					break
 				}
 
 				if dbErr != nil {
@@ -149,17 +145,27 @@ func registerIncidentRoutes(config *core.Config) {
 			}
 
 			idList := strings.Split(idsStr, ",")
-			if len(idList) > 0 {
-				placeholders := make([]string, len(idList))
-				args := make([]interface{}, len(idList))
-				for i, id := range idList {
-					placeholders[i] = "?"
-					args[i] = id
-				}
+			var args []interface{}
+			var placeholders []string
 
+			// SRE FIX : On s'assure de convertir les IDs en vrais entiers avant exécution SQL
+			for _, idStr := range idList {
+				idStr = strings.TrimSpace(idStr)
+				if idStr == "" {
+					continue
+				}
+				id, err := strconv.Atoi(idStr)
+				if err != nil {
+					http.Error(w, "Invalid ID format in parameter", http.StatusBadRequest)
+					return
+				}
+				placeholders = append(placeholders, "?")
+				args = append(args, id)
+			}
+
+			if len(args) > 0 {
 				query := "DELETE FROM incidents WHERE id IN (" + strings.Join(placeholders, ",") + ")"
 
-				// Application de la même protection anti-lock pour la suppression
 				var dbErr error
 				for attempt := 1; attempt <= 5; attempt++ {
 					_, dbErr = core.DB.Exec(query, args...)
@@ -175,7 +181,7 @@ func registerIncidentRoutes(config *core.Config) {
 				}
 
 				if dbErr != nil {
-					http.Error(w, "Database delete contention failed", http.StatusInternalServerError)
+					http.Error(w, "Database delete contention failed: "+dbErr.Error(), http.StatusInternalServerError)
 					return
 				}
 			}
