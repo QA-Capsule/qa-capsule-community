@@ -1,3 +1,7 @@
+---
+icon: material/xml
+---
+
 # JUnit XML Upload API
 
 The **JUnit XML Upload** endpoint is the recommended way to send test results to QA Capsule. It parses standard JUnit XML reports and creates one **sub-alert per failed test case**.
