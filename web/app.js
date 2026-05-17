@@ -518,10 +518,32 @@ window.checkAuth = function () {
     }
 }
 
-window.performLogout = function () { localStorage.removeItem('sre-jwt'); location.reload(); }
+window.performLogout = function () { 
+    // SECURITY FIX: Only attempt reload if a token was actually present, to break infinite loops.
+    if (localStorage.getItem('sre-jwt')) {
+        localStorage.removeItem('sre-jwt'); 
+        location.reload(); 
+    } else {
+        // Fallback: manually display the login screen without reloading
+        const loginScreen = document.getElementById('login-screen');
+        const appContainer = document.getElementById('app-container');
+        const pwdScreen = document.getElementById('force-password-screen');
+        
+        if (loginScreen) loginScreen.style.display = 'flex';
+        if (appContainer) appContainer.style.display = 'none';
+        if (pwdScreen) pwdScreen.style.display = 'none';
+    }
+}
 
 window.fetchWithAuth = function (url, opts = {}) {
     const token = localStorage.getItem('sre-jwt');
+    
+    // SECURITY FIX: Do not execute fetch if there's no token. Prevents guaranteed 401s on login screen.
+    if (!token) {
+        window.performLogout();
+        return Promise.reject('No authentication token found.');
+    }
+
     opts.headers = { ...opts.headers, 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
     return fetch(url, opts).then(res => { if (res.status === 401) window.performLogout(); return res; });
 }
@@ -1044,7 +1066,10 @@ window.setStatusFilter = function (status) {
     else if (status === 'active' && activeBtn) activeBtn.classList.add('active-active');
     else if (status === 'resolved' && resolvedBtn) resolvedBtn.classList.add('active-resolved');
 
-    window.fetchIncidents(true);
+    // SECURITY FIX: Prevent fetching data (which causes a 401 loop) if there's no JWT token present.
+    if (localStorage.getItem('sre-jwt')) {
+        window.fetchIncidents(true);
+    }
 }
 
 window.fetchMetricsOnly = function () {
@@ -1341,7 +1366,7 @@ window.connectWebSocket = function () {
         if (dashboard && dashboard.classList.contains('active')) {
             window.fetchIncidents();
         }
-    }, 15000);
+    }, 3000);
 }
 
 // ==========================================
