@@ -14,6 +14,144 @@ window.pausePollingUntil = 0;
 window.isFirstLoad = true;
 window.statusFilter = 'all'; // 'all', 'active', 'resolved'
 window.selectedCurrency = 'USD'; // Default currency
+// Persist resolved sub-alerts until the server confirms (survives polling/refresh)
+window.pendingResolvedIds = new Map();
+window._resolveRetryInFlight = false;
+
+function loadPendingResolvedFromStorage() {
+    try {
+        const raw = sessionStorage.getItem('qacapsule-pending-resolved');
+        if (!raw) return;
+        window.pendingResolvedIds = new Map(JSON.parse(raw));
+    } catch (_) {
+        window.pendingResolvedIds = new Map();
+    }
+}
+
+function savePendingResolvedToStorage() {
+    try {
+        sessionStorage.setItem('qacapsule-pending-resolved', JSON.stringify([...window.pendingResolvedIds]));
+    } catch (_) {}
+}
+
+function normalizeIsResolved(inc) {
+    return inc.is_resolved === true || inc.is_resolved === 1 || inc.is_resolved === '1';
+}
+
+window.markIncidentsPendingResolve = function (ids, resolvedBy) {
+    ids.forEach(id => {
+        window.pendingResolvedIds.set(String(id), {
+            resolvedBy: resolvedBy || 'You',
+            since: Date.now()
+        });
+    });
+    savePendingResolvedToStorage();
+};
+
+window.applyOptimisticResolve = function (ids, resolvedBy) {
+    const idSet = new Set(ids.map(id => String(id)));
+    window.currentIncidents.forEach(inc => {
+        if (idSet.has(String(inc.id))) {
+            inc.is_resolved = true;
+            inc.status = 'resolved';
+            inc.resolved_by = resolvedBy;
+        }
+    });
+};
+
+window.mergePendingResolvedState = function (incidents) {
+    if (!incidents || window.pendingResolvedIds.size === 0) return incidents;
+    return incidents.map(inc => {
+        const pending = window.pendingResolvedIds.get(String(inc.id));
+        if (!pending) return inc;
+        if (normalizeIsResolved(inc)) {
+            window.pendingResolvedIds.delete(String(inc.id));
+            savePendingResolvedToStorage();
+            return inc;
+        }
+        return {
+            ...inc,
+            is_resolved: true,
+            status: 'resolved',
+            resolved_by: inc.resolved_by || pending.resolvedBy
+        };
+    });
+};
+
+window.confirmPendingResolvedFromServer = function (rawIncidents) {
+    const needsRetry = [];
+    (rawIncidents || []).forEach(inc => {
+        const key = String(inc.id);
+        if (!window.pendingResolvedIds.has(key)) return;
+        if (normalizeIsResolved(inc)) {
+            window.pendingResolvedIds.delete(key);
+        } else {
+            const pending = window.pendingResolvedIds.get(key);
+            if (pending && Date.now() - pending.since >= 2000) {
+                const numId = parseInt(inc.id, 10);
+                if (!isNaN(numId)) needsRetry.push(numId);
+            }
+        }
+    });
+    savePendingResolvedToStorage();
+    return [...new Set(needsRetry)];
+};
+
+window.resolveIncidentsByIds = async function (ids, successMessage) {
+    const uniqueIds = [...new Set(ids.map(id => parseInt(id, 10)).filter(id => !isNaN(id)))];
+    if (uniqueIds.length === 0) return false;
+
+    const currentUser = parseJwt(localStorage.getItem('sre-jwt')).username || 'You';
+    window.pausePollingUntil = Date.now() + 30000;
+
+    window.markIncidentsPendingResolve(uniqueIds, currentUser);
+    window.applyOptimisticResolve(uniqueIds, currentUser);
+    window.renderIncidentsList();
+
+    try {
+        const res = await window.fetchWithAuth('/api/incidents', {
+            method: 'PUT',
+            body: JSON.stringify({ ids: uniqueIds })
+        });
+        if (!res.ok) throw new Error('Update failed on server side');
+
+        notify(successMessage || 'Alerts resolved', 'success');
+
+        for (let attempt = 0; attempt < 8; attempt++) {
+            await new Promise(r => setTimeout(r, attempt === 0 ? 600 : 800));
+            await window.fetchIncidents(true, { skipPauseCheck: true });
+
+            // Pending entries are cleared only when the server returns is_resolved=true
+            const allConfirmed = uniqueIds.every(id => !window.pendingResolvedIds.has(String(id)));
+            if (allConfirmed) break;
+        }
+
+        if (uniqueIds.some(id => window.pendingResolvedIds.has(String(id))) && !window._resolveRetryInFlight) {
+            window._resolveRetryInFlight = true;
+            try {
+                await window.fetchWithAuth('/api/incidents', {
+                    method: 'PUT',
+                    body: JSON.stringify({ ids: uniqueIds })
+                });
+                await new Promise(r => setTimeout(r, 800));
+                await window.fetchIncidents(true, { skipPauseCheck: true });
+            } finally {
+                window._resolveRetryInFlight = false;
+            }
+        }
+
+        window.pausePollingUntil = Date.now() + 5000;
+        await window.fetchMetricsOnly();
+        return true;
+    } catch (e) {
+        notify('Erreur lors de la résolution', 'error');
+        window.pausePollingUntil = Date.now() + 5000;
+        await window.fetchIncidents(true, { skipPauseCheck: true });
+        return false;
+    }
+};
+
+loadPendingResolvedFromStorage();
 
 // Currency symbols
 window.currencySymbols = {
@@ -648,45 +786,15 @@ window.updateBulkActionUI = function () {
 
 window.resolveSelected = async function () {
     if (window.selectedIncidents.size === 0) return;
-    
-    const ids = Array.from(window.selectedIncidents);
-    // Bloque le rafraîchissement d'arrière plan durant l'action
-    window.pausePollingUntil = Date.now() + 15000; 
-    
-    // UI Optimiste : On passe visuellement les éléments au vert immédiatement
-    const currentUser = parseJwt(localStorage.getItem('sre-jwt')).username || 'You';
-    window.currentIncidents.forEach(inc => {
-        if (ids.includes(inc.id)) {
-            inc.is_resolved = true;
-            inc.status = 'resolved';
-            inc.resolved_by = currentUser;
-        }
-    });
+
+    const ids = Array.from(window.selectedIncidents)
+        .map(id => parseInt(id, 10))
+        .filter(id => !isNaN(id));
+    if (ids.length === 0) return;
 
     window.selectedIncidents.clear();
-    window.renderIncidentsList(); 
-
-    try {
-        const res = await window.fetchWithAuth('/api/incidents', {
-            method: 'PUT',
-            body: JSON.stringify({ ids: ids })
-        });
-
-        if (res.ok) {
-            notify("Alerts resolved", "success");
-            // CORRECTIF IHM : On laisse 1.5s de buffer pour éviter de pull des données SQLite non synchronisées
-            window.pausePollingUntil = Date.now() + 1500;
-            setTimeout(async () => {
-                await window.fetchIncidents(true); 
-            }, 1500);
-        } else {
-            throw new Error("Update failed on server side");
-        }
-    } catch (e) {
-        notify("API error while resolving incidents", "error");
-        window.pausePollingUntil = 0;
-        window.fetchIncidents(true);
-    }
+    window.updateBulkActionUI();
+    await window.resolveIncidentsByIds(ids, 'Alerts resolved');
 };
 
 window.deleteSelected = async function () {
@@ -738,58 +846,21 @@ window.resolveGroup = async function (groupId, event) {
     const group = window.groupedIncidents[groupId];
     if (!group) return;
 
-    window.pausePollingUntil = Date.now() + 15000;
-    const currentUser = parseJwt(localStorage.getItem('sre-jwt')).username || 'You';
-
     const selectedInGroup = group.incidents.filter(inc => window.selectedIncidents.has(String(inc.id)));
     const targetIncidents = selectedInGroup.length > 0 ? selectedInGroup : group.incidents;
 
-    const ids = [];
-    targetIncidents.forEach(inc => {
-        if (!inc.is_resolved) {
-            inc.is_resolved = true;
-            inc.status = 'resolved';
-            inc.resolved_by = currentUser;
-            ids.push(parseInt(inc.id, 10));
-        }
-    });
+    const ids = targetIncidents
+        .filter(inc => !normalizeIsResolved(inc))
+        .map(inc => parseInt(inc.id, 10))
+        .filter(id => !isNaN(id));
 
-    if (ids.length === 0) {
-        window.pausePollingUntil = 0;
-        return;
-    }
+    if (ids.length === 0) return;
 
     targetIncidents.forEach(i => window.selectedIncidents.delete(String(i.id)));
-    window.renderIncidentsList();
-    notify("Pipelines marqués comme résolus.", "success");
+    window.updateBulkActionUI();
 
-    try {
-        // ENVOI INDIVIDUEL DE LA RÉSOLUTION
-        const promises = ids.filter(id => !isNaN(id)).map(id => {
-            return window.fetchWithAuth('/api/incidents', {
-                method: 'PUT',
-                body: JSON.stringify({ 
-                    id: id, 
-                    ids: [id], 
-                    is_resolved: true, 
-                    status: 'resolved', 
-                    resolved_by: currentUser 
-                })
-            });
-        });
-
-        await Promise.all(promises);
-
-        setTimeout(async () => {
-            window.pausePollingUntil = 0;
-            await window.fetchIncidents(true);
-            await window.fetchMetricsOnly();
-        }, 1200);
-    } catch (e) {
-        notify("Erreur lors de la résolution du pipeline", "error");
-        window.pausePollingUntil = 0;
-        window.fetchIncidents(true);
-    }
+    const msg = ids.length === 1 ? 'Sub-alert résolue.' : 'Pipelines marqués comme résolus.';
+    await window.resolveIncidentsByIds(ids, msg);
 }
 
 window.deleteGroup = async function (groupId, event) {
@@ -964,52 +1035,14 @@ window.setStatusFilter = function (status) {
     const activeBtn = document.getElementById('status-active-btn');
     const resolvedBtn = document.getElementById('status-resolved-btn');
 
-    if (status === 'all') {
-        allBtn.style.borderColor = '#58a6ff';
-        allBtn.style.color = '#ffffff';
-        allBtn.style.background = 'rgba(88, 166, 255, 0.25)';
-        allBtn.style.fontWeight = 'bold';
+    [allBtn, activeBtn, resolvedBtn].forEach(btn => {
+        if (!btn) return;
+        btn.classList.remove('active-all', 'active-active', 'active-resolved');
+    });
 
-        activeBtn.style.borderColor = '#30363d';
-        activeBtn.style.color = '#8b949e';
-        activeBtn.style.background = 'transparent';
-        activeBtn.style.fontWeight = 'normal';
-
-        resolvedBtn.style.borderColor = '#30363d';
-        resolvedBtn.style.color = '#8b949e';
-        resolvedBtn.style.background = 'transparent';
-        resolvedBtn.style.fontWeight = 'normal';
-    } else if (status === 'active') {
-        allBtn.style.borderColor = '#30363d';
-        allBtn.style.color = '#8b949e';
-        allBtn.style.background = 'transparent';
-        allBtn.style.fontWeight = 'normal';
-
-        activeBtn.style.borderColor = '#ff7b72';
-        activeBtn.style.color = '#ffffff';
-        activeBtn.style.background = 'rgba(255, 123, 114, 0.25)';
-        activeBtn.style.fontWeight = 'bold';
-
-        resolvedBtn.style.borderColor = '#30363d';
-        resolvedBtn.style.color = '#8b949e';
-        resolvedBtn.style.background = 'transparent';
-        resolvedBtn.style.fontWeight = 'normal';
-    } else if (status === 'resolved') {
-        allBtn.style.borderColor = '#30363d';
-        allBtn.style.color = '#8b949e';
-        allBtn.style.background = 'transparent';
-        allBtn.style.fontWeight = 'normal';
-
-        activeBtn.style.borderColor = '#30363d';
-        activeBtn.style.color = '#8b949e';
-        activeBtn.style.background = 'transparent';
-        activeBtn.style.fontWeight = 'normal';
-
-        resolvedBtn.style.borderColor = '#3fb950';
-        resolvedBtn.style.color = '#ffffff';
-        resolvedBtn.style.background = 'rgba(63, 185, 80, 0.25)';
-        resolvedBtn.style.fontWeight = 'bold';
-    }
+    if (status === 'all' && allBtn) allBtn.classList.add('active-all');
+    else if (status === 'active' && activeBtn) activeBtn.classList.add('active-active');
+    else if (status === 'resolved' && resolvedBtn) resolvedBtn.classList.add('active-resolved');
 
     window.fetchIncidents(true);
 }
@@ -1027,8 +1060,8 @@ window.fetchMetricsOnly = function () {
         });
 };
 
-window.fetchIncidents = function (forceRender = false) {
-    if (!forceRender && Date.now() < window.pausePollingUntil) return;
+window.fetchIncidents = function (forceRender = false, opts = {}) {
+    if (!opts.skipPauseCheck && !forceRender && Date.now() < window.pausePollingUntil) return;
 
     const filterEl = document.getElementById('project-filter');
     const projectFilter = filterEl ? filterEl.value : 'all';
@@ -1036,7 +1069,7 @@ window.fetchIncidents = function (forceRender = false) {
     // ANTI-CACHE ULTRA AGRESSIF
     const url = `/api/incidents?project=${encodeURIComponent(projectFilter)}&_ts=${Date.now()}&_bust=${Math.random()}`;
 
-    window.fetchWithAuth(url, {
+    return window.fetchWithAuth(url, {
         headers: {
             'Cache-Control': 'no-cache, no-store, must-revalidate',
             'Pragma': 'no-cache',
@@ -1045,21 +1078,33 @@ window.fetchIncidents = function (forceRender = false) {
     })
         .then(res => res.json())
         .then(data => {
-            if (!forceRender && Date.now() < window.pausePollingUntil) return;
+            if (!opts.skipPauseCheck && !forceRender && Date.now() < window.pausePollingUntil) return;
             if (!data) data = [];
 
-            const safeData = [...data].sort((a, b) => a.id - b.id);
+            const rawData = [...data].sort((a, b) => a.id - b.id);
+            const retryIds = window.confirmPendingResolvedFromServer(rawData);
+
+            if (retryIds.length > 0 && !window._resolveRetryInFlight) {
+                window._resolveRetryInFlight = true;
+                window.fetchWithAuth('/api/incidents', {
+                    method: 'PUT',
+                    body: JSON.stringify({ ids: retryIds })
+                }).finally(() => { window._resolveRetryInFlight = false; });
+            }
+
+            const safeData = window.mergePendingResolvedState(rawData);
             const currentData = window.currentIncidents || [];
             const safeCurrent = [...currentData].sort((a, b) => a.id - b.id);
 
-            const oldSig = safeCurrent.map(i => `${i.id}:${i.is_resolved}`).join('|');
-            const newSig = safeData.map(i => `${i.id}:${i.is_resolved}`).join('|');
+            const oldSig = safeCurrent.map(i => `${i.id}:${normalizeIsResolved(i)}`).join('|');
+            const newSig = safeData.map(i => `${i.id}:${normalizeIsResolved(i)}`).join('|');
 
             if (forceRender || oldSig !== newSig) {
                 window.currentIncidents = safeData;
                 window.renderIncidentsList();
             }
             window.fetchMetricsOnly();
+            return safeData;
         })
         .catch(err => {
             const listEl = document.getElementById('incident-list');
@@ -1081,9 +1126,9 @@ window.renderIncidentsList = function () {
     let filteredData = window.currentIncidents || [];
 
     if (window.statusFilter === 'active') {
-        filteredData = filteredData.filter(inc => !inc.is_resolved);
+        filteredData = filteredData.filter(inc => !normalizeIsResolved(inc));
     } else if (window.statusFilter === 'resolved') {
-        filteredData = filteredData.filter(inc => inc.is_resolved);
+        filteredData = filteredData.filter(inc => normalizeIsResolved(inc));
     }
 
     if (searchQuery) {
@@ -1099,8 +1144,8 @@ window.renderIncidentsList = function () {
         return;
     }
 
-    const activeCount = filteredData.filter(i => !i.is_resolved).length;
-    const resolvedCount = filteredData.filter(i => i.is_resolved).length;
+    const activeCount = filteredData.filter(i => !normalizeIsResolved(i)).length;
+    const resolvedCount = filteredData.filter(i => normalizeIsResolved(i)).length;
     const health = filteredData.length > 0 ? Math.round((resolvedCount / filteredData.length) * 100) : 100;
 
     document.getElementById('kpi-active').innerText = activeCount;
@@ -1150,7 +1195,7 @@ window.renderIncidentsList = function () {
         }
 
         currentGroup.incidents.push(inc);
-        if (!inc.is_resolved) currentGroup.is_resolved = false;
+        if (!normalizeIsResolved(inc)) currentGroup.is_resolved = false;
     });
 
     groupsArray.reverse();
@@ -1186,7 +1231,7 @@ window.renderIncidentsList = function () {
     `;
 
     htmlContent += groupsArray.map(group => {
-        const activeSubAlerts = group.incidents.filter(i => !i.is_resolved).length;
+        const activeSubAlerts = group.incidents.filter(i => !normalizeIsResolved(i)).length;
         let severityColor = activeSubAlerts > 0 ? '#ff7b72' : '#3fb950';
 
         let resolvedBadge = activeSubAlerts === 0
@@ -1199,7 +1244,7 @@ window.renderIncidentsList = function () {
             const cleanName = inc.name.replace("[FLAKY] ", "");
             const displayLog = inc.error_logs || inc.error_message || "No logs available.";
 
-            const isResolved = inc.is_resolved;
+            const isResolved = normalizeIsResolved(inc);
             const textDecoration = isResolved ? 'text-decoration: line-through;' : '';
             const textColor = isResolved ? '#3fb950' : 'var(--text-main)';
             // English Comment: Convert inc.id to String to safely test against Set populated via HTML
@@ -1903,13 +1948,5 @@ window.onload = function () {
     }
     window.updateCurrencyDisplay();
     // Initialize status filter button styles
-    setTimeout(() => {
-        const statusAllBtn = document.getElementById('status-all-btn');
-        if (statusAllBtn) {
-            statusAllBtn.style.borderColor = '#58a6ff';
-            statusAllBtn.style.color = '#ffffff';
-            statusAllBtn.style.background = 'rgba(88, 166, 255, 0.25)';
-            statusAllBtn.style.fontWeight = 'bold';
-        }
-    }, 100);
+    setTimeout(() => window.setStatusFilter(window.statusFilter || 'all'), 100);
 };

@@ -8,6 +8,10 @@ Integrating QA Capsule with GitLab CI allows you to capture test failures direct
 
 This guide will walk you through provisioning the endpoint, securing your credentials, and updating your `.gitlab-ci.yml` file.
 
+!!! tip "Recommended: JUnit XML Upload"
+    For structured per-test sub-alerts, use `POST /api/webhooks/upload` with your JUnit XML report.
+    See [JUnit XML Upload](junit-xml-upload.md) and the [CI/CD Overview](cicd-overview.md).
+
 ---
 
 ## Prerequisites

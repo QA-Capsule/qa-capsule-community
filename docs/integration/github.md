@@ -78,77 +78,89 @@ You must never hardcode your QA Capsule API Key directly into your workflow YAML
 
 ---
 
-## Step 4: Update your Workflow YAML
+## Step 4: Configure JUnit XML Output
 
-The final step is to instruct your GitHub Actions runner to push data to QA Capsule when a test fails.
+Configure your test framework to produce a JUnit XML report. Example for Playwright:
 
-Open your workflow file (e.g., `.github/workflows/playwright-e2e.yml`) and add a new step at the very end of your job. 
+```javascript
+// playwright.config.js
+module.exports = {
+  reporter: [['junit', { outputFile: 'playwright-results.xml' }]],
+};
+```
 
-### The `if: always()` condition
+See [JUnit XML Upload](junit-xml-upload.md) for Cypress, Pytest, and other frameworks.
 
-It is absolutely critical that you add `if: always()` or `if: failure()` to this step. By default, GitHub stops executing subsequent steps if a previous step (like a test) fails. Using this condition ensures the telemetry agent runs regardless of the pipeline's failure status.
+---
 
-### Example Configuration:
+## Step 5: Update your Workflow YAML
+
+Add an upload step at the end of your test job. **Always use `if: always()`** so telemetry is sent even when tests fail.
+
+### Recommended — JUnit XML Upload
 
 ```yaml
 name: Frontend E2E Tests
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   run-playwright:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - name: Install Dependencies
-        run: npm ci
-
-      - name: Install Playwright Browsers
-        run: npx playwright install --with-deps
+      - run: npm ci
+      - run: npx playwright install --with-deps
 
       - name: Run E2E Tests
         run: npx playwright test
-        continue-on-error: true # Optional: Allows pipeline to reach the agent step gracefully
+        continue-on-error: true
 
-      # ========================================================================
-      # QA CAPSULE TELEMETRY AGENT
-      # ========================================================================
-      - name: Push Telemetry to QA Capsule
-        if: always() 
+      - name: Upload test results to QA Capsule
+        if: always()
         env:
-          # Securely inject the secrets from GitHub environment
+          QA_CAPSULE_URL: ${{ secrets.QA_CAPSULE_URL }}
+          QA_CAPSULE_API_KEY: ${{ secrets.QA_CAPSULE_API_KEY }}
+        run: |
+          curl -f -X POST "${QA_CAPSULE_URL}/api/webhooks/upload?framework=Playwright" \
+            -H "X-API-Key: ${QA_CAPSULE_API_KEY}" \
+            -F "file=@playwright-results.xml"
+```
+
+This creates **one sub-alert per failed test** with full stack traces.
+
+### Alternative — JSON Webhook (pipeline-level alert)
+
+For simple pipeline notifications without structured test reports:
+
+```yaml
+      - name: Push Telemetry to QA Capsule
+        if: always()
+        env:
           WEBHOOK_URL: ${{ secrets.QA_CAPSULE_URL }}
           API_KEY: ${{ secrets.QA_CAPSULE_API_KEY }}
         run: |
-          echo "Sending test results to QA Capsule Control Plane..."
-          
-          # In a production environment, you would use the 'sre-agent.sh' 
-          # to parse your JUnit XML here. For demonstration, we send a static payload:
-          
-          curl --silent --show-error -X POST "$WEBHOOK_URL/api/webhooks/github" \
+          curl -f -X POST "${WEBHOOK_URL}/api/webhooks/github" \
             -H "Content-Type: application/json" \
-            -H "X-API-Key: $API_KEY" \
+            -H "X-API-Key: ${API_KEY}" \
             -d "{
-                  \"name\": \"GitHub Actions: ${GITHUB_WORKFLOW}\",
-                  \"status\": \"CRITICAL\",
-                  \"browser\": \"Ubuntu / GitHub Runner\",
-                  \"error\": \"Test suite failed on branch ${GITHUB_REF_NAME}\",
-                  \"console_logs\": \"[FATAL] E2E Tests failed during CI execution. See GitHub run ID: ${GITHUB_RUN_ID} for full artifacts.\"
-                }"
+              \"name\": \"GitHub Actions: ${GITHUB_WORKFLOW}\",
+              \"status\": \"CRITICAL\",
+              \"error\": \"Test suite failed on branch ${GITHUB_REF_NAME}\",
+              \"console_logs\": \"See GitHub run ID: ${GITHUB_RUN_ID}\"
+            }"
 ```
 
-## Step 5: Verify the Integration
+## Step 6: Verify the Integration
 
 To ensure the connection is established:
 
