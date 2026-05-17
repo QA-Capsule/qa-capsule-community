@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strings"
 
 	"qacapsule/internal/core"
 )
@@ -15,17 +16,15 @@ import (
 func registerWebhookRoutes(config *core.Config) {
 
 	// ==========================================
-	// DIRECT XML FILE UPLOAD (The Modern API Approach)
+	// UNIVERSAL WEBHOOK GATEWAY (XML & JSON)
 	// ==========================================
-	http.HandleFunc("/api/webhooks/upload", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/api/webhooks/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
 
 		apiKey := r.Header.Get("X-API-Key")
-		framework := r.URL.Query().Get("framework")
-
 		if apiKey == "" {
 			http.Error(w, "Missing X-API-Key Header", http.StatusUnauthorized)
 			return
@@ -40,77 +39,91 @@ func registerWebhookRoutes(config *core.Config) {
 			return
 		}
 
-		// Parse Multipart Form to extract the XML file
-		err = r.ParseMultipartForm(10 << 20)
-		if err != nil {
-			http.Error(w, "File upload too large", http.StatusBadRequest)
-			return
-		}
+		var alerts []core.UnifiedAlert
 
-		file, _, err := r.FormFile("file")
-		if err != nil {
-			http.Error(w, "Failed to retrieve the file", http.StatusBadRequest)
-			return
-		}
-		defer file.Close()
+		// 1. DYNAMIC INGESTION ROUTING
+		if strings.HasSuffix(r.URL.Path, "/upload") {
+			// Handle Multipart XML Uploads (Playwright, Cypress, PyTest, etc.)
+			err = r.ParseMultipartForm(10 << 20)
+			if err != nil {
+				http.Error(w, "File upload too large", http.StatusBadRequest)
+				return
+			}
 
-		fileBytes, err := io.ReadAll(file)
-		if err != nil {
-			http.Error(w, "Failed to read file", http.StatusInternalServerError)
-			return
-		}
+			file, _, err := r.FormFile("file")
+			if err != nil {
+				http.Error(w, "Failed to retrieve the file", http.StatusBadRequest)
+				return
+			}
+			defer file.Close()
 
-		// Delegate parsing to Core Parser
-		alerts := core.ParseJUnitXML(fileBytes, framework)
+			fileBytes, err := io.ReadAll(file)
+			if err != nil {
+				http.Error(w, "Failed to read file", http.StatusInternalServerError)
+				return
+			}
+
+			framework := r.URL.Query().Get("framework")
+			alerts = core.ParseJUnitXML(fileBytes, framework)
+
+		} else {
+			// Handle Generic JSON Webhooks (GitHub Actions, GitLab CI scripts)
+			var rawPayload map[string]interface{}
+			err = json.NewDecoder(r.Body).Decode(&rawPayload)
+			if err != nil {
+				http.Error(w, "Invalid JSON payload format", http.StatusBadRequest)
+				return
+			}
+			alerts = append(alerts, core.NormalizePayload(rawPayload))
+		}
 
 		if len(alerts) == 0 {
+			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			json.NewEncoder(w).Encode(map[string]string{"status": "success", "message": "No failed tests detected."})
 			return
 		}
 
-		// Process each extracted failure
+		// 2. PROCESS EXTRACTED FAILURES
 		for _, alert := range alerts {
 			rawString := fmt.Sprintf("%s|%s", alert.Name, alert.Error)
 			fingerprint := fmt.Sprintf("%x", sha256.Sum256([]byte(rawString)))
 
-			var existingID int
-			err = core.DB.QueryRow("SELECT id FROM incidents WHERE fingerprint = ? AND project_name = ? AND is_resolved = 0",
-				fingerprint, projectName).Scan(&existingID)
+			// --- SRE CRITICAL FIX: SMART CORRELATION & FLAKY DETECTION ---
+			// We no longer suppress new executions. Every pipeline run is recorded so the UI can group them.
 
-			// FIX: Duplicate suppression for open incidents
-			if err == nil {
-				// DO NOT overwrite 'created_at'. The MTTR clock must start from the very first failure.
-				// We simply skip creating a new incident to prevent spam.
-				log.Printf("[CORRELATION] Incident %d is already open. Skipping duplicate.", existingID)
+			// A. Anti-Spam Check: Prevent exact duplicate uploads within 2 minutes
+			var recentCount int
+			core.DB.QueryRow("SELECT COUNT(*) FROM incidents WHERE fingerprint = ? AND project_name = ? AND created_at > datetime('now', '-2 minutes')",
+				fingerprint, projectName).Scan(&recentCount)
+
+			if recentCount > 0 {
+				log.Printf("[CORRELATION] Incident fingerprint %s uploaded twice within 2 mins. Skipping spam.", fingerprint)
 				continue
 			}
 
-			// Skip re-opening alerts that were already resolved (prevents CI re-ingestion
-			// from undoing manual "Resolve" actions on the same failing test).
-			err = core.DB.QueryRow("SELECT id FROM incidents WHERE fingerprint = ? AND project_name = ? AND is_resolved = 1",
-				fingerprint, projectName).Scan(&existingID)
-			if err == nil {
-				log.Printf("[CORRELATION] Incident %d is already resolved. Skipping duplicate.", existingID)
-				continue
-			}
-
-			// Flakiness Detection
-			var previousCount int
+			// B. Flakiness Detection: Did this exact test fail, get resolved, and fail again within 48 hours?
+			var flakyCount int
 			core.DB.QueryRow("SELECT COUNT(*) FROM incidents WHERE fingerprint = ? AND project_name = ? AND is_resolved = 1 AND created_at > datetime('now', '-48 hours')",
-				fingerprint, projectName).Scan(&previousCount)
+				fingerprint, projectName).Scan(&flakyCount)
 
 			finalName := alert.Name
-			if previousCount > 0 {
+			if flakyCount > 0 {
 				finalName = "[FLAKY] " + alert.Name
+				log.Printf("[FLAKY DETECTED] %s failed again within 48h of resolution.", alert.Name)
 			}
 
-			// Explicitly inject CURRENT_TIMESTAMP into created_at
-			_, _ = core.DB.Exec(`INSERT INTO incidents (project_name, name, status, error_message, console_logs, fingerprint, is_resolved, created_at) 
-				VALUES (?, ?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
-				projectName, finalName, alert.Status, alert.Error, alert.ConsoleLogs, fingerprint)
+			// C. Insert new incident into DB
+			// FIX: Added the missing 'error_logs' column to persist stacktraces correctly!
+			_, err = core.DB.Exec(`INSERT INTO incidents (project_name, name, status, error_message, console_logs, error_logs, fingerprint, is_resolved, created_at) 
+				VALUES (?, ?, ?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
+				projectName, finalName, alert.Status, alert.Error, alert.ConsoleLogs, alert.ErrorLogs, fingerprint)
 
-			// Trigger plugins asynchronously
+			if err != nil {
+				log.Printf("[DB ERROR] Failed to insert incident: %v", err)
+			}
+
+			// 3. TRIGGER AUTOMATED PLAYBOOKS / PLUGINS
 			alertContext := map[string]string{
 				"SLACK_CHANNEL":     slackChan,
 				"JIRA_PROJECT_KEY":  jiraKey,
@@ -120,6 +133,7 @@ func registerWebhookRoutes(config *core.Config) {
 			go core.EvaluateAlertRules(*config, alert, alertContext)
 		}
 
+		// Return success response to CI runner
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusAccepted)
 		json.NewEncoder(w).Encode(map[string]interface{}{
