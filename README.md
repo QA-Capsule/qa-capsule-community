@@ -1,6 +1,6 @@
 # QA Flight Recorder (QA Capsule)
 
-![Version](https://img.shields.io/badge/version-v1.0.12--beta-blue.svg)
+[![Version](https://img.shields.io/badge/version-v1.0.12--beta-blue.svg)](https://ashraf-khabar.github.io/qa-capsule/)
 ![Go Version](https://img.shields.io/badge/Go-1.24+-00ADD8?logo=go)
 ![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker)
 [![Doc](https://img.shields.io/badge/docs-available-brightgreen.svg)](https://qa-capsule.github.io/qa-capsule-community/)
