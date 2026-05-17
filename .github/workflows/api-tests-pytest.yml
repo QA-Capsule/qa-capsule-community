@@ -58,7 +58,7 @@ jobs:
         if: always()
         env:
           WEBHOOK_URL: ${{ secrets.QA_CAPSULE_URL }}
-          API_KEY: ${{ secrets.QA_CAPSULE_API_KEY }}
+          API_KEY: ${{ secrets.QA_CAPSULE_API_PYTEST_KEY }}
         run: |
           echo "Uploading Pytest JUnit XML report..."
           curl -X POST "$WEBHOOK_URL/api/webhooks/upload?framework=Pytest" \
