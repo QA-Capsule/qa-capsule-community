@@ -1,3 +1,7 @@
+---
+icon: material/sitemap-outline
+---
+
 # CI/CD Integration — Complete Guide
 
 This page is the **master reference** for connecting any CI/CD platform to QA Capsule. Read this first, then follow the provider-specific guide for your stack.

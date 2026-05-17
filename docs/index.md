@@ -1,3 +1,7 @@
+---
+icon: material/home
+---
+
 # QA Capsule — SRE Control Plane
 
 **QA Flight Recorder** (QA Capsule) is an enterprise-grade Site Reliability Engineering (SRE) control plane that ingests CI/CD and End-to-End (E2E) test failures, correlates duplicate alerts, routes notifications to the right teams, and tracks resolution metrics in real time.
