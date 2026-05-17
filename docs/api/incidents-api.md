@@ -1,3 +1,7 @@
+---
+icon: material/api
+---
+
 # Incidents REST API
 
 Authenticated endpoints for reading, resolving, and deleting incidents. Used by the dashboard and available for automation.

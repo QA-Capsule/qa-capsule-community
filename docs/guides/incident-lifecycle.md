@@ -1,3 +1,7 @@
+---
+icon: material/shield-sync
+---
+
 # Incident Lifecycle & Correlation Engine
 
 Understanding how QA Capsule creates, deduplicates, resolves, and suppresses incidents is essential for operating the platform effectively.

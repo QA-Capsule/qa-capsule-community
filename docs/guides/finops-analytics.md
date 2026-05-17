@@ -1,3 +1,7 @@
+---
+icon: material/calculator-variant
+---
+
 # Analytics & FinOps
 
 QA Capsule includes built-in analytics to quantify the cost of test failures and track engineering health over time.

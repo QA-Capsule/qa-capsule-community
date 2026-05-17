@@ -66,7 +66,7 @@ nav:
       - RBAC & Teams: setup/rbac-teams.md
   - CI/CD Integration:
       - Overview & Architecture: integration/cicd-overview.md
-      - JUnit XML Upload (Recommended): integration/junit-xml-upload.md
+      - JUnit XML : integration/junit-xml-upload.md
       - The SRE Agent: integration/agent.md
       - GitHub Actions: integration/github.md
       - GitLab CI: integration/gitlab.md

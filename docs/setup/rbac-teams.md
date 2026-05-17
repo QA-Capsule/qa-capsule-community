@@ -1,3 +1,7 @@
+---
+icon: material/account-group
+---
+
 # RBAC, Teams & Multi-Tenancy
 
 QA Capsule uses hierarchical teams and role-based access control (RBAC) to isolate projects and enforce least-privilege access.

@@ -1,3 +1,7 @@
+---
+icon: material/rocket-launch
+---
+
 # Documentation Deployment Pipeline
 
 This site is built with [MkDocs Material](https://squidfunk.github.io/mkdocs-material/) and deployed automatically to **GitHub Pages** via GitHub Actions.
