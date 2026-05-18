@@ -152,9 +152,13 @@ func InitDB(ignoredPath string) {
 		log.Printf("[WARNING] Failed to create index for fingerprint: %v", err)
 	}
 
-	// Create FinOps Settings Table
+	// ==========================================
+	// FORCE RESET FINOPS TABLE (DEV MODE)
+	// ==========================================
+	DB.Exec("DROP TABLE IF EXISTS finops_settings;")
+
 	createFinOpsTable := `
-	CREATE TABLE IF NOT EXISTS finops_settings (
+	CREATE TABLE finops_settings (
 		id INTEGER PRIMARY KEY,
 		dev_hourly_rate REAL,
 		ci_minute_cost REAL,

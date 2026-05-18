@@ -24,7 +24,7 @@ for (const [key, value] of Object.entries(settings)) {
 window.currentIncidents = [];
 window.selectedIncidents = new Set();
 window.pausePollingUntil = 0;
-window.statusFilter = 'all'; 
+window.statusFilter = 'all';
 window.pendingResolvedIds = new Map();
 window._resolveRetryInFlight = false;
 window.groupedIncidents = {};
@@ -42,7 +42,7 @@ function loadPendingResolvedFromStorage() {
 function savePendingResolvedToStorage() {
     try {
         sessionStorage.setItem('qacapsule-pending-resolved', JSON.stringify([...window.pendingResolvedIds]));
-    } catch (_) {}
+    } catch (_) { }
 }
 
 function normalizeIsResolved(inc) {
@@ -351,7 +351,7 @@ window.toggleIncidentLog = function (id, event) {
     const logContent = document.getElementById(`log-content-${id}`);
     const logIcon = document.getElementById(`log-icon-${id}`);
     const logText = document.getElementById(`log-text-${id}`);
-    
+
     if (logContent.style.display === 'none') {
         logContent.style.display = 'block';
         if (logIcon) logIcon.style.transform = 'rotate(180deg)';
@@ -387,21 +387,35 @@ window.setStatusFilter = function (status) {
 
 window.fetchMetricsOnly = function () {
     fetchWithAuth(`/api/metrics?_ts=${Date.now()}`)
-        .then(r => r.json())
+        .then(r => {
+            if (!r.ok) throw new Error("Erreur de récupération des métriques");
+            return r.json();
+        })
         .then(metrics => {
             if (metrics) {
                 document.getElementById('kpi-active').innerText = metrics.total_incidents - metrics.resolved_incidents;
                 document.getElementById('kpi-resolved').innerText = metrics.resolved_incidents;
                 document.getElementById('kpi-health').innerText = `${metrics.total_incidents > 0 ? Math.round((metrics.resolved_incidents / metrics.total_incidents) * 100) : 100}%`;
+                if (metrics.sre_impact) {
+                    const costElement = document.getElementById('kpi-cost');
+                    if (costElement) {
+                        costElement.innerText = metrics.sre_impact.estimated_cost_usd.toLocaleString();
+                    }
+                    const symbolElement = document.getElementById('kpi-cost-symbol');
+                    if (symbolElement && window.currencySymbols && window.selectedCurrency) {
+                        symbolElement.innerText = window.currencySymbols[window.selectedCurrency] || '€';
+                    }
+                }
             }
-        });
+        })
+        .catch(err => console.error("Erreur FetchMetrics:", err));
 };
 
 window.fetchIncidents = function (forceRender = false, opts = {}) {
     if (!opts.skipPauseCheck && !forceRender && Date.now() < window.pausePollingUntil) return;
     const filterEl = document.getElementById('project-filter');
     const projectFilter = filterEl ? filterEl.value : 'all';
-    
+
     return fetchWithAuth(`/api/incidents?project=${encodeURIComponent(projectFilter)}&_ts=${Date.now()}&_bust=${Math.random()}`, {
         headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache', 'Expires': '0' }
     })
@@ -434,7 +448,7 @@ window.fetchIncidents = function (forceRender = false, opts = {}) {
 window.renderIncidentsList = function () {
     const listEl = document.getElementById('incident-list');
     const searchQuery = document.getElementById('incident-search') ? document.getElementById('incident-search').value.toLowerCase() : '';
-    
+
     // TRACK OPEN UI STATES TO PRESERVE THEM DURING POLLING
     const openGroups = new Set();
     document.querySelectorAll('[id^="sub-alerts-"]').forEach(el => { if (el.style.display === 'block') openGroups.add(el.id.replace('sub-alerts-', '')); });
@@ -464,7 +478,7 @@ window.renderIncidentsList = function () {
     sortedData.forEach(inc => {
         const safeDateStr = inc.created_at ? inc.created_at.replace(' ', 'T') + 'Z' : '';
         const incTime = new Date(safeDateStr).getTime() || 0;
-        
+
         if (!currentGroup) {
             currentGroup = { id: inc.id, project_name: inc.project_name, created_at: inc.created_at, is_resolved: true, incidents: [], firstTime: incTime, lastTime: incTime, lastId: inc.id };
             groupsArray.push(currentGroup);
@@ -473,7 +487,7 @@ window.renderIncidentsList = function () {
             // This prevents tests from chaining together indefinitely across multiple pipeline executions.
             const timeDiffSec = Math.abs(incTime - currentGroup.firstTime) / 1000;
             const idDiff = Math.abs(inc.id - currentGroup.lastId);
-            
+
             if (inc.project_name === currentGroup.project_name && timeDiffSec <= 120 && idDiff <= 100) {
                 currentGroup.lastTime = incTime; currentGroup.lastId = inc.id;
             } else {
@@ -527,7 +541,7 @@ window.renderIncidentsList = function () {
             const flakyBadge = isFlaky ? `<span style="color: #d29922; margin-right: 8px;">${iconWarning} FLAKY</span>` : ``;
             const cleanName = inc.name.replace("[FLAKY] ", "");
             const displayLog = inc.error_logs || inc.error_message || "No logs available.";
-            
+
             const isResolved = normalizeIsResolved(inc);
             const textDecoration = isResolved ? 'text-decoration: line-through;' : '';
             const textColor = isResolved ? '#3fb950' : 'var(--text-main)';
@@ -610,7 +624,7 @@ window.renderIncidentsList = function () {
         const icon = document.getElementById(`toggle-icon-${groupId}`);
         if (el) { el.style.display = 'block'; if (icon) icon.style.transform = 'rotate(180deg)'; }
     });
-    
+
     // Safety check: if logs were manually opened but the group was closed, the logs stay open inside the DOM state
 };
 

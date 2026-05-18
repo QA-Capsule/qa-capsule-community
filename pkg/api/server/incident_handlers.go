@@ -356,8 +356,8 @@ func registerIncidentRoutes(config *core.Config) {
 			"sre_impact": map[string]interface{}{
 				"ci_minutes_lost":      int(totalMinutesLost),
 				"flaky_minutes_lost":   int(flakyMinutesLost),
-				"estimated_cost_usd":   int(totalFinancialImpact),
-				"flaky_waste_cost_usd": int(flakyFinancialImpact),
+				"estimated_cost_usd":   math.Round(totalFinancialImpact),
+				"flaky_waste_cost_usd": math.Round(flakyFinancialImpact),
 			},
 		})
 	}))
