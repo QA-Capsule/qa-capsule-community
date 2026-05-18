@@ -411,4 +411,10 @@ func registerIncidentRoutes(config *core.Config) {
 			w.WriteHeader(http.StatusOK)
 		}
 	}))
+
+	http.HandleFunc("/api/finops/advanced", jwtAuthMiddleware(config, true, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			AdvancedFinOpsHandler(w, r)
+		}
+	}))
 }

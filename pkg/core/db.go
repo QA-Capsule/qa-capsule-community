@@ -159,7 +159,8 @@ func InitDB(ignoredPath string) {
 		dev_hourly_rate REAL,
 		ci_minute_cost REAL,
 		avg_pipeline_duration REAL,
-		avg_investigation_time REAL
+		avg_investigation_time REAL,
+		currency TEXT
 	);`
 	_, err = DB.Exec(createFinOpsTable)
 	if err != nil {
@@ -209,8 +210,8 @@ func seedInitialData() {
 	var finopsCount int
 	DB.QueryRow("SELECT COUNT(*) FROM finops_settings").Scan(&finopsCount)
 	if finopsCount == 0 {
-		_, err := DB.Exec(`INSERT INTO finops_settings (id, dev_hourly_rate, ci_minute_cost, avg_pipeline_duration, avg_investigation_time) 
-			VALUES (1, 50.0, 0.008, 15.0, 30.0)`)
+		_, err := DB.Exec(`INSERT INTO finops_settings (id, dev_hourly_rate, ci_minute_cost, avg_pipeline_duration, avg_investigation_time, currency) 
+			VALUES (1, 50.0, 0.008, 15.0, 30.0, 'USD')`)
 		if err != nil {
 			log.Printf("[WARNING] Could not seed default FinOps settings: %v", err)
 		} else {
