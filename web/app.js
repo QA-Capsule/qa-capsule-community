@@ -20,7 +20,9 @@ for (const [key, value] of Object.entries(settings)) {
     if (typeof value === 'function') window[key] = value;
 }
 
-// Global state management for Incidents
+// ==========================================
+// VARIABLES GLOBALES & FINOPS SRE
+// ==========================================
 window.currentIncidents = [];
 window.selectedIncidents = new Set();
 window.pausePollingUntil = 0;
@@ -29,6 +31,14 @@ window.pendingResolvedIds = new Map();
 window._resolveRetryInFlight = false;
 window.groupedIncidents = {};
 
+// FINOPS GLOBALS
+window.isEnterpriseActive = false;
+window.currencySymbols = { "USD": "$", "EUR": "€", "GBP": "£", "JPY": "¥", "AUD": "A$", "CAD": "C$", "CHF": "Fr", "INR": "₹", "CNY": "¥", "MXN": "$", "SGD": "S$", "NZD": "NZ$" };
+window.selectedCurrency = "USD"; 
+
+// ==========================================
+// INCIDENTS LOGIC
+// ==========================================
 function loadPendingResolvedFromStorage() {
     try {
         const raw = sessionStorage.getItem('qacapsule-pending-resolved');
@@ -334,7 +344,6 @@ window.downloadGroupLog = function (groupId, type, event) {
     document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
 }
 
-// LOGIC TO TOGGLE THE INCIDENT PIPELINE GROUP
 window.toggleSubAlerts = function (groupId, event) {
     if (event) { event.preventDefault(); event.stopPropagation(); }
     window.pausePollingUntil = Date.now() + 15000;
@@ -344,7 +353,6 @@ window.toggleSubAlerts = function (groupId, event) {
     else { container.style.display = 'none'; icon.style.transform = 'rotate(0deg)'; }
 }
 
-// LOGIC TO TOGGLE INDIVIDUAL LOGS
 window.toggleIncidentLog = function (id, event) {
     if (event) { event.preventDefault(); event.stopPropagation(); }
     window.pausePollingUntil = Date.now() + 15000;
@@ -396,6 +404,8 @@ window.fetchMetricsOnly = function () {
                 document.getElementById('kpi-active').innerText = metrics.total_incidents - metrics.resolved_incidents;
                 document.getElementById('kpi-resolved').innerText = metrics.resolved_incidents;
                 document.getElementById('kpi-health').innerText = `${metrics.total_incidents > 0 ? Math.round((metrics.resolved_incidents / metrics.total_incidents) * 100) : 100}%`;
+                
+                // 🚨 METRICS FINOPS 🚨
                 if (metrics.sre_impact) {
                     const costElement = document.getElementById('kpi-cost');
                     if (costElement) {
@@ -449,7 +459,6 @@ window.renderIncidentsList = function () {
     const listEl = document.getElementById('incident-list');
     const searchQuery = document.getElementById('incident-search') ? document.getElementById('incident-search').value.toLowerCase() : '';
 
-    // TRACK OPEN UI STATES TO PRESERVE THEM DURING POLLING
     const openGroups = new Set();
     document.querySelectorAll('[id^="sub-alerts-"]').forEach(el => { if (el.style.display === 'block') openGroups.add(el.id.replace('sub-alerts-', '')); });
 
@@ -483,8 +492,6 @@ window.renderIncidentsList = function () {
             currentGroup = { id: inc.id, project_name: inc.project_name, created_at: inc.created_at, is_resolved: true, incidents: [], firstTime: incTime, lastTime: incTime, lastId: inc.id };
             groupsArray.push(currentGroup);
         } else {
-            // FIX: Bound the entire pipeline grouping window strictly to 120 seconds from the FIRST test failure.
-            // This prevents tests from chaining together indefinitely across multiple pipeline executions.
             const timeDiffSec = Math.abs(incTime - currentGroup.firstTime) / 1000;
             const idDiff = Math.abs(inc.id - currentGroup.lastId);
 
@@ -552,7 +559,6 @@ window.renderIncidentsList = function () {
                 ? `<span style="display:inline-flex; align-items:center; background: rgba(63, 185, 80, 0.1); color: #3fb950; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: bold; margin-left: 10px;">${iconCheck} RESOLVED BY ${inc.resolved_by || 'SYSTEM'}</span>`
                 : `<span style="display:inline-flex; align-items:center; background: rgba(255, 123, 114, 0.1); color: #ff7b72; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: bold; margin-left: 10px;">${iconAlert} ACTIVE TEST</span>`;
 
-            // State management for logs
             const isLogOpen = openLogs.has(String(inc.id));
             const logDisplay = isLogOpen ? 'block' : 'none';
             const iconTransform = isLogOpen ? 'rotate(180deg)' : 'rotate(0deg)';
@@ -624,8 +630,6 @@ window.renderIncidentsList = function () {
         const icon = document.getElementById(`toggle-icon-${groupId}`);
         if (el) { el.style.display = 'block'; if (icon) icon.style.transform = 'rotate(180deg)'; }
     });
-
-    // Safety check: if logs were manually opened but the group was closed, the logs stay open inside the DOM state
 };
 
 window.connectWebSocket = function () {
@@ -636,6 +640,9 @@ window.connectWebSocket = function () {
     }, 3000);
 }
 
+// ==========================================
+// AUTH & ROUTING
+// ==========================================
 window.performLogin = function () {
     const username = document.getElementById('login-username').value;
     const password = document.getElementById('login-password').value;
@@ -699,31 +706,144 @@ window.submitNewPassword = function () {
 }
 
 window.switchView = function (id, el) {
-    document.querySelectorAll('.view-section').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('.view-section').forEach(x => { 
+        x.style.display = 'none'; 
+        x.classList.remove('active'); 
+    });
     document.querySelectorAll('.nav-item').forEach(x => x.classList.remove('active'));
-    document.getElementById('view-' + id).classList.add('active');
-    el.classList.add('active');
+    
+    const targetSection = document.getElementById('view-' + id);
+    if (targetSection) {
+        targetSection.style.display = 'block';
+        targetSection.classList.add('active');
+    }
+    if (el) el.classList.add('active');
 
     const payload = parseJwt(localStorage.getItem('sre-jwt'));
 
-    if (id === 'dashboard') { window.loadDashboardFilters(); window.pausePollingUntil = 0; window.fetchIncidents(true); }
-    if (id === 'organizations') window.loadOrganizations();
-    if (id === 'management' && payload.role === 'admin') window.renderUserTable(iam.allUsers);
-    if (id === 'plugins') window.loadPlugins();
-    if (id === 'settings') { window.loadConfig(); window.loadFinOps(); }
-    if (id === 'ingestion' && payload.role === 'admin') window.loadGatewaysData();
+    if (id === 'dashboard') { window.loadDashboardFilters(); window.pausePollingUntil = 0; window.fetchIncidents(true); window.fetchMetricsOnly(); }
+    if (id === 'organizations') if (window.loadOrganizations) window.loadOrganizations();
+    if (id === 'management' && payload && payload.role === 'admin') if (window.renderUserTable) window.renderUserTable(iam.allUsers);
+    if (id === 'plugins') if (window.loadPlugins) window.loadPlugins();
+    if (id === 'settings') { if(window.loadConfig) window.loadConfig(); if(window.loadFinOps) window.loadFinOps(); }
+    if (id === 'ingestion' && payload && payload.role === 'admin') if (window.loadGatewaysData) window.loadGatewaysData();
+    
+    // 🚨 ONGLET FINOPS 🚨
+    if (id === 'finops') { 
+        if (window.loadAdvancedFinOps) window.loadAdvancedFinOps(); 
+    }
 }
 
 window.applyPermissions = function () {
     const payload = parseJwt(localStorage.getItem('sre-jwt'));
+    if(!payload) return;
     document.querySelectorAll('.admin-only').forEach(x => x.style.display = payload.role === 'admin' ? '' : 'none');
 }
 
+// ==========================================
+// LICENSE CHECK & ADVANCED FINOPS
+// ==========================================
+window.checkLicenseTier = function() {
+    fetchWithAuth('/api/finops/advanced')
+        .then(res => {
+            if (res.status === 200) {
+                window.isEnterpriseActive = true;
+                // Retire tous les badges PRO du menu
+                document.querySelectorAll('.pro-badge').forEach(badge => badge.style.display = 'none');
+            }
+        })
+        .catch(err => console.log("Licence check en attente."));
+}
+
+window.finopsPieChart = null;
+window.finopsBarChart = null;
+
+window.loadAdvancedFinOps = function() {
+    console.log("💰 Chargement des données FinOps Avancées...");
+
+    fetchWithAuth('/api/finops/advanced')
+        .then(res => {
+            if (res.status === 402) {
+                // 🔒 VERSION GRATUITE : Afficher le Paywall
+                document.getElementById('finops-paywall').style.display = 'flex';
+                document.getElementById('finops-dashboard').style.display = 'none';
+                return null;
+            }
+            if (!res.ok) throw new Error("Erreur Backend : " + res.status);
+            return res.json();
+        })
+        .then(data => {
+            if (!data || !data.summary) return; 
+            
+            // 🔓 VERSION ENTERPRISE : Cacher le Paywall, Afficher les graphiques
+            document.getElementById('finops-paywall').style.display = 'none';
+            document.getElementById('finops-dashboard').style.display = 'block';
+
+            const symbol = window.currencySymbols[window.selectedCurrency] || '€';
+            document.getElementById('finops-total-waste').innerText = `${symbol} ${Math.round(data.summary.total_waste_30d).toLocaleString()}`;
+
+            if (window.finopsPieChart) window.finopsPieChart.destroy();
+            if (window.finopsBarChart) window.finopsBarChart.destroy();
+
+            if (!data.top_offenders) data.top_offenders = [];
+
+            // 1. Graphique Camembert (Répartition des coûts)
+            const ctxPie = document.getElementById('costBreakdownChart');
+            if (ctxPie) {
+                window.finopsPieChart = new Chart(ctxPie.getContext('2d'), {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Salaires Ingénieurs', 'Coût Serveurs CI'],
+                        datasets: [{
+                            data: [data.summary.dev_salary_lost, data.summary.ci_compute_lost],
+                            backgroundColor: ['#58a6ff', '#8b949e'],
+                            borderWidth: 0
+                        }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: {color: '#c9d1d9'} } } }
+                });
+            }
+
+            // 2. Graphique en Barres (Top Offenders)
+            const ctxBar = document.getElementById('topOffendersChart');
+            if (ctxBar) {
+                window.finopsBarChart = new Chart(ctxBar.getContext('2d'), {
+                    type: 'bar',
+                    data: {
+                        labels: data.top_offenders.map(p => p.project_name),
+                        datasets: [
+                            { label: 'Gaspillage Instabilité', data: data.top_offenders.map(p => p.flaky_waste), backgroundColor: '#d29922' },
+                            { label: 'Gaspillage Total', data: data.top_offenders.map(p => p.total_waste), backgroundColor: '#ff7b72' }
+                        ]
+                    },
+                    options: { 
+                        responsive: true, maintainAspectRatio: false,
+                        scales: { 
+                            y: { ticks: { color: '#8b949e', callback: function(value) { return symbol + value; } }, grid: {color: '#30363d'} }, 
+                            x: { ticks: { color: '#c9d1d9' }, grid: {display: false} } 
+                        },
+                        plugins: { legend: { labels: { color: '#c9d1d9' } } }
+                    }
+                });
+            }
+        })
+        .catch(err => console.error("Erreur de chargement FinOps:", err));
+}
+
+// ==========================================
+// STARTUP
+// ==========================================
 window.onload = function () {
     window.checkAuth();
-    window.checkSSOStatus();
+    if (window.checkSSOStatus) window.checkSSOStatus();
     const savedCurrency = localStorage.getItem('selected-currency');
-    if (savedCurrency) { window.setSelectedCurrency(savedCurrency); }
-    window.updateCurrencyDisplay();
+    if (savedCurrency) { 
+        window.selectedCurrency = savedCurrency; 
+        if(window.setSelectedCurrency) window.setSelectedCurrency(savedCurrency); 
+    }
+    if (window.updateCurrencyDisplay) window.updateCurrencyDisplay();
     setTimeout(() => window.setStatusFilter(window.statusFilter || 'all'), 100);
+    
+    // Vérification de la licence 1s après le chargement pour enlever le badge PRO si applicable
+    setTimeout(window.checkLicenseTier, 1000); 
 };
