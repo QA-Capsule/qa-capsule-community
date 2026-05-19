@@ -20,7 +20,7 @@ func registerIncidentRoutes(config *core.Config) {
 	// ==========================================
 	// INCIDENTS DASHBOARD API
 	// ==========================================
-	http.HandleFunc("/api/incidents", jwtAuthMiddleware(config, false, func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/api/incidents", jwtAuthMiddleware(config, "", func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 		claims := &Claims{}
@@ -76,6 +76,11 @@ func registerIncidentRoutes(config *core.Config) {
 			json.NewEncoder(w).Encode(incidents)
 
 		} else if r.Method == http.MethodPut {
+			if !core.CanResolveIncidents(claims.Role) {
+				http.Error(w, "Only operators and above can resolve incidents.", http.StatusForbidden)
+				return
+			}
+
 			var req struct {
 				ID  int   `json:"id"`
 				IDs []int `json:"ids"`
@@ -186,7 +191,7 @@ func registerIncidentRoutes(config *core.Config) {
 	}))
 
 	// Weekly Report & Metrics APIs
-	http.HandleFunc("/api/reports/weekly", jwtAuthMiddleware(config, false, func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/api/reports/weekly", jwtAuthMiddleware(config, "", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			return
 		}
@@ -252,10 +257,15 @@ func registerIncidentRoutes(config *core.Config) {
 		json.NewEncoder(w).Encode(report)
 	}))
 
-	http.HandleFunc("/api/metrics", jwtAuthMiddleware(config, false, func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/api/metrics", jwtAuthMiddleware(config, "", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			return
 		}
+
+		authHeader := r.Header.Get("Authorization")
+		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+		metricsClaims := &Claims{}
+		jwt.ParseWithClaims(tokenString, metricsClaims, func(t *jwt.Token) (interface{}, error) { return jwtKey, nil })
 
 		var total, resolved, flaky int
 		core.DB.QueryRow("SELECT COUNT(*) FROM incidents").Scan(&total)
@@ -344,8 +354,7 @@ func registerIncidentRoutes(config *core.Config) {
 		totalFinancialImpact := (totalMinutesLost * ciCost) + (float64(total) * costPerInvestigation)
 		flakyFinancialImpact := (flakyMinutesLost * ciCost) + (float64(flaky) * costPerInvestigation)
 
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		response := map[string]interface{}{
 			"total_incidents":    total,
 			"resolved_incidents": resolved,
 			"flaky_tests":        flaky,
@@ -353,16 +362,22 @@ func registerIncidentRoutes(config *core.Config) {
 			"mttr_minutes":       mttrDisplay,
 			"mttf_minutes":       mttfDisplay,
 			"evolution":          evolution,
-			"sre_impact": map[string]interface{}{
+		}
+
+		if core.CanAccessFinOps(metricsClaims.Role) {
+			response["sre_impact"] = map[string]interface{}{
 				"ci_minutes_lost":      int(totalMinutesLost),
 				"flaky_minutes_lost":   int(flakyMinutesLost),
 				"estimated_cost_usd":   math.Round(totalFinancialImpact),
 				"flaky_waste_cost_usd": math.Round(flakyFinancialImpact),
-			},
-		})
+			}
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(response)
 	}))
 
-	http.HandleFunc("/api/finops", jwtAuthMiddleware(config, true, func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/api/finops", jwtAuthMiddleware(config, "", managerOnlyHandler(config, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
 		if r.Method == http.MethodGet {
@@ -410,11 +425,11 @@ func registerIncidentRoutes(config *core.Config) {
 			}
 			w.WriteHeader(http.StatusOK)
 		}
-	}))
+	})))
 
-	http.HandleFunc("/api/finops/advanced", jwtAuthMiddleware(config, true, func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/api/finops/advanced", jwtAuthMiddleware(config, "", managerOnlyHandler(config, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
 			core.AdvancedFinOpsHandler(w, r)
 		}
-	}))
+	})))
 }

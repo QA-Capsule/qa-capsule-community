@@ -9,6 +9,12 @@ import { parseJwt, performLogout, fetchWithAuth } from './js/api.js';
 import * as iam from './js/iam.js';
 import * as settings from './js/settings.js';
 import * as profile from './js/profile.js';
+import * as finops from './js/finops.js';
+import * as about from './js/about.js';
+import * as charts from './js/charts.js';
+import { mountPinnedCharts } from './js/chart-widgets.js';
+import { applyRoleVisibility, canAccessFinOps, canAccessChartStudio, canAccessPlugins, canResolveIncidents, hasMinRole, roleLabel, canManageTeams, canManageIAM, isAdmin } from './js/roles.js';
+import { setupAutocomplete } from './js/autocomplete.js';
 
 // EXPORT GLOBALLY FOR HTML INLINE HANDLERS
 Object.assign(window, { notify, showConfirmModal, showPromptModal, closeModal, toggleTheme, parseJwt, performLogout, fetchWithAuth });
@@ -21,6 +27,15 @@ for (const [key, value] of Object.entries(settings)) {
     if (typeof value === 'function') window[key] = value;
 }
 for (const [key, value] of Object.entries(profile)) {
+    if (typeof value === 'function') window[key] = value;
+}
+for (const [key, value] of Object.entries(finops)) {
+    if (typeof value === 'function') window[key] = value;
+}
+for (const [key, value] of Object.entries(about)) {
+    if (typeof value === 'function') window[key] = value;
+}
+for (const [key, value] of Object.entries(charts)) {
     if (typeof value === 'function') window[key] = value;
 }
 
@@ -151,7 +166,7 @@ window.resolveIncidentsByIds = async function (ids, successMessage) {
         await window.fetchMetricsOnly();
         return true;
     } catch (e) {
-        notify('Erreur lors de la résolution', 'error');
+        notify('Failed to resolve incident(s)', 'error');
         window.pausePollingUntil = Date.now() + 5000;
         await window.fetchIncidents(true, { skipPauseCheck: true });
         return false;
@@ -227,10 +242,10 @@ window.resolveSelected = async function () {
 };
 
 window.deleteSelected = async function () {
-    if (window.selectedIncidents.size === 0) return notify("Sélectionnez au moins une alerte.", "error");
-    if (parseJwt(localStorage.getItem('sre-jwt')).role !== 'admin') return notify("Seuls les admins peuvent supprimer.", "error");
+    if (window.selectedIncidents.size === 0) return notify("Select at least one alert.", "error");
+    if (parseJwt(localStorage.getItem('sre-jwt')).role !== 'admin') return notify("Only admins can delete alerts.", "error");
 
-    showConfirmModal("Delete Selected?", `Supprimer définitivement ${window.selectedIncidents.size} alertes ?`, "danger", async function () {
+    showConfirmModal("Delete Selected?", `Permanently delete ${window.selectedIncidents.size} alert(s)?`, "danger", async function () {
         window.pausePollingUntil = Date.now() + 15000;
         const ids = Array.from(window.selectedIncidents).map(id => parseInt(id, 10)).filter(id => !isNaN(id));
         window.currentIncidents = window.currentIncidents.filter(inc => !ids.includes(parseInt(inc.id, 10)));
@@ -264,7 +279,7 @@ window.resolveGroup = async function (groupId, event) {
 
     targetIncidents.forEach(i => window.selectedIncidents.delete(String(i.id)));
     window.updateBulkActionUI();
-    await window.resolveIncidentsByIds(ids, ids.length === 1 ? 'Sub-alert résolue.' : 'Pipelines marqués comme résolus.');
+    await window.resolveIncidentsByIds(ids, ids.length === 1 ? 'Sub-alert resolved.' : 'Pipelines marked as resolved.');
 }
 
 window.deleteGroup = async function (groupId, event) {
@@ -275,7 +290,7 @@ window.deleteGroup = async function (groupId, event) {
     const group = window.groupedIncidents[groupId];
     if (!group) return;
 
-    showConfirmModal("Delete Pipeline Execution?", `Supprimer définitivement l'exécution ?`, "danger", async function () {
+    showConfirmModal("Delete Pipeline Execution?", `Permanently delete this pipeline execution?`, "danger", async function () {
         window.pausePollingUntil = Date.now() + 15000;
         const ids = group.incidents.map(i => parseInt(i.id, 10)).filter(id => !isNaN(id));
 
@@ -367,11 +382,11 @@ window.toggleIncidentLog = function (id, event) {
     if (logContent.style.display === 'none') {
         logContent.style.display = 'block';
         if (logIcon) logIcon.style.transform = 'rotate(180deg)';
-        if (logText) logText.innerText = 'Réduire les logs';
+        if (logText) logText.innerText = 'Collapse logs';
     } else {
         logContent.style.display = 'none';
         if (logIcon) logIcon.style.transform = 'rotate(0deg)';
-        if (logText) logText.innerText = 'Afficher les logs';
+        if (logText) logText.innerText = 'Show logs';
     }
 };
 
@@ -400,7 +415,7 @@ window.setStatusFilter = function (status) {
 window.fetchMetricsOnly = function () {
     fetchWithAuth(`/api/metrics?_ts=${Date.now()}`)
         .then(r => {
-            if (!r.ok) throw new Error("Erreur de récupération des métriques");
+            if (!r.ok) throw new Error("Failed to fetch metrics");
             return r.json();
         })
         .then(metrics => {
@@ -413,7 +428,13 @@ window.fetchMetricsOnly = function () {
                 if (flakyEl) flakyEl.innerText = metrics.flaky_tests ?? 0;
             }
         })
-        .catch(err => console.error("Erreur FetchMetrics:", err));
+        .catch(err => console.error("FetchMetrics error:", err));
+
+    refreshDashboardPinnedCharts();
+};
+
+window.refreshDashboardPinnedCharts = function () {
+    mountPinnedCharts('dashboard', 'dashboard-pinned-charts', 'dashboard-pinned-wrap');
 };
 
 window.fetchIncidents = function (forceRender = false, opts = {}) {
@@ -505,7 +526,8 @@ window.renderIncidentsList = function () {
     groupsArray.forEach(g => { window.groupedIncidents[g.id] = g; });
 
     const userRole = parseJwt(localStorage.getItem('sre-jwt')).role;
-    const canResolve = userRole !== 'viewer'; const isAdmin = userRole === 'admin';
+    const canResolve = canResolveIncidents(userRole);
+    const isAdmin = userRole === 'admin';
 
     const iconCheck = `<svg style="width:12px;height:12px;margin-right:4px;vertical-align:middle;stroke:currentColor;fill:none;" viewBox="0 0 24 24" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
     const iconAlert = `<svg style="width:12px;height:12px;margin-right:4px;vertical-align:middle;stroke:currentColor;fill:none;" viewBox="0 0 24 24" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>`;
@@ -557,7 +579,7 @@ window.renderIncidentsList = function () {
             const isLogOpen = openLogs.has(String(inc.id));
             const logDisplay = isLogOpen ? 'block' : 'none';
             const iconTransform = isLogOpen ? 'rotate(180deg)' : 'rotate(0deg)';
-            const textLabel = isLogOpen ? 'Réduire les logs' : 'Afficher les logs';
+            const textLabel = isLogOpen ? 'Collapse logs' : 'Show logs';
 
             return `
             <div style="${bgStyle} border: 1px solid #30363d; border-radius: 6px; margin-top: 10px; padding: 12px; transition: all 0.3s ease;">
@@ -676,16 +698,20 @@ window.checkAuth = function () {
     if (document.getElementById('view-dashboard').classList.contains('active')) {
         window.loadDashboardFilters(); window.pausePollingUntil = 0; window.fetchIncidents(true);
     }
-    if (document.getElementById('view-organizations').classList.contains('active')) window.loadOrganizations();
+    if (document.getElementById('view-organizations').classList.contains('active') && canManageTeams(payload.role)) window.loadOrganizations();
     if (document.getElementById('view-management').classList.contains('active')) {
         if (payload.role === 'admin') window.renderUserTable(iam.allUsers);
     }
     if (document.getElementById('view-settings').classList.contains('active')) {
         window.loadConfig();
     }
-    if (document.getElementById('view-plugins').classList.contains('active')) window.loadPlugins();
+    if (document.getElementById('view-plugins').classList.contains('active') && hasMinRole(payload.role, 'operator')) {
+        window.loadPlugins();
+    }
     if (document.getElementById('view-ingestion').classList.contains('active')) {
-        if (payload.role === 'admin') window.loadGatewaysData();
+        if (hasMinRole(payload.role, 'operator')) {
+            window.loadGatewaysData();
+        }
     }
 }
 
@@ -702,6 +728,28 @@ window.submitNewPassword = function () {
 }
 
 window.switchView = function (id, el) {
+    const payload = parseJwt(localStorage.getItem('sre-jwt'));
+    if (payload && isAdmin(payload.role) && !ADMIN_VIEWS.has(id)) {
+        notify('System Admins can only access Workspaces, IAM, and Settings.', 'error');
+        return;
+    }
+    if (id === 'organizations' && payload && !canManageTeams(payload.role)) {
+        notify('Workspaces are reserved for Admins and Managers.', 'error');
+        return;
+    }
+    if (id === 'management' && payload && !canManageIAM(payload.role)) {
+        notify('IAM is reserved for System Admins.', 'error');
+        return;
+    }
+    if (id === 'finops' && payload && !canAccessFinOps(payload.role)) {
+        notify('FinOps Intelligence is reserved for Managers.', 'error');
+        return;
+    }
+    if (id === 'charts' && payload && !canAccessChartStudio(payload.role)) {
+        notify('You do not have access to Chart Studio.', 'error');
+        return;
+    }
+
     document.querySelectorAll('.view-section').forEach(x => { 
         x.style.display = 'none'; 
         x.classList.remove('active'); 
@@ -715,22 +763,78 @@ window.switchView = function (id, el) {
     }
     if (el) el.classList.add('active');
 
-    const payload = parseJwt(localStorage.getItem('sre-jwt'));
-
     if (id === 'dashboard') { window.loadDashboardFilters(); window.pausePollingUntil = 0; window.fetchIncidents(true); window.fetchMetricsOnly(); }
-    if (id === 'organizations') if (window.loadOrganizations) window.loadOrganizations();
+    if (id === 'organizations' && payload && canManageTeams(payload.role)) {
+        if (window.loadOrganizations) window.loadOrganizations();
+    }
     if (id === 'management' && payload && payload.role === 'admin') if (window.renderUserTable) window.renderUserTable(iam.allUsers);
-    if (id === 'plugins') if (window.loadPlugins) window.loadPlugins();
+    if (id === 'plugins' && payload && canAccessPlugins(payload.role)) {
+        if (window.loadPlugins) window.loadPlugins();
+    }
     if (id === 'settings') { if(window.loadConfig) window.loadConfig(); }
-    if (id === 'ingestion' && payload && payload.role === 'admin') if (window.loadGatewaysData) window.loadGatewaysData();
+    if (id === 'ingestion' && payload && hasMinRole(payload.role, 'operator')) {
+        if (window.loadGatewaysData) window.loadGatewaysData();
+    }
+    if (id === 'finops' && payload && canAccessFinOps(payload.role)) {
+        if (window.loadFinOpsView) window.loadFinOpsView();
+    }
+    if (id === 'charts' && payload && canAccessChartStudio(payload.role)) {
+        if (window.loadChartsView) window.loadChartsView();
+    }
+    if (id === 'about') {
+        if (window.loadAboutView) window.loadAboutView();
+    }
     if (id === 'profile' && window.loadProfileView) window.loadProfileView();
 }
 
 window.applyPermissions = function () {
     const payload = parseJwt(localStorage.getItem('sre-jwt'));
-    if(!payload) return;
-    document.querySelectorAll('.admin-only').forEach(x => x.style.display = payload.role === 'admin' ? '' : 'none');
+    if (!payload) return;
+    applyRoleVisibility(payload.role);
+    window.initSmartSearchFields();
+
+    if (isAdmin(payload.role)) {
+        const onAdminView = ['view-organizations', 'view-management', 'view-settings', 'view-profile']
+            .some(vid => document.getElementById(vid)?.classList.contains('active'));
+        if (!onAdminView) {
+            window.switchView('organizations', document.querySelector('.nav-item.role-workspace'));
+        }
+    }
+
+    const roleEl = document.getElementById('profile-role');
+    if (roleEl) roleEl.textContent = roleLabel(payload.role);
 }
+
+const ADMIN_VIEWS = new Set(['organizations', 'management', 'settings', 'profile']);
+
+window.initSmartSearchFields = function () {
+    const incidentInput = document.getElementById('incident-search');
+    const incidentList = document.getElementById('incident-search-ac');
+    if (incidentInput && incidentList && !incidentInput.dataset.acBound) {
+        incidentInput.dataset.acBound = '1';
+        setupAutocomplete({
+            input: incidentInput,
+            list: incidentList,
+            minChars: 1,
+            getSuggestions: q => {
+                const v = q.toLowerCase();
+                const hints = new Map();
+                (window.currentIncidents || []).forEach(inc => {
+                    if (inc.name) hints.set(inc.name, { label: inc.name, sublabel: inc.project_name || '', value: inc.name });
+                    if (inc.project_name) hints.set(inc.project_name, { label: inc.project_name, sublabel: 'Project', value: inc.project_name });
+                });
+                document.querySelectorAll('#project-filter option').forEach(opt => {
+                    if (opt.value && opt.value !== 'all' && opt.text.toLowerCase().includes(v)) {
+                        hints.set(opt.value, { label: opt.text, sublabel: 'Project', value: opt.value });
+                    }
+                });
+                return [...hints.values()].filter(h => h.label.toLowerCase().includes(v)).slice(0, 12);
+            },
+            onSelect: item => { incidentInput.value = item.value; window.fetchIncidents(true); }
+        });
+    }
+    if (window.initIamUserSearchAutocomplete) window.initIamUserSearchAutocomplete();
+};
 
 // ==========================================
 // STARTUP

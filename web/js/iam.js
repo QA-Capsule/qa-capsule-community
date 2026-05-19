@@ -4,21 +4,54 @@
  */
 import { fetchWithAuth, parseJwt } from './api.js';
 import { notify, showConfirmModal, showPromptModal } from './ui.js';
+import { roleLabel, canManageTeams } from './roles.js';
+import { setupAutocomplete } from './autocomplete.js';
 
 export let allUsers = [];
 export let allTeamsFlatList = [];
 let currentSelectedOrgId = null;
 let currentlyManagedUser = null;
+let draggedOrgId = null;
+let orgAcInit = false;
+let iamUserAcInit = false;
+let teamModalAcInit = false;
+
+function escapeAttr(s) {
+    return String(s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function fetchUsersDirectory() {
+    if (allUsers.length) return Promise.resolve(allUsers);
+    return fetchWithAuth(`/api/users?_ts=${Date.now()}`)
+        .then(r => (r.ok ? r.json() : []))
+        .then(u => {
+            allUsers = Array.isArray(u) ? u : [];
+            return allUsers;
+        })
+        .catch(() => {
+            allUsers = [];
+            return allUsers;
+        });
+}
 
 export function loadOrganizations() {
-    fetchWithAuth(`/api/teams?_ts=${Date.now()}`)
-        .then(res => res.json())
-        .then(data => {
+    const teamsReq = fetchWithAuth(`/api/teams?_ts=${Date.now()}`)
+        .then(r => {
+            if (!r.ok) throw new Error(`teams ${r.status}`);
+            return r.json();
+        });
+    const usersReq = fetchUsersDirectory();
+
+    Promise.all([teamsReq, usersReq])
+        .then(([data]) => {
+            allTeamsFlatList = data || [];
             const treeContainer = document.getElementById('organization-tree');
             if (!data || data.length === 0) {
                 treeContainer.innerHTML = "<p>No organizations found.</p>";
                 return;
             }
+
+            initOrgAutocompletes();
 
             const treeMap = {};
             const roots = [];
@@ -31,31 +64,158 @@ export function loadOrganizations() {
                 }
             });
 
-            treeContainer.innerHTML = roots.map(root => renderTreeNode(root)).join('');
+            const canDrag = canManageTeams(parseJwt(localStorage.getItem('sre-jwt'))?.role);
+            const rootDrop = canDrag ? `
+                <div class="org-root-drop" id="org-root-drop"
+                    ondragover="orgDragOver(event)" ondragleave="orgDragLeave(event)" ondrop="orgDropOnRoot(event)">
+                    Drop here to move to top level
+                </div>` : '';
+
+            treeContainer.innerHTML = rootDrop + roots.map(root => renderTreeNode(root, canDrag)).join('');
             if (roots.length > 0) selectOrg(roots[0].id, roots[0].name);
         })
-        .catch(err => notify("Failed to load directory", "error"));
+        .catch(err => {
+            console.error('loadOrganizations:', err);
+            notify("Failed to load directory", "error");
+        });
 }
 
-function renderTreeNode(node) {
+function initOrgAutocompletes() {
+    if (!orgAcInit) {
+        orgAcInit = true;
+        const input = document.getElementById('org-add-user-email');
+        const list = document.getElementById('user-autocomplete-list');
+        if (input && list) {
+            setupAutocomplete({
+                input,
+                list,
+                minChars: 1,
+                getSuggestions: q => {
+                    const v = q.toLowerCase();
+                    return allUsers
+                        .filter(u => u.username?.toLowerCase().includes(v) || (u.fullname && u.fullname.toLowerCase().includes(v)))
+                        .map(u => ({ label: u.fullname || u.username, sublabel: u.username, value: u.username }));
+                },
+                onSelect: item => { input.value = item.value; }
+            });
+        }
+    }
+}
+
+export function initIamUserSearchAutocomplete() {
+    if (iamUserAcInit) return;
+    const input = document.getElementById('user-search');
+    const list = document.getElementById('user-search-ac');
+    if (!input || !list) return;
+    iamUserAcInit = true;
+    setupAutocomplete({
+        input,
+        list,
+        minChars: 1,
+        getSuggestions: q => {
+            const v = q.toLowerCase();
+            return allUsers
+                .filter(u => u.username?.toLowerCase().includes(v) || (u.fullname && u.fullname.toLowerCase().includes(v)))
+                .slice(0, 15)
+                .map(u => ({ label: u.fullname || u.username, sublabel: `${u.username} · ${roleLabel(u.role)}`, value: u.username }));
+        },
+        onSelect: item => {
+            input.value = item.value;
+            filterUsers();
+        }
+    });
+}
+
+function renderTreeNode(node, canDrag) {
     const hasChildren = node.children && node.children.length > 0;
     const toggleIcon = hasChildren ? `<span class="tree-toggle" onclick="toggleTree(event, 'tree-children-${node.id}')">▼</span>` : `<span style="width:20px; display:inline-block;"></span>`;
+    const draggable = canDrag && node.id !== 1;
+    const dragAttrs = draggable ? `draggable="true" ondragstart="orgDragStart(event, ${node.id})" ondragend="orgDragEnd(event)"` : '';
+    const dropAttrs = canDrag ? `ondragover="orgDragOver(event)" ondragleave="orgDragLeave(event)" ondrop="orgDropOnNode(event, ${node.id})"` : '';
 
     let html = `
     <div class="tree-node" id="node-container-${node.id}" style="${!node.parent_id ? 'margin-left: 0; border-left: none; padding-left: 0;' : ''}">
         <div style="display:flex; align-items:center;">
             ${toggleIcon}
-            <div class="tree-item" id="org-node-${node.id}" onclick="window.selectOrg(${node.id}, '${node.name}')">
+            <div class="tree-item ${draggable ? 'tree-draggable' : ''}" id="org-node-${node.id}"
+                data-org-id="${node.id}" data-org-name="${escapeAttr(node.name)}"
+                onclick="window.selectOrgFromEl(this)" ${dragAttrs} ${dropAttrs}>
                 <svg style="width:16px;height:16px;stroke:currentColor;fill:none;flex-shrink:0;" viewBox="0 0 24 24" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
-                ${node.name}
+                <span class="tree-item-label">${escapeAttr(node.name)}</span>
             </div>
         </div>`;
 
     if (hasChildren) {
-        html += `<div id="tree-children-${node.id}" style="display:block;">` + node.children.map(child => renderTreeNode(child)).join('') + `</div>`;
+        html += `<div id="tree-children-${node.id}" style="display:block;">` + node.children.map(child => renderTreeNode(child, canDrag)).join('') + `</div>`;
     }
     html += `</div>`;
     return html;
+}
+
+export function selectOrgFromEl(el) {
+    if (!el?.dataset?.orgId) return;
+    selectOrg(parseInt(el.dataset.orgId, 10), el.dataset.orgName || '');
+}
+
+window.orgDragStart = function (e, nodeId) {
+    draggedOrgId = nodeId;
+    e.dataTransfer.setData('text/plain', String(nodeId));
+    e.dataTransfer.effectAllowed = 'move';
+    e.currentTarget?.classList?.add('tree-dragging');
+};
+
+window.orgDragEnd = function () {
+    document.querySelectorAll('.tree-dragging').forEach(el => el.classList.remove('tree-dragging'));
+};
+
+window.orgDragOver = function (e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const item = e.target.closest('.tree-item, .org-root-drop');
+    if (item) item.classList.add('tree-drop-target');
+};
+
+window.orgDragLeave = function (e) {
+    const item = e.target.closest('.tree-item, .org-root-drop');
+    if (item) item.classList.remove('tree-drop-target');
+};
+
+window.orgDropOnNode = function (e, targetId) {
+    e.preventDefault();
+    e.stopPropagation();
+    document.querySelectorAll('.tree-drop-target, .tree-dragging').forEach(el => {
+        el.classList.remove('tree-drop-target', 'tree-dragging');
+    });
+    const sourceId = draggedOrgId || parseInt(e.dataTransfer.getData('text/plain'), 10);
+    draggedOrgId = null;
+    if (!sourceId || sourceId === targetId) return;
+    moveOrgNode(sourceId, targetId);
+};
+
+window.orgDropOnRoot = function (e) {
+    e.preventDefault();
+    document.querySelectorAll('.tree-drop-target, .tree-dragging').forEach(el => {
+        el.classList.remove('tree-drop-target', 'tree-dragging');
+    });
+    const sourceId = draggedOrgId || parseInt(e.dataTransfer.getData('text/plain'), 10);
+    draggedOrgId = null;
+    if (!sourceId || sourceId === 1) return;
+    moveOrgNode(sourceId, 0);
+};
+
+function moveOrgNode(nodeId, newParentId) {
+    fetchWithAuth('/api/teams', {
+        method: 'PUT',
+        body: JSON.stringify({ id: nodeId, parent_id: newParentId })
+    }).then(async res => {
+        const errText = !res.ok ? await res.text() : '';
+        if (res.ok) {
+            notify(newParentId === 0 ? 'Moved to top level' : 'Sub-organization moved', 'success');
+            loadOrganizations();
+        } else {
+            notify(errText || 'Failed to move group', 'error');
+        }
+    });
 }
 
 export function toggleTree(e, id) {
@@ -199,7 +359,32 @@ export function openUserTeamsModal(username) {
     document.getElementById('user-teams-modal').style.display = 'flex';
 
     fetchWithAuth(`/api/teams?_ts=${Date.now()}`).then(res => res.json()).then(data => { allTeamsFlatList = data || []; });
+    initTeamModalAutocomplete();
     refreshUserTeamsModal();
+}
+
+function initTeamModalAutocomplete() {
+    if (teamModalAcInit) return;
+    const input = document.getElementById('user-add-team-input');
+    const list = document.getElementById('team-autocomplete-list');
+    if (!input || !list) return;
+    teamModalAcInit = true;
+    setupAutocomplete({
+        input,
+        list,
+        minChars: 1,
+        getSuggestions: q => {
+            const v = q.toLowerCase();
+            return allTeamsFlatList
+                .filter(t => t.name.toLowerCase().includes(v))
+                .slice(0, 12)
+                .map(t => ({ label: t.name, sublabel: `Group #${t.id}`, value: t.id }));
+        },
+        onSelect: item => {
+            input.value = '';
+            assignUserToTeamFromModal(item.value);
+        }
+    });
 }
 
 export function closeUserTeamsModal() {
@@ -238,26 +423,7 @@ export function removeUserFromTeamModal(teamId) {
 }
 
 export function handleTeamSearch() {
-    const val = document.getElementById('user-add-team-input').value.toLowerCase();
-    const list = document.getElementById('team-autocomplete-list');
-    list.innerHTML = '';
-
-    if (!val) { list.style.display = 'none'; return; }
-
-    const matches = allTeamsFlatList.filter(t => t.name.toLowerCase().includes(val));
-    if (matches.length === 0) { list.style.display = 'none'; return; }
-
-    matches.forEach(m => {
-        const div = document.createElement('div');
-        div.innerHTML = `<span style="color:#58a6ff; margin-right:5px;">#${m.id}</span> <strong>${m.name}</strong>`;
-        div.onclick = () => {
-            document.getElementById('user-add-team-input').value = '';
-            list.style.display = 'none';
-            assignUserToTeamFromModal(m.id);
-        };
-        list.appendChild(div);
-    });
-    list.style.display = 'block';
+    /* handled by setupAutocomplete in initTeamModalAutocomplete */
 }
 
 export function assignUserToTeamFromModal(teamId) {
@@ -273,6 +439,7 @@ export function loadUsers() {
         .then(res => { if (!res.ok) throw new Error(); return res.json(); })
         .then(users => {
             allUsers = users || [];
+            initIamUserSearchAutocomplete();
             if (document.getElementById('view-management').classList.contains('active')) {
                 renderUserTable(allUsers);
             }
@@ -294,7 +461,7 @@ export function renderUserTable(users) {
             <tr style="border-bottom:1px solid var(--border-main);">
                 <td style="padding:15px 10px; color:${u.is_active ? 'var(--log-pass)' : 'var(--log-fatal)'}; font-weight:bold;">${u.is_active ? '● ACTIVE' : '○ DISABLED'}</td>
                 <td><strong>${u.fullname || 'N/A'}</strong> ${isMe ? '<small>(YOU)</small>' : ''}<br><small style="opacity:0.6;">${u.username}</small></td>
-                <td><small style="text-transform:uppercase;">${u.role}</small></td>
+                <td><small>${roleLabel(u.role)}</small><br><small style="opacity:0.5;"><code>${u.role}</code></small></td>
                 <td style="text-align:right;">
                     <button class="btn-secondary" style="font-size:10px; border-color:#58a6ff; color:#58a6ff;" onclick="window.openUserTeamsModal('${u.username}')">TEAMS</button>
                     <button class="btn-secondary" style="font-size:10px;" onclick="window.adminResetPassword('${u.username}')" ${disabledState}>RESET PWD</button>

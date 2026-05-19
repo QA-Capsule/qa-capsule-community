@@ -183,6 +183,23 @@ func InitDB(ignoredPath string) {
 		log.Fatalf("[FATAL] Failed to create user_preferences table: %v", err)
 	}
 
+	createSavedChartsTable := `
+	CREATE TABLE IF NOT EXISTS saved_charts (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		name TEXT NOT NULL,
+		description TEXT DEFAULT '',
+		qcl_query TEXT NOT NULL,
+		pin_dashboard INTEGER DEFAULT 0,
+		pin_finops INTEGER DEFAULT 0,
+		created_by TEXT,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	);`
+	_, err = DB.Exec(createSavedChartsTable)
+	if err != nil {
+		log.Fatalf("[FATAL] Failed to create saved_charts table: %v", err)
+	}
+
 	// Create Enterprise License Config Table
 	createEnterpriseTable := `
 	CREATE TABLE IF NOT EXISTS enterprise_config (

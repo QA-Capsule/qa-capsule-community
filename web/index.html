@@ -63,8 +63,141 @@
         body[data-theme="dark"] .autocomplete-items { background-color: #161b22; border-color: #30363d; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5); }
         body[data-theme="dark"] .autocomplete-items div { border-color: #30363d; color: #c9d1d9; }
         body[data-theme="dark"] .autocomplete-items div:hover { background-color: #21262d; }
+        .autocomplete-item { padding: 10px 12px; cursor: pointer; border-bottom: 1px solid #d0d7de; display: flex; flex-direction: column; gap: 2px; }
+        .autocomplete-item.active, .autocomplete-item:hover { background: #f6f8fa; }
+        .autocomplete-item-label { font-size: 13px; font-weight: 600; color: #24292f; }
+        .autocomplete-item-sub { font-size: 11px; opacity: 0.65; }
+        .autocomplete-empty { padding: 12px; font-size: 12px; opacity: 0.6; text-align: center; }
+        .ac-highlight { background: rgba(88, 166, 255, 0.35); color: inherit; padding: 0 1px; border-radius: 2px; }
+        body[data-theme="dark"] .autocomplete-item { border-color: #30363d; }
+        body[data-theme="dark"] .autocomplete-item.active, body[data-theme="dark"] .autocomplete-item:hover { background: #21262d; }
+        body[data-theme="dark"] .autocomplete-item-label { color: #c9d1d9; }
+        .tree-draggable { cursor: grab; }
+        .tree-draggable:active { cursor: grabbing; }
+        .tree-dragging { opacity: 0.45; }
+        .tree-drop-target { outline: 2px dashed #58a6ff; outline-offset: 2px; background: rgba(88, 166, 255, 0.12) !important; }
+        .org-root-drop {
+            margin-bottom: 12px; padding: 10px; border: 1px dashed #30363d; border-radius: 6px;
+            font-size: 11px; text-align: center; color: #8b949e; min-height: 36px;
+        }
+        .org-root-drop.tree-drop-target { border-color: #58a6ff; color: #58a6ff; background: rgba(88, 166, 255, 0.08); }
+        .ac-wrap { position: relative; flex: 1; }
 
         .sidebar-logo { width: 36px; height: auto; border-radius: 6px; object-fit: contain; }
+
+        .about-shell { display: grid; grid-template-columns: 280px 1fr; gap: 0; min-height: 68vh; border: 1px solid var(--border-main); border-radius: 12px; overflow: hidden; background: var(--bg-surface); }
+        .about-sidebar { background: #0d1117; border-right: 1px solid var(--border-main); padding: 24px 16px; }
+        .about-sidebar h2 { font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: #8b949e; margin: 0 0 16px 8px; }
+        .about-topic-nav { display: flex; flex-direction: column; gap: 4px; }
+        .about-topic-btn {
+            text-align: left; padding: 12px 14px; border-radius: 8px; border: 1px solid transparent;
+            background: transparent; color: #8b949e; cursor: pointer; font-size: 13px; transition: 0.2s;
+            display: flex; align-items: center; gap: 10px;
+        }
+        .about-topic-btn:hover { background: #161b22; color: #c9d1d9; }
+        .about-topic-btn.active { background: rgba(88, 166, 255, 0.15); border-color: rgba(88, 166, 255, 0.4); color: #58a6ff; font-weight: 600; }
+        .about-topic-icon { width: 18px; height: 18px; opacity: 0.7; flex-shrink: 0; }
+        .about-topic-btn.active .about-topic-icon { opacity: 1; }
+        #about-topic-content { padding: 36px 40px; max-height: 68vh; overflow-y: auto; line-height: 1.65; }
+        .about-breadcrumb { font-size: 12px; color: #8b949e; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }
+        .chart-studio-layout {
+            display: grid; grid-template-columns: 260px 1fr; gap: 20px; min-height: 72vh;
+        }
+        .chart-studio-sidebar {
+            background: #0d1117; border: 1px solid var(--border-main); border-radius: 12px;
+            display: flex; flex-direction: column; overflow: hidden;
+        }
+        .chart-studio-sidebar-head {
+            padding: 16px; border-bottom: 1px solid var(--border-main);
+        }
+        .chart-studio-sidebar-head h3 { margin: 0 0 10px 0; font-size: 13px; text-transform: uppercase; color: #8b949e; letter-spacing: 1px; }
+        .chart-library-search { margin: 0 !important; font-size: 12px !important; }
+        .chart-library-list { flex: 1; overflow-y: auto; padding: 8px; }
+        .chart-library-item {
+            width: 100%; text-align: left; padding: 12px 14px; margin-bottom: 6px;
+            border-radius: 8px; border: 1px solid transparent; background: transparent;
+            color: #c9d1d9; cursor: pointer; transition: 0.15s;
+        }
+        .chart-library-item:hover { background: #161b22; border-color: #30363d; }
+        .chart-library-item.active { background: rgba(88, 166, 255, 0.12); border-color: rgba(88, 166, 255, 0.45); }
+        .chart-library-item-title { display: block; font-weight: 600; font-size: 13px; margin-bottom: 4px; }
+        .chart-library-item-meta { display: flex; flex-wrap: wrap; gap: 4px; }
+        .chart-pin-badge {
+            font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px;
+            padding: 2px 6px; border-radius: 4px; background: rgba(88, 166, 255, 0.2); color: #58a6ff;
+        }
+        .chart-pin-badge.finops { background: rgba(210, 153, 34, 0.2); color: #d29922; }
+        .chart-library-empty { padding: 24px 16px; text-align: center; font-size: 12px; opacity: 0.6; line-height: 1.5; }
+        .chart-studio-main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+        .chart-editor-panel, .chart-preview-panel {
+            background: var(--bg-surface); border: 1px solid var(--border-main); border-radius: 12px; padding: 20px;
+        }
+        .chart-panel-head {
+            display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;
+            gap: 12px; margin-bottom: 16px;
+        }
+        .chart-panel-head h3 { margin: 0; font-size: 15px; color: #c9d1d9; }
+        .chart-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+        .chart-toolbar .btn-secondary, .chart-toolbar .btn-primary { font-size: 12px; padding: 8px 14px; }
+        .qcl-editor {
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace; font-size: 13px; line-height: 1.5;
+            min-height: 160px; resize: vertical; background: #0d1117 !important; tab-size: 4;
+        }
+        .chart-save-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+        .chart-save-meta label { font-size: 11px; color: #8b949e; display: block; margin-bottom: 4px; }
+        .chart-pin-row { display: flex; gap: 20px; margin: 12px 0; font-size: 13px; }
+        .chart-pin-row label { display: flex; align-items: center; gap: 8px; cursor: pointer; color: #8b949e; }
+        .chart-snippet-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+        .chart-snippet-btn {
+            font-size: 11px; padding: 4px 10px; border-radius: 6px; border: 1px solid #30363d;
+            background: #161b22; color: #8b949e; cursor: pointer;
+        }
+        .chart-snippet-btn:hover { border-color: #58a6ff; color: #58a6ff; }
+        .chart-preview-canvas-wrap { height: 340px; position: relative; background: #0d1117; border-radius: 8px; padding: 12px; }
+        .chart-preview-status { font-size: 11px; color: #8b949e; margin-top: 8px; }
+        .qcl-reference-toggle { font-size: 12px; color: #58a6ff; background: none; border: none; cursor: pointer; padding: 0; }
+        .qcl-ref-lead { font-size: 12px; opacity: 0.85; margin: 0 0 10px 0; }
+        .qcl-ref-example {
+            background: #0d1117; padding: 12px; border-radius: 6px; font-size: 12px;
+            overflow: auto; margin: 0 0 12px 0; border: 1px solid #30363d;
+        }
+        .qcl-ref-metrics { list-style: none; padding: 0; margin: 0; font-size: 12px; }
+        .qcl-ref-metrics li { padding: 6px 0; border-bottom: 1px solid #21262d; display: flex; gap: 10px; }
+        .qcl-ref-metrics code { color: #58a6ff; min-width: 110px; }
+        .pinned-charts-section { margin: 24px 0; }
+        .pinned-charts-section h3 {
+            margin: 0 0 16px 0; font-size: 14px; text-transform: uppercase;
+            letter-spacing: 1px; color: #8b949e;
+        }
+        .pinned-charts-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 20px;
+        }
+        .pinned-chart-card {
+            background: #161b22; border: 1px solid #30363d; border-radius: 10px; overflow: hidden;
+        }
+        .pinned-chart-header { padding: 14px 16px 8px; border-bottom: 1px solid #30363d; }
+        .pinned-chart-header h4 { margin: 0; font-size: 14px; color: #c9d1d9; }
+        .pinned-chart-header p { margin: 4px 0 0; font-size: 11px; opacity: 0.65; }
+        .pinned-chart-canvas-wrap { height: 260px; padding: 12px; }
+        @media (max-width: 1100px) {
+            .chart-studio-layout { grid-template-columns: 1fr; }
+            .chart-save-meta { grid-template-columns: 1fr; }
+            .about-shell { grid-template-columns: 1fr; }
+        }
+        .about-doc h2 { margin-top: 0; color: #58a6ff; }
+        .about-lead { font-size: 15px; line-height: 1.6; opacity: 0.9; }
+        .about-table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 13px; }
+        .about-table th, .about-table td { border: 1px solid var(--border-main); padding: 10px 12px; text-align: left; }
+        .about-table th { background: #161b22; color: #8b949e; }
+        .about-formula {
+            font-family: 'Consolas', 'Monaco', monospace; background: #0d1117; border-left: 4px solid #58a6ff;
+            padding: 14px 18px; margin: 12px 0; border-radius: 4px; font-size: 14px; line-height: 1.5;
+        }
+        .about-dl dt { font-weight: bold; color: #58a6ff; margin-top: 12px; }
+        .about-dl dd { margin: 4px 0 0 0; opacity: 0.85; line-height: 1.5; }
+        .about-callout { background: rgba(88, 166, 255, 0.08); border: 1px solid rgba(88, 166, 255, 0.25); border-radius: 8px; padding: 16px 20px; margin: 16px 0; font-size: 14px; }
+        .finops-kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 24px; }
+        @media (max-width: 1100px) { .finops-kpi-grid { grid-template-columns: repeat(2, 1fr); } .about-layout { grid-template-columns: 1fr; } }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -143,7 +276,7 @@
             </div>
             <div style="position: relative; display: flex; gap: 10px; margin-bottom: 20px; text-align: left;">
                 <div style="flex-grow: 1; position: relative;">
-                    <input type="text" id="user-add-team-input" class="login-input" style="margin: 0;" placeholder="Search to add user to a new group..." oninput="handleTeamSearch()" autocomplete="off">
+                    <input type="text" id="user-add-team-input" class="login-input" style="margin: 0;" placeholder="Search to add user to a new group..." autocomplete="off">
                     <div id="team-autocomplete-list" class="autocomplete-items" style="display:none; text-align: left;"></div>
                 </div>
             </div>
@@ -168,15 +301,8 @@
                 </div>
             </div>
 
-            <div style="padding: 15px 20px; font-size: 10px; opacity: 0.4; letter-spacing: 1px; font-weight: bold;">OPERATIONS</div>
-            <div class="nav-item active" onclick="switchView('dashboard', this)">
-                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                    <line x1="3" y1="9" x2="21" y2="9"></line>
-                    <line x1="9" y1="21" x2="9" y2="9"></line>
-                </svg> Dashboard
-            </div>
-            <div class="nav-item" onclick="switchView('organizations', this)">
+            <div class="role-workspace" style="padding: 15px 20px; font-size: 10px; opacity: 0.4; letter-spacing: 1px; font-weight: bold;">WORKSPACES</div>
+            <div class="nav-item role-workspace" onclick="switchView('organizations', this)">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
                     <circle cx="9" cy="7" r="4"></circle>
@@ -184,14 +310,46 @@
                     <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
                 </svg> Workspaces
             </div>
+            <div class="role-non-admin" style="padding: 15px 20px; font-size: 10px; opacity: 0.4; letter-spacing: 1px; font-weight: bold; margin-top: 10px;">OPERATIONS</div>
+            <div class="nav-item role-non-admin active" onclick="switchView('dashboard', this)">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                    <line x1="3" y1="9" x2="21" y2="9"></line>
+                    <line x1="9" y1="21" x2="9" y2="9"></line>
+                </svg> Dashboard
+            </div>
+            <div class="role-manager-only role-non-admin" style="padding: 15px 20px; font-size: 10px; opacity: 0.4; letter-spacing: 1px; font-weight: bold; margin-top: 10px;">FINOPS</div>
+            <div class="nav-item role-manager-only role-non-admin" onclick="switchView('finops', this)">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="12" y1="1" x2="12" y2="23"></line>
+                    <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                </svg> FinOps Intelligence
+            </div>
+            <div class="role-chart-studio role-non-admin" style="padding: 15px 20px; font-size: 10px; opacity: 0.4; letter-spacing: 1px; font-weight: bold; margin-top: 10px;">CHART STUDIO</div>
+            <div class="nav-item role-chart-studio role-non-admin" onclick="switchView('charts', this)">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="20" x2="18" y2="10"></line>
+                    <line x1="12" y1="20" x2="12" y2="4"></line>
+                    <line x1="6" y1="20" x2="6" y2="14"></line>
+                </svg> Chart Studio
+            </div>
 
-            <div class="admin-only" style="padding: 15px 20px; font-size: 10px; opacity: 0.4; letter-spacing: 1px; font-weight: bold; margin-top: 10px;">INFRASTRUCTURE</div>
-            <div class="nav-item admin-only" onclick="switchView('ingestion', this)">
+            <div class="role-non-admin" style="padding: 15px 20px; font-size: 10px; opacity: 0.4; letter-spacing: 1px; font-weight: bold; margin-top: 10px;">HELP CENTER</div>
+            <div class="nav-item role-non-admin" onclick="switchView('about', this)">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                </svg> Help Center
+            </div>
+
+            <div class="role-operator role-non-admin" style="padding: 15px 20px; font-size: 10px; opacity: 0.4; letter-spacing: 1px; font-weight: bold; margin-top: 10px;">INFRASTRUCTURE</div>
+            <div class="nav-item role-operator role-non-admin" onclick="switchView('ingestion', this)">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
                 </svg> CI/CD Gateways
             </div>
-            <div class="nav-item admin-only" onclick="switchView('plugins', this)">
+            <div class="nav-item role-operator role-non-admin" onclick="switchView('plugins', this)">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
                 </svg> Plugin Engine
@@ -244,7 +402,10 @@
 
                     <div class="dashboard-toolbar">
                         <div class="dashboard-toolbar-group">
-                            <input type="text" id="incident-search" class="login-input dashboard-control" style="width: 250px;" placeholder="Search error or project..." oninput="fetchIncidents()">
+                            <div class="ac-wrap" style="width: 250px;">
+                            <input type="text" id="incident-search" class="login-input dashboard-control" style="width: 100%; margin:0;" placeholder="Search error or project..." autocomplete="off">
+                            <div id="incident-search-ac" class="autocomplete-items" style="display:none;"></div>
+                            </div>
                         </div>
 
                         <div class="dashboard-toolbar-group">
@@ -319,6 +480,11 @@
                     </div>
                 </div>
 
+                <div id="dashboard-pinned-wrap" class="pinned-charts-section" style="display:none;">
+                    <h3>Custom charts</h3>
+                    <div id="dashboard-pinned-charts" class="pinned-charts-grid"></div>
+                </div>
+
                 <div id="analytics-view" style="display: none; background: #161b22; padding: 20px; border-radius: 8px; border: 1px solid #30363d; margin-top: 20px; margin-bottom: 20px;">
                     <h3 style="color: #58a6ff; margin-top: 0; margin-bottom: 15px;">System Analytics & Quality</h3>
                     
@@ -374,7 +540,7 @@
                 <div style="display: grid; grid-template-columns: 350px 1fr; gap: 30px;">
                     <div class="data-card" style="height: 65vh; overflow-y: auto;">
                         <h3 style="margin-top: 0;">Directory Tree</h3>
-                        <p style="font-size:0.7rem; opacity:0.6; margin-bottom:15px;">Select a group to manage its members and sub-groups.</p>
+                        <p style="font-size:0.7rem; opacity:0.6; margin-bottom:15px;">Select a group to manage members. Drag a sub-organization onto another to reparent it, or drop on the zone above the tree for top level.</p>
                         <div id="organization-tree">Loading directory...</div>
                     </div>
                     <div class="data-card" id="org-management-panel" style="display: none;">
@@ -383,17 +549,17 @@
                                 <h2 id="org-selected-name" style="margin: 0; color: #58a6ff;">Select a Group</h2>
                                 <p id="org-selected-id" style="font-size: 12px; opacity: 0.6; margin: 5px 0 0 0;">ID: -</p>
                             </div>
-                            <div class="admin-only" style="display: flex; gap: 10px;">
+                            <div class="role-workspace" style="display: flex; gap: 10px;">
                                 <button class="btn-primary" onclick="promptCreateSubGroup()">+ Sub-Group</button>
                                 <button class="btn-secondary" style="border-color: #d29922; color: #d29922;" onclick="promptRenameGroup()">Rename</button>
                                 <button class="btn-secondary" style="border-color: #ff7b72; color: #ff7b72;" onclick="promptDeleteGroup()">Delete Branch</button>
                             </div>
                         </div>
-                        <div class="admin-only" style="background: #0d1117; padding: 15px; border-radius: 6px; border: 1px dashed #30363d; margin-bottom: 25px;">
+                        <div class="role-workspace" style="background: #0d1117; padding: 15px; border-radius: 6px; border: 1px dashed #30363d; margin-bottom: 25px;">
                             <h4 style="margin: 0 0 15px 0; font-size: 13px; color: #58a6ff; text-transform: uppercase;">Assign Identity to Group</h4>
                             <div style="display: flex; gap: 10px; position: relative;">
                                 <div style="flex-grow: 1;">
-                                    <input type="text" id="org-add-user-email" class="login-input" style="margin: 0;" placeholder="Search user (e.g. name or email)" oninput="handleUserSearch()" autocomplete="off">
+                                    <input type="text" id="org-add-user-email" class="login-input" style="margin: 0;" placeholder="Search user (e.g. name or email)" autocomplete="off">
                                     <div id="user-autocomplete-list" class="autocomplete-items" style="display:none;"></div>
                                 </div>
                                 <select id="org-add-user-role" class="login-input" style="margin: 0; width: 150px;">
@@ -436,22 +602,27 @@
                     <div style="display: flex; gap: 15px; margin-top: 15px;">
                         <input type="text" id="new-user-fullname" class="login-input" placeholder="Full Name">
                         <input type="text" id="new-user-name" class="login-input" placeholder="user@domain.com">
-                        <select id="new-user-role" class="login-input" style="width: 200px;">
-                            <option value="viewer">Viewer</option>
-                            <option value="operator">Operator</option>
-                            <option value="admin">Administrator</option>
+                        <select id="new-user-role" class="login-input" style="width: 220px;">
+                            <option value="viewer">QA / Developer (Viewer)</option>
+                            <option value="operator">QA Lead (Operator)</option>
+                            <option value="manager">QA Manager / SRE (Manager)</option>
+                            <option value="admin">System Admin</option>
                         </select>
                         <button class="btn-primary" style="white-space: nowrap;" onclick="createUser()">Deploy Identity</button>
                     </div>
                 </div>
                 <div class="data-card" style="margin-top: 20px;">
                     <div style="display:flex; gap:10px; margin-bottom:15px;">
-                        <input type="text" id="user-search" class="login-input" style="margin:0" placeholder="Search users..." onkeyup="filterUsers()">
-                        <select id="role-filter" class="login-input" style="margin:0; width:150px" onchange="filterUsers()">
+                        <div class="ac-wrap" style="flex:1;">
+                        <input type="text" id="user-search" class="login-input" style="margin:0" placeholder="Search users..." autocomplete="off">
+                        <div id="user-search-ac" class="autocomplete-items" style="display:none;"></div>
+                        </div>
+                        <select id="role-filter" class="login-input" style="margin:0; width:200px" onchange="filterUsers()">
                             <option value="all">All Roles</option>
-                            <option value="admin">Administrator</option>
-                            <option value="operator">Operator</option>
-                            <option value="viewer">Viewer</option>
+                            <option value="admin">System Admin</option>
+                            <option value="manager">Manager</option>
+                            <option value="operator">QA Lead</option>
+                            <option value="viewer">QA / Dev</option>
                         </select>
                     </div>
                     <table style="width:100%; border-collapse:collapse; text-align: left;">
@@ -573,6 +744,200 @@
                             This token must be injected into your CI/CD runner environments as a secret and passed in the `X-API-Key` header during HTTP POST requests to the Webhook URL.
                         </div>
                     </div>
+                </div>
+            </section>
+
+            <section id="view-finops" class="view-section">
+                <div class="header-bar">
+                    <div>
+                        <h1 style="margin: 0; font-size: 24px;">FinOps Intelligence</h1>
+                        <p style="margin: 5px 0 0 0; opacity: 0.6; font-size: 14px;">Weekly cost evolution, flaky waste, and CI spend — Managers only.</p>
+                    </div>
+                </div>
+
+                <div class="finops-kpi-grid">
+                    <div class="kpi-card" style="border-top: 4px solid #58a6ff;">
+                        <div style="font-size: 11px; opacity: 0.6; font-weight: bold;">TOTAL FINANCIAL IMPACT</div>
+                        <div class="kpi-value" style="color: #58a6ff;" id="finops-kpi-total-cost">—</div>
+                    </div>
+                    <div class="kpi-card" style="border-top: 4px solid #d29922;">
+                        <div style="font-size: 11px; opacity: 0.6; font-weight: bold;">FLAKY WASTE COST</div>
+                        <div class="kpi-value" style="color: #d29922;" id="finops-kpi-flaky-cost">—</div>
+                        <div style="font-size: 10px; opacity: 0.5; margin-top: 5px;" id="finops-kpi-waste-pct">—</div>
+                    </div>
+                    <div class="kpi-card" style="border-top: 4px solid #ff7b72;">
+                        <div style="font-size: 11px; opacity: 0.6; font-weight: bold;">CI MINUTES LOST</div>
+                        <div class="kpi-value log-fatal" id="finops-kpi-ci-minutes">—</div>
+                    </div>
+                    <div class="kpi-card" style="border-top: 4px solid #3fb950;">
+                        <div style="font-size: 11px; opacity: 0.6; font-weight: bold;">AVERAGE MTTR</div>
+                        <div class="kpi-value" style="color: #3fb950;" id="finops-kpi-mttr">—</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div style="font-size: 11px; opacity: 0.6; font-weight: bold;">TOTAL INCIDENTS</div>
+                        <div class="kpi-value" id="finops-kpi-incidents">—</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div style="font-size: 11px; opacity: 0.6; font-weight: bold;">FLAKY TESTS</div>
+                        <div class="kpi-value" style="color: #d29922;" id="finops-kpi-flaky-count">—</div>
+                    </div>
+                </div>
+
+                                <div class="data-card" style="margin-bottom: 24px; display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end;">
+                    <div>
+                        <label style="font-size: 11px; color: #8b949e;">Export period</label>
+                        <select id="finops-export-period" class="login-input" style="min-width: 140px;">
+                            <option value="week">Week</option>
+                            <option value="month">Month</option>
+                            <option value="year">Year</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="font-size: 11px; color: #8b949e;">Gateway (project)</label>
+                        <select id="finops-export-project" class="login-input" style="min-width: 200px;">
+                            <option value="all">All gateways</option>
+                        </select>
+                    </div>
+                    <button class="btn-primary" onclick="exportFinOpsReport()">Export CSV</button>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px;">
+                    <div class="data-card">
+                        <h3 style="margin-top: 0; color: #58a6ff;">12-week volume &amp; MTTR</h3>
+                        <div style="height: 280px;"><canvas id="finops-evolution-chart"></canvas></div>
+                    </div>
+                    <div class="data-card">
+                        <h3 style="margin-top: 0; color: #d29922;">12-week FinOps cost evolution</h3>
+                        <div style="height: 280px;"><canvas id="finops-cost-evolution-chart"></canvas></div>
+                    </div>
+                </div>
+
+                <div id="finops-pinned-wrap" class="pinned-charts-section role-manager-only" style="display:none;">
+                    <h3>Saved custom charts</h3>
+                    <div id="finops-pinned-charts" class="pinned-charts-grid"></div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 380px; gap: 24px; margin-bottom: 24px;">
+                    <div class="data-card">
+                        <h3 style="margin-top: 0;">Weekly pipeline health (last 7 days)</h3>
+                        <table style="width:100%; border-collapse: collapse;">
+                            <thead>
+                                <tr style="border-bottom: 2px solid var(--border-main); background: #161b22;">
+                                    <th style="padding: 10px; text-align: left;">Pipeline</th>
+                                    <th style="padding: 10px;">Alerts</th>
+                                    <th style="padding: 10px;">Resolved</th>
+                                    <th style="padding: 10px;">Flaky</th>
+                                    <th style="padding: 10px;">Health %</th>
+                                </tr>
+                            </thead>
+                            <tbody id="finops-weekly-body">
+                                <tr><td colspan="5" style="text-align:center;padding:20px;opacity:0.5;">Loading…</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="data-card">
+                        <h3 style="margin-top: 0; font-size: 14px; text-transform: uppercase;">FinOps baseline</h3>
+                        <label style="font-size: 11px; color: #8b949e;">Engineer hourly rate (R<sub>dev</sub>)</label>
+                        <input type="number" step="0.01" id="finops-dev-rate" class="login-input">
+                        <label style="font-size: 11px; color: #8b949e;">CI minute cost (C<sub>ci</sub>)</label>
+                        <input type="number" step="0.0001" id="finops-ci-cost" class="login-input">
+                        <label style="font-size: 11px; color: #8b949e;">Avg. pipeline duration (min)</label>
+                        <input type="number" step="0.1" id="finops-duration" class="login-input">
+                        <label style="font-size: 11px; color: #8b949e;">Avg. investigation time (min)</label>
+                        <input type="number" step="0.1" id="finops-investigation" class="login-input">
+                        <label style="font-size: 11px; color: #8b949e;">Currency</label>
+                        <select id="finops-currency" class="login-input">
+                            <option value="USD">USD</option>
+                            <option value="EUR">EUR</option>
+                            <option value="GBP">GBP</option>
+                        </select>
+                        <button class="btn-primary" style="width: 100%; margin-top: 12px;" onclick="saveFinOpsBaselines()">Save baseline</button>
+                        <p style="font-size: 11px; opacity: 0.6; margin-top: 12px;">Formulas and theory: <a href="#" onclick="switchView('about', null); showAboutTopic('finops_metrics'); return false;" style="color:#58a6ff;">Help Center → FinOps metrics</a>.</p>
+                    </div>
+                </div>
+            </section>
+
+            <section id="view-charts" class="view-section">
+                <div class="header-bar">
+                    <div>
+                        <h1 style="margin: 0; font-size: 24px;">Chart Studio</h1>
+                        <p style="margin: 5px 0 0 0; opacity: 0.6; font-size: 14px;">Build, save, and pin custom metrics to Dashboard and FinOps using QCL.</p>
+                    </div>
+                    <div class="chart-toolbar">
+                        <button type="button" class="btn-secondary" onclick="newChartDraft()">+ New chart</button>
+                    </div>
+                </div>
+
+                <div class="chart-studio-layout">
+                    <aside class="chart-studio-sidebar">
+                        <div class="chart-studio-sidebar-head">
+                            <h3>Saved charts</h3>
+                            <input type="text" id="chart-library-search" class="login-input chart-library-search"
+                                placeholder="Search…" oninput="filterChartLibrary()">
+                        </div>
+                        <div id="chart-library-list" class="chart-library-list"></div>
+                    </aside>
+
+                    <div class="chart-studio-main">
+                        <div class="chart-editor-panel">
+                            <div class="chart-panel-head">
+                                <h3 id="chart-editor-title">New chart</h3>
+                                <div class="chart-toolbar">
+                                    <button type="button" class="btn-secondary" onclick="runChartQuery()">▶ Run</button>
+                                    <button type="button" class="btn-primary" onclick="saveCurrentChart()">Save</button>
+                                    <button type="button" class="btn-secondary" style="border-color:#ff7b72;color:#ff7b72;" onclick="deleteCurrentChart()">Delete</button>
+                                </div>
+                            </div>
+                            <div class="chart-save-meta">
+                                <div>
+                                    <label for="chart-save-name">Chart name</label>
+                                    <input type="text" id="chart-save-name" class="login-input" placeholder="e.g. Weekly flaky waste">
+                                </div>
+                                <div>
+                                    <label for="chart-save-desc">Description (optional)</label>
+                                    <input type="text" id="chart-save-desc" class="login-input" placeholder="Short note for your team">
+                                </div>
+                            </div>
+                            <div class="chart-pin-row">
+                                <label><input type="checkbox" id="pin-dashboard"> Pin to Dashboard</label>
+                                <label class="role-manager-only"><input type="checkbox" id="pin-finops"> Pin to FinOps</label>
+                            </div>
+                            <div class="chart-snippet-row">
+                                <button type="button" class="chart-snippet-btn" onclick="insertQclSnippet('CHART line &quot;Weekly incidents&quot;\nMETRIC incidents\nRANGE 12w\nGROUP week')">Incidents</button>
+                                <button type="button" class="chart-snippet-btn role-manager-only" onclick="insertQclSnippet('CHART bar &quot;FinOps cost&quot;\nMETRIC finops_cost\nRANGE 12w\nGROUP week')">FinOps cost</button>
+                                <button type="button" class="chart-snippet-btn" onclick="insertQclSnippet('CHART line &quot;MTTR trend&quot;\nMETRIC mttr\nRANGE 8w\nGROUP week')">MTTR</button>
+                                <button type="button" class="chart-snippet-btn" onclick="insertQclSnippet('CHART bar &quot;By gateway&quot;\nMETRIC incidents\nRANGE 30d\nGROUP project')">By project</button>
+                            </div>
+                            <textarea id="qcl-editor" class="login-input qcl-editor" spellcheck="false" placeholder="CHART line ..."></textarea>
+                            <div style="margin-top: 12px;">
+                                <button type="button" class="qcl-reference-toggle" id="qcl-reference-toggle" onclick="toggleQclReference()">Show reference</button>
+                                <div id="qcl-reference-body" style="display:none; margin-top: 10px;"></div>
+                            </div>
+                        </div>
+
+                        <div class="chart-preview-panel">
+                            <div class="chart-panel-head">
+                                <h3>Live preview</h3>
+                                <span id="chart-preview-status" class="chart-preview-status"></span>
+                            </div>
+                            <div class="chart-preview-canvas-wrap">
+                                <canvas id="chart-studio-canvas"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="view-about" class="view-section">
+                <div class="header-bar">
+                    <div>
+                        <h1 style="margin: 0; font-size: 24px;">Help Center</h1>
+                        <p style="margin: 5px 0 0 0; opacity: 0.6; font-size: 14px;">Product documentation, roles, FinOps theory, and QCL reference — available to all users.</p>
+                    </div>
+                </div>
+                <div class="about-shell">
+                    <aside class="about-sidebar"><h2>Topics</h2><nav id="about-topic-nav" class="about-topic-nav"></nav></aside>
+                    <div id="about-topic-content"></div>
                 </div>
             </section>
 

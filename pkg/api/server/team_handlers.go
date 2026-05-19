@@ -16,7 +16,7 @@ import (
 func registerTeamRoutes(config *core.Config) {
 
 	// CRUD for Teams (GET is public for authenticated users, Mutations are Admin only)
-	http.HandleFunc("/api/teams", jwtAuthMiddleware(config, false, func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/api/teams", jwtAuthMiddleware(config, "", func(w http.ResponseWriter, r *http.Request) {
 
 		authHeader := r.Header.Get("Authorization")
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
@@ -49,9 +49,8 @@ func registerTeamRoutes(config *core.Config) {
 			json.NewEncoder(w).Encode(teams)
 
 		} else {
-			// SECURITY: Block non-admins from mutating teams
-			if claims.Role != "admin" {
-				http.Error(w, "Admin access required", http.StatusForbidden)
+			if !core.CanManageTeams(claims.Role) {
+				http.Error(w, "Manager access required", http.StatusForbidden)
 				return
 			}
 
@@ -76,19 +75,59 @@ func registerTeamRoutes(config *core.Config) {
 
 			} else if r.Method == http.MethodPut {
 				var req struct {
-					ID   int    `json:"id"`
-					Name string `json:"name"`
+					ID       int     `json:"id"`
+					Name     *string `json:"name"`
+					ParentID *int    `json:"parent_id"`
 				}
-				json.NewDecoder(r.Body).Decode(&req)
-
-				if req.Name == "" || req.ID == 0 {
+				if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.ID == 0 {
 					http.Error(w, "Invalid request", http.StatusBadRequest)
 					return
 				}
 
-				_, err := core.DB.Exec("UPDATE teams SET name = ? WHERE id = ?", req.Name, req.ID)
-				if err != nil {
-					http.Error(w, "Failed to rename group", http.StatusInternalServerError)
+				if req.ID == 1 && req.ParentID != nil {
+					http.Error(w, "Cannot move Root Organization", http.StatusForbidden)
+					return
+				}
+
+				if req.ParentID != nil {
+					if *req.ParentID == req.ID {
+						http.Error(w, "A group cannot be its own parent", http.StatusBadRequest)
+						return
+					}
+					if *req.ParentID == 0 {
+						_, err := core.DB.Exec("UPDATE teams SET parent_id = NULL WHERE id = ?", req.ID)
+						if err != nil {
+							http.Error(w, "Failed to move group", http.StatusInternalServerError)
+							return
+						}
+					} else {
+						if isTeamDescendant(req.ID, *req.ParentID) {
+							http.Error(w, "Cannot move a group into its own sub-group", http.StatusBadRequest)
+							return
+						}
+						var parentExists int
+						if err := core.DB.QueryRow("SELECT 1 FROM teams WHERE id = ?", *req.ParentID).Scan(&parentExists); err != nil {
+							http.Error(w, "Parent group not found", http.StatusBadRequest)
+							return
+						}
+						_, err := core.DB.Exec("UPDATE teams SET parent_id = ? WHERE id = ?", *req.ParentID, req.ID)
+						if err != nil {
+							http.Error(w, "Failed to move group", http.StatusInternalServerError)
+							return
+						}
+					}
+				}
+
+				if req.Name != nil && strings.TrimSpace(*req.Name) != "" {
+					_, err := core.DB.Exec("UPDATE teams SET name = ? WHERE id = ?", strings.TrimSpace(*req.Name), req.ID)
+					if err != nil {
+						http.Error(w, "Failed to rename group", http.StatusInternalServerError)
+						return
+					}
+				}
+
+				if req.Name == nil && req.ParentID == nil {
+					http.Error(w, "Nothing to update", http.StatusBadRequest)
 					return
 				}
 				w.WriteHeader(http.StatusOK)
@@ -110,7 +149,7 @@ func registerTeamRoutes(config *core.Config) {
 	}))
 
 	// Associate/Dissociate users with teams (Admin only -> true)
-	http.HandleFunc("/api/user-teams", jwtAuthMiddleware(config, true, func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/api/user-teams", jwtAuthMiddleware(config, core.RoleManager, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPost {
 			var payload struct {
 				UserEmail string `json:"user_email"`
@@ -156,7 +195,7 @@ func registerTeamRoutes(config *core.Config) {
 	}))
 
 	// Fetch teams for a specific user (Read Only - Open to all -> false)
-	http.HandleFunc("/api/users/teams", jwtAuthMiddleware(config, false, func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/api/users/teams", jwtAuthMiddleware(config, "", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
 			username := r.URL.Query().Get("username")
 			query := `
@@ -186,7 +225,7 @@ func registerTeamRoutes(config *core.Config) {
 	}))
 
 	// Manage team members (GET is open, POST/DELETE are reserved for Admins)
-	http.HandleFunc("/api/teams/members", jwtAuthMiddleware(config, false, func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/api/teams/members", jwtAuthMiddleware(config, "", func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 		claims := &Claims{}
@@ -222,8 +261,7 @@ func registerTeamRoutes(config *core.Config) {
 			json.NewEncoder(w).Encode(members)
 
 		} else {
-			// SECURITY: Block non-admins from modifying members
-			if claims.Role != "admin" {
+			if !core.CanManageTeams(claims.Role) {
 				http.Error(w, "Admin access required", http.StatusForbidden)
 				return
 			}
@@ -274,4 +312,21 @@ func registerTeamRoutes(config *core.Config) {
 			}
 		}
 	}))
+}
+
+// isTeamDescendant returns true if ancestorID is a descendant of nodeID (nodeID is an ancestor in the tree).
+func isTeamDescendant(nodeID, candidateParentID int) bool {
+	current := candidateParentID
+	for current != 0 {
+		if current == nodeID {
+			return true
+		}
+		var parent sql.NullInt64
+		err := core.DB.QueryRow("SELECT parent_id FROM teams WHERE id = ?", current).Scan(&parent)
+		if err != nil || !parent.Valid {
+			return false
+		}
+		current = int(parent.Int64)
+	}
+	return false
 }

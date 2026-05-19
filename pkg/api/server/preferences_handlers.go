@@ -85,7 +85,7 @@ func mergePreferences(current UserPreferences, patch map[string]interface{}) Use
 
 // registerPreferencesRoutes binds personal account and preference endpoints.
 func registerPreferencesRoutes(config *core.Config) {
-	http.HandleFunc("/api/me", jwtAuthMiddleware(config, false, func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/api/me", jwtAuthMiddleware(config, "", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		claims := claimsFromRequest(r)
 		if claims == nil {
@@ -137,7 +137,7 @@ func registerPreferencesRoutes(config *core.Config) {
 		}
 	}))
 
-	http.HandleFunc("/api/me/preferences", jwtAuthMiddleware(config, false, func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/api/me/preferences", jwtAuthMiddleware(config, "", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		claims := claimsFromRequest(r)
 		if claims == nil {
@@ -174,7 +174,7 @@ func registerPreferencesRoutes(config *core.Config) {
 		}
 	}))
 
-	http.HandleFunc("/api/me/password", jwtAuthMiddleware(config, false, func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/api/me/password", jwtAuthMiddleware(config, "", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPut {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return

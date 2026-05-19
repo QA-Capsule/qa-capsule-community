@@ -69,8 +69,26 @@ func sendEmail(config *core.Config, to string, subject string, htmlBody string) 
 	}
 }
 
-// jwtAuthMiddleware intercepts requests to verify identity and RBAC permissions
-func jwtAuthMiddleware(config *core.Config, requireAdmin bool, next http.HandlerFunc) http.HandlerFunc {
+// normalizeAuthRequirement accepts a role string or legacy bool (false = any user, true = admin).
+func normalizeAuthRequirement(requirement any) string {
+	switch v := requirement.(type) {
+	case string:
+		return v
+	case bool:
+		if v {
+			return core.RoleAdmin
+		}
+		return ""
+	default:
+		return ""
+	}
+}
+
+// jwtAuthMiddleware intercepts requests to verify identity and RBAC permissions.
+// requirement is the minimum role (viewer < operator < manager < admin), "" for any authenticated user,
+// or legacy bool: false = any user, true = admin only.
+func jwtAuthMiddleware(config *core.Config, requirement any, next http.HandlerFunc) http.HandlerFunc {
+	minRole := normalizeAuthRequirement(requirement)
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !config.Security.Enabled {
 			next.ServeHTTP(w, r)
@@ -97,7 +115,7 @@ func jwtAuthMiddleware(config *core.Config, requireAdmin bool, next http.Handler
 			return
 		}
 
-		if requireAdmin && claims.Role != "admin" {
+		if minRole != "" && !core.HasMinRole(claims.Role, minRole) {
 			http.Error(w, "Access denied", http.StatusForbidden)
 			return
 		}
@@ -164,6 +182,8 @@ func Start(initialConfig core.Config) {
 	registerProjectRoutes(config)
 	registerWebhookRoutes(config)
 	registerIncidentRoutes(config)
+	registerFinOpsRoutes(config)
+	registerChartRoutes(config)
 	registerSystemRoutes(config)
 
 	// Serve static frontend files

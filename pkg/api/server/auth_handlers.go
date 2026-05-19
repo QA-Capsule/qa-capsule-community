@@ -27,7 +27,7 @@ func isEnterpriseActive() bool {
 func registerAuthRoutes(config *core.Config) {
 
 	// Enterprise License Management
-	http.HandleFunc("/api/license", jwtAuthMiddleware(config, true, func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/api/license", jwtAuthMiddleware(config, core.RoleAdmin, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if r.Method == http.MethodGet {
 			var key string
@@ -102,7 +102,7 @@ func registerAuthRoutes(config *core.Config) {
 	})
 
 	// Force password change handler
-	http.HandleFunc("/api/users/change-password", jwtAuthMiddleware(config, false, func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/api/users/change-password", jwtAuthMiddleware(config, "", func(w http.ResponseWriter, r *http.Request) {
 		var payload struct {
 			NewPassword string `json:"new_password"`
 		}
@@ -118,9 +118,18 @@ func registerAuthRoutes(config *core.Config) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	// Manage Users (CRUD)
-	http.HandleFunc("/api/users", jwtAuthMiddleware(config, true, func(w http.ResponseWriter, r *http.Request) {
+	// Manage Users (CRUD) — GET also allowed for workspace managers (member assignment)
+	http.HandleFunc("/api/users", jwtAuthMiddleware(config, "", func(w http.ResponseWriter, r *http.Request) {
+		authHeader := r.Header.Get("Authorization")
+		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+		claims := &Claims{}
+		jwt.ParseWithClaims(tokenString, claims, func(t *jwt.Token) (interface{}, error) { return jwtKey, nil })
+
 		if r.Method == http.MethodGet {
+			if !core.CanManageIAM(claims.Role) && !core.CanManageTeams(claims.Role) {
+				http.Error(w, "Access denied", http.StatusForbidden)
+				return
+			}
 			rows, err := core.DB.Query("SELECT username, fullname, role, is_active FROM users")
 			if err != nil {
 				log.Println("[ERROR] DB GET users:", err)
@@ -139,6 +148,10 @@ func registerAuthRoutes(config *core.Config) {
 			json.NewEncoder(w).Encode(users)
 
 		} else if r.Method == http.MethodPost {
+			if !core.CanManageIAM(claims.Role) {
+				http.Error(w, "Access denied", http.StatusForbidden)
+				return
+			}
 			var newUser struct{ Username, Fullname, Role string }
 			json.NewDecoder(r.Body).Decode(&newUser)
 
@@ -150,6 +163,11 @@ func registerAuthRoutes(config *core.Config) {
 
 			tempPwd := generateRandomPassword()
 			hashed, _ := bcrypt.GenerateFromPassword([]byte(tempPwd), 14)
+
+			if !core.IsValidRole(newUser.Role) {
+				http.Error(w, "Invalid role. Allowed: admin, manager, operator, viewer", http.StatusBadRequest)
+				return
+			}
 
 			_, err := core.DB.Exec(`INSERT INTO users (username, fullname, password_hash, role, is_active, require_password_change) VALUES (?, ?, ?, ?, 1, 1)`,
 				newUser.Username, newUser.Fullname, string(hashed), newUser.Role)
@@ -177,7 +195,7 @@ func registerAuthRoutes(config *core.Config) {
 	}))
 
 	// Admin manual password reset
-	http.HandleFunc("/api/users/reset-password", jwtAuthMiddleware(config, true, func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/api/users/reset-password", jwtAuthMiddleware(config, core.RoleAdmin, func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			Username string `json:"username"`
 		}
@@ -209,7 +227,7 @@ func registerAuthRoutes(config *core.Config) {
 	}))
 
 	// Activate/Deactivate users
-	http.HandleFunc("/api/users/status", jwtAuthMiddleware(config, true, func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/api/users/status", jwtAuthMiddleware(config, core.RoleAdmin, func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			Username string `json:"username"`
 			IsActive bool   `json:"is_active"`
@@ -224,7 +242,7 @@ func registerAuthRoutes(config *core.Config) {
 	}))
 
 	// Delete users
-	http.HandleFunc("/api/users/delete", jwtAuthMiddleware(config, true, func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/api/users/delete", jwtAuthMiddleware(config, core.RoleAdmin, func(w http.ResponseWriter, r *http.Request) {
 		core.DB.Exec("DELETE FROM users WHERE username = ?", r.URL.Query().Get("username"))
 		w.WriteHeader(http.StatusOK)
 	}))

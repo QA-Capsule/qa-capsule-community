@@ -16,7 +16,7 @@ import (
 func registerProjectRoutes(config *core.Config) {
 
 	// List projects based on user permissions
-	http.HandleFunc("/api/my-projects", jwtAuthMiddleware(config, false, func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/api/my-projects", jwtAuthMiddleware(config, "", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
@@ -84,7 +84,17 @@ func registerProjectRoutes(config *core.Config) {
 	}))
 
 	// Manage Project Configuration (CRUD)
-	http.HandleFunc("/api/config/projects", jwtAuthMiddleware(config, true, func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/api/config/projects", jwtAuthMiddleware(config, "", func(w http.ResponseWriter, r *http.Request) {
+		authHeader := r.Header.Get("Authorization")
+		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+		claims := &Claims{}
+		jwt.ParseWithClaims(tokenString, claims, func(t *jwt.Token) (interface{}, error) { return jwtKey, nil })
+
+		if r.Method != http.MethodGet && !core.CanManageProjects(claims.Role) {
+			http.Error(w, "Admin or Operator access required", http.StatusForbidden)
+			return
+		}
+
 		if r.Method == http.MethodPost {
 			var newProject struct {
 				core.ProjectConfig

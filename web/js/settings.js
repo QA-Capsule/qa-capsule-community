@@ -362,7 +362,7 @@ export function downloadWeeklyReportCSV() {
         .then(res => res.json())
         .then(data => {
             if (!data || data.length === 0) {
-                return notify("Aucun incident enregistré ces 7 derniers jours.", "warning");
+                return notify("No incidents recorded in the last 7 days.", "warning");
             }
 
             let csvContent = "Pipeline Name,Total Alerts,Resolved Alerts,Flaky Tests,Health Score (%)\n";
@@ -384,9 +384,9 @@ export function downloadWeeklyReportCSV() {
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
 
-            notify("Rapport CSV généré avec succès !", "success");
+            notify("CSV report generated successfully.", "success");
         })
-        .catch(() => notify("Erreur lors de la génération du rapport CSV", "error"));
+        .catch(() => notify("Failed to generate CSV report", "error"));
 }
 
 export async function downloadWeeklyReportPDF() {
@@ -412,7 +412,7 @@ export async function downloadWeeklyReportPDF() {
 
         if (!tableData || tableData.length === 0) {
             if (wasHidden) { view.style.display = 'none'; view.style.position = ''; view.style.visibility = ''; }
-            return notify("Aucun incident enregistré ces 7 derniers jours.", "warning");
+            return notify("No incidents recorded in the last 7 days.", "warning");
         }
 
         const { jsPDF } = window.jspdf;
@@ -538,7 +538,7 @@ export async function downloadWeeklyReportPDF() {
         const dateStr = new Date().toISOString().split('T')[0];
         let suffix = projectFilter === 'all' ? 'Global' : projectFilter;
         doc.save(`QA_Capsule_Executive_Report_${suffix}_${dateStr}.pdf`);
-        notify("Rapport PDF généré avec succès !", "success");
+        notify("PDF report generated successfully.", "success");
 
         // English Comment: Clean up temporary layout parameters
         if (wasHidden) {
@@ -549,7 +549,7 @@ export async function downloadWeeklyReportPDF() {
 
     } catch (err) {
         console.error("PDF Gen Error:", err);
-        notify("Erreur lors de la génération du rapport PDF", "error");
+        notify("Failed to generate PDF report", "error");
     }
 }
 

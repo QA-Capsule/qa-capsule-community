@@ -4,6 +4,7 @@
  */
 import { fetchWithAuth, parseJwt } from './api.js';
 import { notify } from './ui.js';
+import { roleLabel } from './roles.js';
 
 export let userPreferences = {
     theme: 'dark',
@@ -53,7 +54,7 @@ export function loadProfileView() {
     const payload = parseJwt(localStorage.getItem('sre-jwt'));
     const roleEl = document.getElementById('profile-role');
     const usernameEl = document.getElementById('profile-username');
-    if (roleEl && payload.role) roleEl.textContent = payload.role;
+    if (roleEl && payload.role) roleEl.textContent = roleLabel(payload.role);
     if (usernameEl && payload.username) usernameEl.textContent = payload.username;
 
     fetchWithAuth('/api/me')

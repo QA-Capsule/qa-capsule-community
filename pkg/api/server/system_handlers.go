@@ -18,7 +18,7 @@ import (
 func registerSystemRoutes(config *core.Config) {
 
 	// Fetch all installed plugins by scanning JSON manifests
-	http.HandleFunc("/api/plugins", jwtAuthMiddleware(config, false, func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/api/plugins", jwtAuthMiddleware(config, "", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		var pluginList []map[string]interface{}
 		filepath.WalkDir(config.Plugins.Directory, func(path string, d os.DirEntry, err error) error {
@@ -37,7 +37,7 @@ func registerSystemRoutes(config *core.Config) {
 	}))
 
 	// Execute a specific plugin manually from the UI
-	http.HandleFunc("/api/plugins/run", jwtAuthMiddleware(config, false, func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/api/plugins/run", jwtAuthMiddleware(config, "", func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			FilePath string `json:"file_path"`
 		}
@@ -56,7 +56,7 @@ func registerSystemRoutes(config *core.Config) {
 	}))
 
 	// Update Plugin JSON configurations
-	http.HandleFunc("/api/plugins/config", jwtAuthMiddleware(config, true, func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/api/plugins/config", jwtAuthMiddleware(config, core.RoleOperator, func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			FilePath string            `json:"file_path"`
 			Env      map[string]string `json:"env"`
@@ -104,12 +104,12 @@ func registerSystemRoutes(config *core.Config) {
 	}))
 
 	// Fetch current global config.yaml
-	http.HandleFunc("/api/config", jwtAuthMiddleware(config, false, func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/api/config", jwtAuthMiddleware(config, core.RoleAdmin, func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(config)
 	}))
 
 	// Update SMTP block in config.yaml
-	http.HandleFunc("/api/config/smtp", jwtAuthMiddleware(config, true, func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/api/config/smtp", jwtAuthMiddleware(config, core.RoleAdmin, func(w http.ResponseWriter, r *http.Request) {
 		json.NewDecoder(r.Body).Decode(&config.SMTP)
 		data, _ := yaml.Marshal(config)
 		os.WriteFile("config.yaml", data, 0644)
@@ -117,7 +117,7 @@ func registerSystemRoutes(config *core.Config) {
 	}))
 
 	// Update Security Policies in config.yaml
-	http.HandleFunc("/api/config/policy", jwtAuthMiddleware(config, true, func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/api/config/policy", jwtAuthMiddleware(config, core.RoleAdmin, func(w http.ResponseWriter, r *http.Request) {
 		var payload struct {
 			AllowedDomain string `json:"allowed_domain"`
 		}
