@@ -8,6 +8,7 @@ import { notify, showConfirmModal, showPromptModal, closeModal, toggleTheme } fr
 import { parseJwt, performLogout, fetchWithAuth } from './js/api.js';
 import * as iam from './js/iam.js';
 import * as settings from './js/settings.js';
+import * as profile from './js/profile.js';
 
 // EXPORT GLOBALLY FOR HTML INLINE HANDLERS
 Object.assign(window, { notify, showConfirmModal, showPromptModal, closeModal, toggleTheme, parseJwt, performLogout, fetchWithAuth });
@@ -17,6 +18,9 @@ for (const [key, value] of Object.entries(iam)) {
     if (typeof value === 'function') window[key] = value;
 }
 for (const [key, value] of Object.entries(settings)) {
+    if (typeof value === 'function') window[key] = value;
+}
+for (const [key, value] of Object.entries(profile)) {
     if (typeof value === 'function') window[key] = value;
 }
 
@@ -405,17 +409,8 @@ window.fetchMetricsOnly = function () {
                 document.getElementById('kpi-resolved').innerText = metrics.resolved_incidents;
                 document.getElementById('kpi-health').innerText = `${metrics.total_incidents > 0 ? Math.round((metrics.resolved_incidents / metrics.total_incidents) * 100) : 100}%`;
                 
-                // 🚨 METRICS FINOPS 🚨
-                if (metrics.sre_impact) {
-                    const costElement = document.getElementById('kpi-cost');
-                    if (costElement) {
-                        costElement.innerText = metrics.sre_impact.estimated_cost_usd.toLocaleString();
-                    }
-                    const symbolElement = document.getElementById('kpi-cost-symbol');
-                    if (symbolElement && window.currencySymbols && window.selectedCurrency) {
-                        symbolElement.innerText = window.currencySymbols[window.selectedCurrency] || '€';
-                    }
-                }
+                const flakyEl = document.getElementById('kpi-flaky');
+                if (flakyEl) flakyEl.innerText = metrics.flaky_tests ?? 0;
             }
         })
         .catch(err => console.error("Erreur FetchMetrics:", err));
@@ -673,6 +668,7 @@ window.checkAuth = function () {
     document.getElementById('app-container').style.display = 'flex';
 
     window.applyPermissions();
+    if (window.loadUserPreferences) window.loadUserPreferences();
     window.connectWebSocket();
 
     if (payload.role === 'admin') window.loadUsers();
@@ -685,7 +681,7 @@ window.checkAuth = function () {
         if (payload.role === 'admin') window.renderUserTable(iam.allUsers);
     }
     if (document.getElementById('view-settings').classList.contains('active')) {
-        window.loadConfig(); window.loadFinOps();
+        window.loadConfig();
     }
     if (document.getElementById('view-plugins').classList.contains('active')) window.loadPlugins();
     if (document.getElementById('view-ingestion').classList.contains('active')) {
@@ -725,13 +721,9 @@ window.switchView = function (id, el) {
     if (id === 'organizations') if (window.loadOrganizations) window.loadOrganizations();
     if (id === 'management' && payload && payload.role === 'admin') if (window.renderUserTable) window.renderUserTable(iam.allUsers);
     if (id === 'plugins') if (window.loadPlugins) window.loadPlugins();
-    if (id === 'settings') { if(window.loadConfig) window.loadConfig(); if(window.loadFinOps) window.loadFinOps(); }
+    if (id === 'settings') { if(window.loadConfig) window.loadConfig(); }
     if (id === 'ingestion' && payload && payload.role === 'admin') if (window.loadGatewaysData) window.loadGatewaysData();
-    
-    // 🚨 ONGLET FINOPS 🚨
-    if (id === 'finops') { 
-        if (window.loadAdvancedFinOps) window.loadAdvancedFinOps(); 
-    }
+    if (id === 'profile' && window.loadProfileView) window.loadProfileView();
 }
 
 window.applyPermissions = function () {
@@ -741,109 +733,9 @@ window.applyPermissions = function () {
 }
 
 // ==========================================
-// LICENSE CHECK & ADVANCED FINOPS
-// ==========================================
-window.checkLicenseTier = function() {
-    fetchWithAuth('/api/finops/advanced')
-        .then(res => {
-            if (res.status === 200) {
-                window.isEnterpriseActive = true;
-                // Retire tous les badges PRO du menu
-                document.querySelectorAll('.pro-badge').forEach(badge => badge.style.display = 'none');
-            }
-        })
-        .catch(err => console.log("Licence check en attente."));
-}
-
-window.finopsPieChart = null;
-window.finopsBarChart = null;
-
-window.loadAdvancedFinOps = function() {
-    console.log("💰 Chargement des données FinOps Avancées...");
-
-    fetchWithAuth('/api/finops/advanced')
-        .then(res => {
-            if (res.status === 402) {
-                // 🔒 VERSION GRATUITE : Afficher le Paywall
-                document.getElementById('finops-paywall').style.display = 'flex';
-                document.getElementById('finops-dashboard').style.display = 'none';
-                return null;
-            }
-            if (!res.ok) throw new Error("Erreur Backend : " + res.status);
-            return res.json();
-        })
-        .then(data => {
-            if (!data || !data.summary) return; 
-            
-            // 🔓 VERSION ENTERPRISE : Cacher le Paywall, Afficher les graphiques
-            document.getElementById('finops-paywall').style.display = 'none';
-            document.getElementById('finops-dashboard').style.display = 'block';
-
-            const symbol = window.currencySymbols[window.selectedCurrency] || '€';
-            document.getElementById('finops-total-waste').innerText = `${symbol} ${Math.round(data.summary.total_waste_30d).toLocaleString()}`;
-
-            if (window.finopsPieChart) window.finopsPieChart.destroy();
-            if (window.finopsBarChart) window.finopsBarChart.destroy();
-
-            if (!data.top_offenders) data.top_offenders = [];
-
-            // 1. Graphique Camembert (Répartition des coûts)
-            const ctxPie = document.getElementById('costBreakdownChart');
-            if (ctxPie) {
-                window.finopsPieChart = new Chart(ctxPie.getContext('2d'), {
-                    type: 'doughnut',
-                    data: {
-                        labels: ['Salaires Ingénieurs', 'Coût Serveurs CI'],
-                        datasets: [{
-                            data: [data.summary.dev_salary_lost, data.summary.ci_compute_lost],
-                            backgroundColor: ['#58a6ff', '#8b949e'],
-                            borderWidth: 0
-                        }]
-                    },
-                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: {color: '#c9d1d9'} } } }
-                });
-            }
-
-            // 2. Graphique en Barres (Top Offenders)
-            const ctxBar = document.getElementById('topOffendersChart');
-            if (ctxBar) {
-                window.finopsBarChart = new Chart(ctxBar.getContext('2d'), {
-                    type: 'bar',
-                    data: {
-                        labels: data.top_offenders.map(p => p.project_name),
-                        datasets: [
-                            { label: 'Gaspillage Instabilité', data: data.top_offenders.map(p => p.flaky_waste), backgroundColor: '#d29922' },
-                            { label: 'Gaspillage Total', data: data.top_offenders.map(p => p.total_waste), backgroundColor: '#ff7b72' }
-                        ]
-                    },
-                    options: { 
-                        responsive: true, maintainAspectRatio: false,
-                        scales: { 
-                            y: { ticks: { color: '#8b949e', callback: function(value) { return symbol + value; } }, grid: {color: '#30363d'} }, 
-                            x: { ticks: { color: '#c9d1d9' }, grid: {display: false} } 
-                        },
-                        plugins: { legend: { labels: { color: '#c9d1d9' } } }
-                    }
-                });
-            }
-        })
-        .catch(err => console.error("Erreur de chargement FinOps:", err));
-}
-
-// ==========================================
 // STARTUP
 // ==========================================
 window.onload = function () {
     window.checkAuth();
     if (window.checkSSOStatus) window.checkSSOStatus();
-    const savedCurrency = localStorage.getItem('selected-currency');
-    if (savedCurrency) { 
-        window.selectedCurrency = savedCurrency; 
-        if(window.setSelectedCurrency) window.setSelectedCurrency(savedCurrency); 
-    }
-    if (window.updateCurrencyDisplay) window.updateCurrencyDisplay();
-    setTimeout(() => window.setStatusFilter(window.statusFilter || 'all'), 100);
-    
-    // Vérification de la licence 1s après le chargement pour enlever le badge PRO si applicable
-    setTimeout(window.checkLicenseTier, 1000); 
 };

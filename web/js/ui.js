@@ -22,8 +22,16 @@ export function initTheme() {
 
 export function toggleTheme() {
     const isDark = document.body.hasAttribute('data-theme');
-    isDark ? document.body.removeAttribute('data-theme') : document.body.setAttribute('data-theme', 'dark');
-    localStorage.setItem('sre-theme', isDark ? 'light' : 'dark');
+    const next = isDark ? 'light' : 'dark';
+    if (isDark) {
+        document.body.removeAttribute('data-theme');
+    } else {
+        document.body.setAttribute('data-theme', 'dark');
+    }
+    localStorage.setItem('sre-theme', next);
+    if (typeof window.persistThemeFromToggle === 'function') {
+        window.persistThemeFromToggle(next);
+    }
 }
 
 export function showConfirmModal(title, message, type, confirmCallback) {

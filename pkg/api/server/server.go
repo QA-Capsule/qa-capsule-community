@@ -159,6 +159,7 @@ func Start(initialConfig core.Config) {
 
 	// Register isolated route handlers
 	registerAuthRoutes(config)
+	registerPreferencesRoutes(config)
 	registerTeamRoutes(config)
 	registerProjectRoutes(config)
 	registerWebhookRoutes(config)

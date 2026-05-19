@@ -171,6 +171,18 @@ func InitDB(ignoredPath string) {
 		log.Fatalf("[FATAL] Failed to create finops_settings table: %v", err)
 	}
 
+	createUserPreferencesTable := `
+	CREATE TABLE IF NOT EXISTS user_preferences (
+		user_id INTEGER PRIMARY KEY,
+		prefs_json TEXT NOT NULL DEFAULT '{}',
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+	);`
+	_, err = DB.Exec(createUserPreferencesTable)
+	if err != nil {
+		log.Fatalf("[FATAL] Failed to create user_preferences table: %v", err)
+	}
+
 	// Create Enterprise License Config Table
 	createEnterpriseTable := `
 	CREATE TABLE IF NOT EXISTS enterprise_config (
