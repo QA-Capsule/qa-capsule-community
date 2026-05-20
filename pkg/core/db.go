@@ -46,15 +46,16 @@ func InitDB(ignoredPath string) {
 	// ====================================================================
 	// SQLite ne gère pas nativement les accès concurrents multi-connexions en écriture.
 	// Limiter à 1 connexion active élimine à 100% l'isolement périmé des lectures/écritures.
-	DB.SetMaxOpenConns(1)
-	DB.SetMaxIdleConns(1)
+	DB.SetMaxOpenConns(4)
+	DB.SetMaxIdleConns(4)
 	DB.SetConnMaxLifetime(time.Hour)
 
 	_, err = DB.Exec("PRAGMA journal_mode=WAL;")
 	if err != nil {
 		log.Printf("[WARNING] Could not enable WAL mode: %v", err)
 	}
-	DB.Exec("PRAGMA busy_timeout=5000;")
+	DB.Exec("PRAGMA busy_timeout=30000;")
+	DB.Exec("PRAGMA synchronous=NORMAL;")
 
 	// 5. Force a connection to ensure the physical file is actually created right now
 	if err = DB.Ping(); err != nil {

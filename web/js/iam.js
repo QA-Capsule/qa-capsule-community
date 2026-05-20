@@ -2,7 +2,7 @@
  * web/js/iam.js
  * Identity & Access Management (Users, Organizations, Teams)
  */
-import { fetchWithAuth, parseJwt } from './api.js';
+import { fetchWithAuth, parseJwt, parseApiJson, asArray, describeApiFailure } from './api.js';
 import { notify, showConfirmModal, showPromptModal } from './ui.js';
 import { roleLabel, canManageTeams } from './roles.js';
 import { setupAutocomplete } from './autocomplete.js';
@@ -23,9 +23,9 @@ function escapeAttr(s) {
 function fetchUsersDirectory() {
     if (allUsers.length) return Promise.resolve(allUsers);
     return fetchWithAuth(`/api/users?_ts=${Date.now()}`)
-        .then(r => (r.ok ? r.json() : []))
-        .then(u => {
-            allUsers = Array.isArray(u) ? u : [];
+        .then(r => parseApiJson(r))
+        .then(({ ok, data }) => {
+            allUsers = ok ? asArray(data) : [];
             return allUsers;
         })
         .catch(() => {
@@ -36,9 +36,15 @@ function fetchUsersDirectory() {
 
 export function loadOrganizations() {
     const teamsReq = fetchWithAuth(`/api/teams?_ts=${Date.now()}`)
-        .then(r => {
-            if (!r.ok) throw new Error(`teams ${r.status}`);
-            return r.json();
+        .then(r => parseApiJson(r))
+        .then(result => {
+            if (!result.ok) {
+                const err = new Error(describeApiFailure(result.status, result.offline));
+                err.status = result.status;
+                err.offline = result.offline;
+                throw err;
+            }
+            return asArray(result.data);
         });
     const usersReq = fetchUsersDirectory();
 
@@ -76,7 +82,16 @@ export function loadOrganizations() {
         })
         .catch(err => {
             console.error('loadOrganizations:', err);
-            notify("Failed to load directory", "error");
+            const treeContainer = document.getElementById('organization-tree');
+            const msg = err?.message || 'Unable to load directory.';
+            if (treeContainer) {
+                treeContainer.replaceChildren();
+                const p = document.createElement('p');
+                p.className = 'load-error-msg';
+                p.textContent = msg;
+                treeContainer.appendChild(p);
+            }
+            notify(msg, "error");
         });
 }
 

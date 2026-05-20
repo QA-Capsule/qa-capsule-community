@@ -2,7 +2,7 @@
  * web/js/profile.js
  * Personal account settings and persisted user preferences
  */
-import { fetchWithAuth, parseJwt } from './api.js';
+import { fetchWithAuth, parseJwt, parseApiJson } from './api.js';
 import { notify } from './ui.js';
 import { roleLabel } from './roles.js';
 
@@ -41,12 +41,12 @@ export function applyPreferences(prefs) {
 export async function loadUserPreferences() {
     try {
         const res = await fetchWithAuth('/api/me');
-        if (!res.ok) return;
-        const data = await res.json();
+        const { ok, data } = await parseApiJson(res);
+        if (!ok || !data) return;
         if (data.preferences) applyPreferences(data.preferences);
         return data;
-    } catch (e) {
-        console.error('Could not load user preferences', e);
+    } catch {
+        /* offline — use local theme only */
     }
 }
 
@@ -58,11 +58,9 @@ export function loadProfileView() {
     if (usernameEl && payload.username) usernameEl.textContent = payload.username;
 
     fetchWithAuth('/api/me')
-        .then(res => {
-            if (!res.ok) throw new Error('Failed to load profile');
-            return res.json();
-        })
-        .then(data => {
+        .then(res => parseApiJson(res))
+        .then(({ ok, data }) => {
+            if (!ok || !data) throw new Error('Failed to load profile');
             const nameInput = document.getElementById('profile-fullname');
             if (nameInput) nameInput.value = data.fullname || '';
 

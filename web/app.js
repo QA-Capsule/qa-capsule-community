@@ -4,8 +4,8 @@
 */
 
 // IMPORT MODULES
-import { notify, showConfirmModal, showPromptModal, closeModal, toggleTheme } from './js/ui.js';
-import { parseJwt, performLogout, fetchWithAuth } from './js/api.js';
+import { notify, showConfirmModal, showPromptModal, closeModal, toggleTheme, initSidebar, toggleSidebar } from './js/ui.js';
+import { parseJwt, performLogout, showLoginScreen, fetchWithAuth, parseApiJson, isApiOffline, pingApiServer, resetApiOfflineBanner } from './js/api.js';
 import * as iam from './js/iam.js';
 import * as settings from './js/settings.js';
 import * as profile from './js/profile.js';
@@ -13,11 +13,11 @@ import * as finops from './js/finops.js';
 import * as about from './js/about.js';
 import * as charts from './js/charts.js';
 import { mountPinnedCharts } from './js/chart-widgets.js';
-import { applyRoleVisibility, canAccessFinOps, canAccessChartStudio, canAccessPlugins, canResolveIncidents, hasMinRole, roleLabel, canManageTeams, canManageIAM, isAdmin } from './js/roles.js';
+import { applyRoleVisibility, canAccessFinOps, canAccessChartStudio, canAccessPlugins, canResolveIncidents, hasMinRole, roleLabel, canManageTeams, canManageIAM, isAdmin, canAccessView, accessDeniedMessage, defaultViewForRole } from './js/roles.js';
 import { setupAutocomplete } from './js/autocomplete.js';
 
 // EXPORT GLOBALLY FOR HTML INLINE HANDLERS
-Object.assign(window, { notify, showConfirmModal, showPromptModal, closeModal, toggleTheme, parseJwt, performLogout, fetchWithAuth });
+Object.assign(window, { notify, showConfirmModal, showPromptModal, closeModal, toggleTheme, initSidebar, toggleSidebar, parseJwt, performLogout, fetchWithAuth });
 
 // Bind all module functions to the window so HTML 'onclick' can find them
 for (const [key, value] of Object.entries(iam)) {
@@ -391,15 +391,23 @@ window.toggleIncidentLog = function (id, event) {
 };
 
 window.loadDashboardFilters = function () {
-    fetchWithAuth(`/api/my-projects?_ts=${Date.now()}`)
-        .then(res => res.json())
-        .then(projects => {
-            const filter = document.getElementById('project-filter');
+    const filter = document.getElementById('project-filter');
+    if (!filter) return;
+    return fetchWithAuth(`/api/my-projects?_ts=${Date.now()}`)
+        .then(res => parseApiJson(res))
+        .then(({ ok, data: projects }) => {
+            if (!ok) throw new Error('projects');
             const currentVal = filter.value;
             filter.innerHTML = '<option value="all">All My Projects</option>';
-            if (projects) projects.forEach(p => filter.innerHTML += `<option value="${p.name}">${p.name}</option>`);
+            const list = Array.isArray(projects) ? projects : [];
+            list.forEach(p => filter.innerHTML += `<option value="${p.name}">${p.name}</option>`);
             if (currentVal) filter.value = currentVal;
-        }).catch(e => console.log("Error loading filter"));
+        })
+        .catch(() => {
+            if (filter.options.length <= 1) {
+                filter.innerHTML = '<option value="all">All My Projects</option>';
+            }
+        });
 }
 
 window.setStatusFilter = function (status) {
@@ -413,12 +421,11 @@ window.setStatusFilter = function (status) {
 }
 
 window.fetchMetricsOnly = function () {
+    if (isApiOffline()) return;
     fetchWithAuth(`/api/metrics?_ts=${Date.now()}`)
-        .then(r => {
-            if (!r.ok) throw new Error("Failed to fetch metrics");
-            return r.json();
-        })
-        .then(metrics => {
+        .then(r => parseApiJson(r))
+        .then(({ ok, data: metrics }) => {
+            if (!ok || !metrics) return;
             if (metrics) {
                 document.getElementById('kpi-active').innerText = metrics.total_incidents - metrics.resolved_incidents;
                 document.getElementById('kpi-resolved').innerText = metrics.resolved_incidents;
@@ -445,10 +452,11 @@ window.fetchIncidents = function (forceRender = false, opts = {}) {
     return fetchWithAuth(`/api/incidents?project=${encodeURIComponent(projectFilter)}&_ts=${Date.now()}&_bust=${Math.random()}`, {
         headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache', 'Expires': '0' }
     })
-        .then(res => res.json())
-        .then(data => {
+        .then(res => parseApiJson(res))
+        .then(({ ok, data }) => {
+            if (!ok) throw new Error('incidents');
             if (!opts.skipPauseCheck && !forceRender && Date.now() < window.pausePollingUntil) return;
-            const rawData = [...(data || [])].sort((a, b) => a.id - b.id);
+            const rawData = [...(Array.isArray(data) ? data : [])].sort((a, b) => a.id - b.id);
             const retryIds = window.confirmPendingResolvedFromServer(rawData);
 
             if (retryIds.length > 0 && !window._resolveRetryInFlight) {
@@ -465,9 +473,11 @@ window.fetchIncidents = function (forceRender = false, opts = {}) {
             window.fetchMetricsOnly();
             return safeData;
         })
-        .catch(err => {
+        .catch(() => {
             const listEl = document.getElementById('incident-list');
-            if (listEl && listEl.innerHTML.includes('Loading')) listEl.innerHTML = `<div style="text-align:center; padding: 40px; color: #8b949e;">No incidents found or database empty.</div>`;
+            if (listEl) {
+                listEl.innerHTML = `<div class="load-error-msg">Unable to load incidents. Check that the server is running and refresh.</div>`;
+            }
         });
 };
 
@@ -650,33 +660,88 @@ window.renderIncidentsList = function () {
 };
 
 window.connectWebSocket = function () {
-    setInterval(() => {
+    if (window.__incidentPollTimer) clearInterval(window.__incidentPollTimer);
+    window.__incidentPollTimer = setInterval(() => {
+        if (isApiOffline()) return;
         const dashboard = document.getElementById('view-dashboard');
         if (Date.now() < window.pausePollingUntil) return;
         if (dashboard && dashboard.classList.contains('active')) window.fetchIncidents();
-    }, 3000);
+    }, 5000);
 }
 
 // ==========================================
 // AUTH & ROUTING
 // ==========================================
 window.performLogin = function () {
-    const username = document.getElementById('login-username').value;
+    const username = document.getElementById('login-username').value.trim();
     const password = document.getElementById('login-password').value;
-    fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) })
-        .then(res => { if (!res.ok) throw new Error(); return res.json(); })
-        .then(data => { localStorage.setItem('sre-jwt', data.token); window.checkAuth(); })
-        .catch(() => { document.getElementById('login-error').style.display = 'block'; notify("Invalid credentials", "error"); });
+    const errEl = document.getElementById('login-error');
+    if (!username || !password) {
+        if (errEl) { errEl.textContent = 'Enter username and password.'; errEl.style.display = 'block'; }
+        return notify("Enter username and password", "error");
+    }
+    if (errEl) errEl.style.display = 'none';
+
+    const loginBtn = document.querySelector('#login-screen .btn-primary');
+    if (loginBtn) { loginBtn.disabled = true; loginBtn.textContent = 'SIGNING IN…'; }
+
+    const controller = new AbortController();
+    const loginTimeout = setTimeout(() => controller.abort(), 30000);
+
+    fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }), signal: controller.signal })
+        .then(async res => {
+            if (res.ok) return res.json();
+            const msg = res.status === 401 ? 'Invalid username or password.' : `Login failed (${res.status}).`;
+            throw new Error(msg);
+        })
+        .then(data => {
+            localStorage.setItem('sre-jwt', data.token);
+            if (errEl) errEl.style.display = 'none';
+            resetApiOfflineBanner();
+            window.checkAuth();
+        })
+        .catch(err => {
+            const isAbort = err?.name === 'AbortError';
+            const isNetwork = err instanceof TypeError || isAbort || (err.message && /failed|network/i.test(err.message));
+            const text = isAbort
+                ? 'Login timed out. The server may be overloaded — wait and try again.'
+                : isNetwork
+                ? 'Cannot reach the server. Open http://localhost:9000 and start the backend (go run ./cmd/qacapsule).'
+                : (err.message || 'Invalid username or password.');
+            if (errEl) { errEl.textContent = text.toUpperCase(); errEl.style.display = 'block'; }
+            notify(text, "error");
+        })
+        .finally(() => {
+            clearTimeout(loginTimeout);
+            if (loginBtn) { loginBtn.disabled = false; loginBtn.textContent = 'INITIALIZE SESSION'; }
+        });
+}
+
+window.probeLoginServer = function () {
+    const hint = document.getElementById('login-server-hint');
+    if (!hint) return;
+    pingApiServer().then(ok => {
+        if (ok) hint.style.display = 'none';
+        else {
+            hint.style.display = 'block';
+            hint.textContent = 'Backend not reachable. Use http://localhost:9000 (run: go run ./cmd/qacapsule).';
+        }
+    });
 }
 
 window.checkAuth = function () {
     const token = localStorage.getItem('sre-jwt');
     if (!token) {
-        document.getElementById('login-screen').style.display = 'flex';
-        document.getElementById('app-container').style.display = 'none';
+        showLoginScreen();
         return;
     }
     const payload = parseJwt(token);
+    if (!payload || !payload.role) {
+        localStorage.removeItem('sre-jwt');
+        showLoginScreen();
+        notify('Invalid session. Please sign in again.', 'error');
+        return;
+    }
 
     if (payload.require_password_change) {
         document.getElementById('login-screen').style.display = 'none';
@@ -689,30 +754,37 @@ window.checkAuth = function () {
     document.getElementById('force-password-screen').style.display = 'none';
     document.getElementById('app-container').style.display = 'flex';
 
-    window.applyPermissions();
-    if (window.loadUserPreferences) window.loadUserPreferences();
-    window.connectWebSocket();
+    pingApiServer().then(() => {
+        window.applyPermissions();
+        if (window.loadUserPreferences) window.loadUserPreferences();
 
-    if (payload.role === 'admin') window.loadUsers();
+        if (payload.role === 'admin') window.loadUsers();
 
-    if (document.getElementById('view-dashboard').classList.contains('active')) {
-        window.loadDashboardFilters(); window.pausePollingUntil = 0; window.fetchIncidents(true);
-    }
-    if (document.getElementById('view-organizations').classList.contains('active') && canManageTeams(payload.role)) window.loadOrganizations();
-    if (document.getElementById('view-management').classList.contains('active')) {
-        if (payload.role === 'admin') window.renderUserTable(iam.allUsers);
-    }
-    if (document.getElementById('view-settings').classList.contains('active')) {
-        window.loadConfig();
-    }
-    if (document.getElementById('view-plugins').classList.contains('active') && hasMinRole(payload.role, 'operator')) {
-        window.loadPlugins();
-    }
-    if (document.getElementById('view-ingestion').classList.contains('active')) {
-        if (hasMinRole(payload.role, 'operator')) {
-            window.loadGatewaysData();
+        if (document.getElementById('view-dashboard').classList.contains('active')) {
+            window.loadDashboardFilters();
+            window.pausePollingUntil = 0;
+            window.fetchIncidents(true);
         }
-    }
+        if (document.getElementById('view-organizations').classList.contains('active') && canManageTeams(payload.role)) {
+            window.loadOrganizations();
+        }
+        if (document.getElementById('view-management').classList.contains('active') && payload.role === 'admin') {
+            if (window.renderUserTable) window.renderUserTable(iam.allUsers);
+        }
+        if (document.getElementById('view-settings').classList.contains('active') && window.loadConfig) {
+            window.loadConfig();
+        }
+        if (document.getElementById('view-plugins').classList.contains('active') && hasMinRole(payload.role, 'operator')) {
+            if (window.loadPlugins) window.loadPlugins();
+        }
+        if (document.getElementById('view-ingestion').classList.contains('active') && hasMinRole(payload.role, 'operator')) {
+            if (window.loadGatewaysData) window.loadGatewaysData();
+        }
+        if (document.getElementById('view-charts').classList.contains('active') && window.loadChartsView) {
+            window.loadChartsView();
+        }
+        window.connectWebSocket();
+    });
 }
 
 window.submitNewPassword = function () {
@@ -729,24 +801,8 @@ window.submitNewPassword = function () {
 
 window.switchView = function (id, el) {
     const payload = parseJwt(localStorage.getItem('sre-jwt'));
-    if (payload && isAdmin(payload.role) && !ADMIN_VIEWS.has(id)) {
-        notify('System Admins can only access Workspaces, IAM, and Settings.', 'error');
-        return;
-    }
-    if (id === 'organizations' && payload && !canManageTeams(payload.role)) {
-        notify('Workspaces are reserved for Admins and Managers.', 'error');
-        return;
-    }
-    if (id === 'management' && payload && !canManageIAM(payload.role)) {
-        notify('IAM is reserved for System Admins.', 'error');
-        return;
-    }
-    if (id === 'finops' && payload && !canAccessFinOps(payload.role)) {
-        notify('FinOps Intelligence is reserved for Managers.', 'error');
-        return;
-    }
-    if (id === 'charts' && payload && !canAccessChartStudio(payload.role)) {
-        notify('You do not have access to Chart Studio.', 'error');
+    if (payload?.role && !canAccessView(payload.role, id)) {
+        notify(accessDeniedMessage(id), 'error');
         return;
     }
 
@@ -793,9 +849,14 @@ window.applyPermissions = function () {
     applyRoleVisibility(payload.role);
     window.initSmartSearchFields();
 
-    if (isAdmin(payload.role)) {
-        const onAdminView = ['view-organizations', 'view-management', 'view-settings', 'view-profile']
-            .some(vid => document.getElementById(vid)?.classList.contains('active'));
+    const activeSection = document.querySelector('.view-section.active');
+    const activeId = activeSection?.id?.replace('view-', '');
+    if (activeId && !canAccessView(payload.role, activeId)) {
+        const fallback = defaultViewForRole(payload.role);
+        const nav = document.querySelector(`.nav-item[onclick*="switchView('${fallback}'"]`);
+        window.switchView(fallback, nav);
+    } else if (isAdmin(payload.role)) {
+        const onAdminView = ['organizations', 'management', 'settings', 'profile'].includes(activeId);
         if (!onAdminView) {
             window.switchView('organizations', document.querySelector('.nav-item.role-workspace'));
         }
@@ -804,8 +865,6 @@ window.applyPermissions = function () {
     const roleEl = document.getElementById('profile-role');
     if (roleEl) roleEl.textContent = roleLabel(payload.role);
 }
-
-const ADMIN_VIEWS = new Set(['organizations', 'management', 'settings', 'profile']);
 
 window.initSmartSearchFields = function () {
     const incidentInput = document.getElementById('incident-search');
@@ -840,6 +899,9 @@ window.initSmartSearchFields = function () {
 // STARTUP
 // ==========================================
 window.onload = function () {
+    initSidebar();
+    pingApiServer();
     window.checkAuth();
+    if (!localStorage.getItem('sre-jwt') && window.probeLoginServer) window.probeLoginServer();
     if (window.checkSSOStatus) window.checkSSOStatus();
 };

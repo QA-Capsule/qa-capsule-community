@@ -20,7 +20,35 @@ export function initTheme() {
     if (localStorage.getItem('sre-theme') === 'dark') document.body.setAttribute('data-theme', 'dark'); 
 }
 
-export function toggleTheme() {
+const SIDEBAR_COLLAPSED_KEY = 'sre-sidebar-collapsed';
+
+export function initSidebar() {
+    const sidebar = document.querySelector('.sidebar');
+    const btn = document.getElementById('sidebar-collapse-btn');
+    if (!sidebar) return;
+    const collapsed = localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1';
+    sidebar.classList.toggle('collapsed', collapsed);
+    if (btn) {
+        btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+        btn.title = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
+    }
+}
+
+export function toggleSidebar() {
+    const sidebar = document.querySelector('.sidebar');
+    const btn = document.getElementById('sidebar-collapse-btn');
+    if (!sidebar) return;
+    const collapsed = !sidebar.classList.contains('collapsed');
+    sidebar.classList.toggle('collapsed', collapsed);
+    localStorage.setItem(SIDEBAR_COLLAPSED_KEY, collapsed ? '1' : '0');
+    if (btn) {
+        btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+        btn.title = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
+    }
+}
+
+export function toggleTheme(e) {
+    if (e?.stopPropagation) e.stopPropagation();
     const isDark = document.body.hasAttribute('data-theme');
     const next = isDark ? 'light' : 'dark';
     if (isDark) {

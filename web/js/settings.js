@@ -2,7 +2,7 @@
  * web/js/settings.js
  * Technical settings, FinOps, Plugins, Analytics and Reports
  */
-import { fetchWithAuth, parseJwt } from './api.js';
+import { fetchWithAuth, parseJwt, parseApiJson, asArray } from './api.js';
 import { notify, showConfirmModal, showPromptModal } from './ui.js';
 
 export let allProjects = [];
@@ -58,12 +58,17 @@ export function selectCI(ciName, element) {
 }
 
 export function loadGatewaysData() {
+    const tbody = document.getElementById('projects-table-body');
     fetchWithAuth(`/api/my-projects?_ts=${Date.now()}`)
-        .then(res => res.json())
-        .then(projects => {
-            allProjects = projects || [];
-            const tbody = document.getElementById('projects-table-body');
-            if (!allProjects || allProjects.length === 0) {
+        .then(res => parseApiJson(res))
+        .then(({ ok, data }) => {
+            allProjects = ok ? asArray(data) : [];
+            if (!tbody) return;
+            if (!ok) {
+                tbody.innerHTML = '<tr><td colspan="4"><span class="load-error-msg">Unable to load gateways.</span></td></tr>';
+                return;
+            }
+            if (allProjects.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:20px; opacity:0.5;">No pipelines provisioned yet.</td></tr>';
                 return;
             }
@@ -78,15 +83,20 @@ export function loadGatewaysData() {
                     </td>
                 </tr>
             `).join('');
+        })
+        .catch(() => {
+            if (tbody) tbody.innerHTML = '<tr><td colspan="4"><span class="load-error-msg">Unable to load gateways.</span></td></tr>';
         });
 
     fetchWithAuth(`/api/teams?_ts=${Date.now()}`)
-        .then(res => res.json())
-        .then(teams => {
+        .then(res => parseApiJson(res))
+        .then(({ ok, data }) => {
             const select = document.getElementById('ci-team-id');
+            if (!select || !ok) return;
             select.innerHTML = '<option value="" disabled selected>Select a Team</option>';
-            if (teams) teams.forEach(t => select.innerHTML += `<option value="${t.id}">${t.name}</option>`);
-        });
+            asArray(data).forEach(t => select.innerHTML += `<option value="${t.id}">${t.name}</option>`);
+        })
+        .catch(() => {});
 }
 
 export function editProject(projectId) {

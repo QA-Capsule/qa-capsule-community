@@ -1,7 +1,7 @@
 /**
  * FinOps Intelligence — Manager role only
  */
-import { fetchWithAuth } from './api.js';
+import { fetchWithAuth, parseApiJson, asArray } from './api.js';
 import { notify } from './ui.js';
 import { currencySymbols } from './settings.js';
 import { mountPinnedCharts } from './chart-widgets.js';
@@ -24,15 +24,16 @@ export function refreshFinOpsPinnedCharts() {
 
 function loadFinOpsProjectFilter() {
     fetchWithAuth('/api/my-projects')
-        .then(r => r.json())
-        .then(projects => {
+        .then(res => parseApiJson(res))
+        .then(({ ok, data }) => {
             const sel = document.getElementById('finops-export-project');
-            if (!sel) return;
+            if (!sel || !ok) return;
             sel.innerHTML = '<option value="all">All gateways</option>';
-            (projects || []).forEach(p => {
+            asArray(data).forEach(p => {
                 sel.innerHTML += `<option value="${p.name}">${p.name}</option>`;
             });
-        });
+        })
+        .catch(() => {});
 }
 
 function loadFinOpsBaselines() {
@@ -92,8 +93,9 @@ export function exportFinOpsReport() {
 
 function refreshFinOpsKPIs() {
     fetchWithAuth(`/api/metrics?_ts=${Date.now()}`)
-        .then(res => res.json())
-        .then(data => {
+        .then(res => parseApiJson(res))
+        .then(({ ok, data }) => {
+            if (!ok || !data) return;
             const sym = currencySymbols[document.getElementById('finops-currency')?.value || 'USD'] || '$';
             const impact = data.sre_impact || {};
             const setText = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
@@ -115,11 +117,16 @@ function refreshFinOpsKPIs() {
 
 function loadFinOpsWeeklyTable() {
     fetchWithAuth(`/api/reports/weekly?_ts=${Date.now()}`)
-        .then(res => res.json())
-        .then(rows => {
+        .then(res => parseApiJson(res))
+        .then(({ ok, data }) => {
             const tbody = document.getElementById('finops-weekly-body');
             if (!tbody) return;
-            if (!rows || rows.length === 0) {
+            if (!ok) {
+                tbody.innerHTML = '<tr><td colspan="5" class="load-error-msg">Unable to load weekly report.</td></tr>';
+                return;
+            }
+            const rows = asArray(data);
+            if (rows.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;opacity:0.5;">No data in the last 7 days.</td></tr>';
                 return;
             }
@@ -131,14 +138,15 @@ function loadFinOpsWeeklyTable() {
                     <td style="padding:10px;color:#d29922;">${r.flaky_tests}</td>
                     <td style="padding:10px;">${r.health_score}%</td>
                 </tr>`).join('');
-        });
+        })
+        .catch(() => {});
 }
 
 function loadFinOpsWeeklyEvolution() {
     fetchWithAuth('/api/finops/evolution?weeks=12')
-        .then(res => res.json())
-        .then(data => {
-            if (!data.series) return;
+        .then(res => parseApiJson(res))
+        .then(({ ok, data }) => {
+            if (!ok || !data?.series) return;
             renderFinOpsMetricsChart(data.series);
             renderFinOpsCostChart(data.series);
         });

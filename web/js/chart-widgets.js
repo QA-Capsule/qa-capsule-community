@@ -1,7 +1,7 @@
 /**
  * Shared Chart.js rendering and pinned chart mounts (Dashboard, FinOps, …)
  */
-import { fetchWithAuth } from './api.js';
+import { fetchWithAuth, parseApiJson } from './api.js';
 
 const chartInstances = new Map();
 
@@ -84,9 +84,9 @@ export async function mountPinnedCharts(location, containerId, wrapId) {
 
     try {
         const res = await fetchWithAuth(`/api/charts/pinned?location=${encodeURIComponent(location)}&_ts=${Date.now()}`);
-        if (!res.ok) throw new Error();
-        const data = await res.json();
-        const charts = data.charts || [];
+        const { ok, data } = await parseApiJson(res);
+        if (!ok) return;
+        const charts = data?.charts || [];
 
         if (charts.length === 0) {
             container.innerHTML = '';

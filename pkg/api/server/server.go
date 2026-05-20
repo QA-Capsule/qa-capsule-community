@@ -69,6 +69,12 @@ func sendEmail(config *core.Config, to string, subject string, htmlBody string) 
 	}
 }
 
+func writeJSONError(w http.ResponseWriter, message string, status int) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(map[string]string{"error": message})
+}
+
 // normalizeAuthRequirement accepts a role string or legacy bool (false = any user, true = admin).
 func normalizeAuthRequirement(requirement any) string {
 	switch v := requirement.(type) {
@@ -96,7 +102,7 @@ func jwtAuthMiddleware(config *core.Config, requirement any, next http.HandlerFu
 		}
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
-			http.Error(w, "Missing token", http.StatusUnauthorized)
+			writeJSONError(w, "Missing token", http.StatusUnauthorized)
 			return
 		}
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
@@ -106,17 +112,17 @@ func jwtAuthMiddleware(config *core.Config, requirement any, next http.HandlerFu
 		})
 
 		if err != nil || !token.Valid {
-			http.Error(w, "Invalid token", http.StatusUnauthorized)
+			writeJSONError(w, "Invalid token", http.StatusUnauthorized)
 			return
 		}
 
 		if claims.RequirePasswordChange && r.URL.Path != "/api/users/change-password" {
-			http.Error(w, "Password change required", http.StatusForbidden)
+			writeJSONError(w, "Password change required", http.StatusForbidden)
 			return
 		}
 
 		if minRole != "" && !core.HasMinRole(claims.Role, minRole) {
-			http.Error(w, "Access denied", http.StatusForbidden)
+			writeJSONError(w, "Access denied", http.StatusForbidden)
 			return
 		}
 
@@ -185,6 +191,11 @@ func Start(initialConfig core.Config) {
 	registerFinOpsRoutes(config)
 	registerChartRoutes(config)
 	registerSystemRoutes(config)
+
+	// Favicon (browsers request /favicon.ico by default)
+	http.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "./web/assets/logo.png")
+	})
 
 	// Serve static frontend files
 	http.Handle("/", http.FileServer(http.Dir("./web")))

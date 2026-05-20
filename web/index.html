@@ -4,6 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <title>QA Flight Recorder | Control Plane</title>
+    <link rel="icon" href="/assets/logo.png" type="image/png">
     <link rel="stylesheet" href="/style.css">
     <style>
         /* Form Inputs */
@@ -145,8 +146,6 @@
         }
         .chart-save-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
         .chart-save-meta label { font-size: 11px; color: #8b949e; display: block; margin-bottom: 4px; }
-        .chart-pin-row { display: flex; gap: 20px; margin: 12px 0; font-size: 13px; }
-        .chart-pin-row label { display: flex; align-items: center; gap: 8px; cursor: pointer; color: #8b949e; }
         .chart-snippet-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
         .chart-snippet-btn {
             font-size: 11px; padding: 4px 10px; border-radius: 6px; border: 1px solid #30363d;
@@ -165,6 +164,9 @@
         .qcl-ref-metrics li { padding: 6px 0; border-bottom: 1px solid #21262d; display: flex; gap: 10px; }
         .qcl-ref-metrics code { color: #58a6ff; min-width: 110px; }
         .pinned-charts-section { margin: 24px 0; }
+        .loading-placeholder {
+            text-align: center; padding: 24px; color: #8b949e; font-size: 13px; opacity: 0.7;
+        }
         .pinned-charts-section h3 {
             margin: 0 0 16px 0; font-size: 14px; text-transform: uppercase;
             letter-spacing: 1px; color: #8b949e;
@@ -199,7 +201,7 @@
         .finops-kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 24px; }
         @media (max-width: 1100px) { .finops-kpi-grid { grid-template-columns: repeat(2, 1fr); } .about-layout { grid-template-columns: 1fr; } }
     </style>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
 </head>
@@ -227,8 +229,9 @@
             </div>
             <p style="opacity: 0.6; font-size: 12px; letter-spacing: 2px; margin-bottom: 30px;">SRE CONTROL PLANE</p>
             <div id="login-error" class="sre-notification error" style="display: none; margin-bottom: 15px; font-size: 12px; padding: 10px;">AUTHENTICATION FAILED</div>
+            <p id="login-server-hint" style="display: none; color: #d29922; font-size: 11px; margin-bottom: 12px; line-height: 1.4;"></p>
             
-            <input type="text" id="login-username" class="login-input" placeholder="Corporate Identity (Email)" autocomplete="off">
+            <input type="text" id="login-username" class="login-input" placeholder="Username or email" autocomplete="username">
             <input type="password" id="login-password" class="login-input" placeholder="Passphrase">
             <button class="btn-primary" style="width: 100%; margin-top: 15px;" onclick="performLogin()">INITIALIZE SESSION</button>
 
@@ -290,104 +293,114 @@
         </div>
     </div>
 
-    <div id="app-container" style="display: none; width: 100%; height: 100%;">
+    <div id="app-container" style="display: none; width: 100%; height: 100%; flex-direction: column;">
 
-        <div class="sidebar">
-            <div class="sidebar-title" style="display: flex; align-items: center; gap: 15px;">
-                <img src="assets/logo.png" alt="QA Capsule Logo" class="sidebar-logo" style="width: 75px">
-                <div>
-                    QA Capsule<br>
-                    <span style="font-size: 10px; opacity: 0.5; font-weight: normal;">SRE SYS MONITORING</span>
+        <div id="api-offline-banner" style="display: none; background: #3d1f1f; color: #ff7b72; padding: 10px 20px; text-align: center; font-size: 13px; border-bottom: 1px solid #ff7b72; flex-shrink: 0;">
+            Cannot reach the QA Capsule server. Start the application backend, then refresh this page.
+        </div>
+
+        <div style="display: flex; flex: 1; min-height: 0; width: 100%;">
+        <div class="sidebar" id="app-sidebar">
+            <div class="sidebar-top">
+                <button type="button" class="sidebar-collapse-btn" id="sidebar-collapse-btn" onclick="toggleSidebar()" aria-expanded="true" title="Collapse sidebar">
+                    <svg class="sidebar-collapse-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                </button>
+                <div class="sidebar-brand sidebar-title">
+                    <img src="assets/logo.png" alt="QA Capsule Logo" class="sidebar-logo">
+                    <div>
+                        <span style="font-size: 14px; font-weight: bold; letter-spacing: 0.5px;">QA Capsule</span><br>
+                        <span style="font-size: 10px; opacity: 0.5; font-weight: normal;">SRE SYS MONITORING</span>
+                    </div>
                 </div>
             </div>
 
-            <div class="role-workspace" style="padding: 15px 20px; font-size: 10px; opacity: 0.4; letter-spacing: 1px; font-weight: bold;">WORKSPACES</div>
-            <div class="nav-item role-workspace" onclick="switchView('organizations', this)">
+            <div class="nav-section-label role-workspace">WORKSPACES</div>
+            <div class="nav-item role-workspace" onclick="switchView('organizations', this)" data-tooltip="Workspaces">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
                     <circle cx="9" cy="7" r="4"></circle>
                     <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
                     <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-                </svg> Workspaces
+                </svg><span class="nav-text">Workspaces</span>
             </div>
-            <div class="role-non-admin" style="padding: 15px 20px; font-size: 10px; opacity: 0.4; letter-spacing: 1px; font-weight: bold; margin-top: 10px;">OPERATIONS</div>
-            <div class="nav-item role-non-admin active" onclick="switchView('dashboard', this)">
+            <div class="nav-section-label role-non-admin" style="margin-top: 10px;">OPERATIONS</div>
+            <div class="nav-item role-non-admin active" onclick="switchView('dashboard', this)" data-tooltip="Dashboard">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
                     <line x1="3" y1="9" x2="21" y2="9"></line>
                     <line x1="9" y1="21" x2="9" y2="9"></line>
-                </svg> Dashboard
+                </svg><span class="nav-text">Dashboard</span>
             </div>
-            <div class="role-manager-only role-non-admin" style="padding: 15px 20px; font-size: 10px; opacity: 0.4; letter-spacing: 1px; font-weight: bold; margin-top: 10px;">FINOPS</div>
-            <div class="nav-item role-manager-only role-non-admin" onclick="switchView('finops', this)">
+            <div class="nav-section-label role-manager-only" style="margin-top: 10px;">FINOPS</div>
+            <div class="nav-item role-manager-only" onclick="switchView('finops', this)" data-tooltip="FinOps Intelligence">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="12" y1="1" x2="12" y2="23"></line>
                     <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
-                </svg> FinOps Intelligence
+                </svg><span class="nav-text">FinOps Intelligence</span>
             </div>
-            <div class="role-chart-studio role-non-admin" style="padding: 15px 20px; font-size: 10px; opacity: 0.4; letter-spacing: 1px; font-weight: bold; margin-top: 10px;">CHART STUDIO</div>
-            <div class="nav-item role-chart-studio role-non-admin" onclick="switchView('charts', this)">
+            <div class="nav-section-label role-chart-studio" style="margin-top: 10px;">CHART STUDIO</div>
+            <div class="nav-item role-chart-studio" onclick="switchView('charts', this)" data-tooltip="Chart Studio">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="18" y1="20" x2="18" y2="10"></line>
                     <line x1="12" y1="20" x2="12" y2="4"></line>
                     <line x1="6" y1="20" x2="6" y2="14"></line>
-                </svg> Chart Studio
+                </svg><span class="nav-text">Chart Studio</span>
             </div>
 
-            <div class="role-non-admin" style="padding: 15px 20px; font-size: 10px; opacity: 0.4; letter-spacing: 1px; font-weight: bold; margin-top: 10px;">HELP CENTER</div>
-            <div class="nav-item role-non-admin" onclick="switchView('about', this)">
+            <div class="nav-section-label role-non-admin" style="margin-top: 10px;">HELP CENTER</div>
+            <div class="nav-item role-non-admin" onclick="switchView('about', this)" data-tooltip="Help Center">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <circle cx="12" cy="12" r="10"></circle>
                     <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
                     <line x1="12" y1="17" x2="12.01" y2="17"></line>
-                </svg> Help Center
+                </svg><span class="nav-text">Help Center</span>
             </div>
 
-            <div class="role-operator role-non-admin" style="padding: 15px 20px; font-size: 10px; opacity: 0.4; letter-spacing: 1px; font-weight: bold; margin-top: 10px;">INFRASTRUCTURE</div>
-            <div class="nav-item role-operator role-non-admin" onclick="switchView('ingestion', this)">
+            <div class="nav-section-label role-operator" style="margin-top: 10px;">INFRASTRUCTURE</div>
+            <div class="nav-item role-operator" onclick="switchView('ingestion', this)" data-tooltip="CI/CD Gateways">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
-                </svg> CI/CD Gateways
+                </svg><span class="nav-text">CI/CD Gateways</span>
             </div>
-            <div class="nav-item role-operator role-non-admin" onclick="switchView('plugins', this)">
+            <div class="nav-item role-operator" onclick="switchView('plugins', this)" data-tooltip="Plugin Engine">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
-                </svg> Plugin Engine
+                </svg><span class="nav-text">Plugin Engine</span>
             </div>
 
-            <div class="admin-only" style="padding: 15px 20px; font-size: 10px; opacity: 0.4; letter-spacing: 1px; font-weight: bold; margin-top: 10px;">SECURITY</div>
-            <div class="nav-item admin-only" onclick="switchView('management', this)">
+            <div class="nav-section-label admin-only" style="margin-top: 10px;">SECURITY</div>
+            <div class="nav-item admin-only" onclick="switchView('management', this)" data-tooltip="IAM Access">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
                     <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                </svg> IAM Access
+                </svg><span class="nav-text">IAM Access</span>
             </div>
-            <div class="nav-item" onclick="switchView('profile', this)">
+            <div class="nav-item" onclick="switchView('profile', this)" data-tooltip="My Account">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
                     <circle cx="12" cy="7" r="4"></circle>
-                </svg> My Account
+                </svg><span class="nav-text">My Account</span>
             </div>
-            <div class="nav-item admin-only" onclick="switchView('settings', this)">
+            <div class="nav-item admin-only" onclick="switchView('settings', this)" data-tooltip="Settings">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <circle cx="12" cy="12" r="3"></circle>
                     <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1 0-2.83 2 2 0 0 1 0-2.83l.06.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-                </svg> Settings
+                </svg><span class="nav-text">Settings</span>
             </div>
 
             <div class="spacer"></div>
-            <div class="nav-item" style="opacity: 1;">
-                <div style="font-size: 11px; opacity: 0.6; font-weight: bold; margin-right: 10px;">DARK MODE</div>
-                <div class="toggle-switch" onclick="toggleTheme()">
+            <div class="nav-item nav-theme" style="opacity: 1;" data-tooltip="Dark mode">
+                <span class="nav-text" style="font-size: 11px; opacity: 0.6; font-weight: bold; margin-right: 10px;">DARK MODE</span>
+                <div class="toggle-switch" onclick="toggleTheme(event)">
                     <div class="toggle-circle"></div>
                 </div>
             </div>
-            <div class="nav-item logout" onclick="performLogout()" style="color: var(--log-fatal); border-top: 1px solid var(--border-main);">
+            <div class="nav-item logout" onclick="performLogout()" style="color: var(--log-fatal); border-top: 1px solid var(--border-main);" data-tooltip="Sign Out">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
                     <polyline points="16 17 21 12 16 7"></polyline>
                     <line x1="21" y1="12" x2="9" y2="12"></line>
-                </svg> Sign Out
+                </svg><span class="nav-text">Sign Out</span>
             </div>
         </div>
 
@@ -434,7 +447,7 @@
                             Analytics
                         </button>
 
-                        <div class="dashboard-btn-group">
+                        <div class="dashboard-btn-group role-hide-viewer">
                             <button type="button" class="dashboard-toolbar-btn btn-success" onclick="downloadWeeklyReportCSV()" title="Download CSV Report">
                                 <svg style="width:14px;height:14px;stroke:currentColor;fill:none;flex-shrink:0;" viewBox="0 0 24 24" stroke-width="2">
                                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
@@ -516,7 +529,7 @@
                 </div>
                 
                 <h3 style="margin-top: 30px; padding-bottom: 10px; border-bottom: 1px solid var(--border-main);">Incident History Log</h3>
-                <div id="incident-list">Loading telemetry database...</div>
+                <div id="incident-list" class="loading-placeholder">Loading telemetry…</div>
             </section>
 
 
@@ -898,9 +911,15 @@
                                     <input type="text" id="chart-save-desc" class="login-input" placeholder="Short note for your team">
                                 </div>
                             </div>
-                            <div class="chart-pin-row">
-                                <label><input type="checkbox" id="pin-dashboard"> Pin to Dashboard</label>
-                                <label class="role-manager-only"><input type="checkbox" id="pin-finops"> Pin to FinOps</label>
+                            <div class="chart-pin-options">
+                                <label class="chart-pin-option">
+                                    <input type="checkbox" id="pin-dashboard">
+                                    <span>Pin to Dashboard</span>
+                                </label>
+                                <label class="chart-pin-option role-manager-only">
+                                    <input type="checkbox" id="pin-finops">
+                                    <span>Pin to FinOps</span>
+                                </label>
                             </div>
                             <div class="chart-snippet-row">
                                 <button type="button" class="chart-snippet-btn" onclick="insertQclSnippet('CHART line &quot;Weekly incidents&quot;\nMETRIC incidents\nRANGE 12w\nGROUP week')">Incidents</button>
@@ -1010,24 +1029,30 @@
                             <option value="active">Active only</option>
                             <option value="resolved">Resolved only</option>
                         </select>
-                        <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;">
+                        <label class="pref-toggle-card" for="pref-analytics-expanded">
                             <input type="checkbox" id="pref-analytics-expanded">
-                            Open analytics panel by default on dashboard
+                            <span class="pref-toggle-text">
+                                <strong>Open analytics panel by default</strong>
+                                <small>Show the analytics section expanded when you open the dashboard.</small>
+                            </span>
                         </label>
                     </div>
                 </div>
 
                 <div class="data-card" style="margin-top: 20px;">
                     <h3 style="margin-top: 0; font-size: 14px; text-transform: uppercase;">Change password</h3>
-                    <input type="password" id="profile-current-password" class="login-input" placeholder="Current password" autocomplete="current-password">
-                    <input type="password" id="profile-new-password" class="login-input" placeholder="New password (min. 8 characters)" autocomplete="new-password">
-                    <input type="password" id="profile-confirm-password" class="login-input" placeholder="Confirm new password" autocomplete="new-password">
-                    <button class="btn-secondary" style="margin-top: 10px;" onclick="changeOwnPassword()">Update password</button>
+                    <div class="password-fields-stack">
+                        <input type="password" id="profile-current-password" class="login-input" placeholder="Current password" autocomplete="current-password">
+                        <input type="password" id="profile-new-password" class="login-input" placeholder="New password (min. 8 characters)" autocomplete="new-password">
+                        <input type="password" id="profile-confirm-password" class="login-input" placeholder="Confirm new password" autocomplete="new-password">
+                    </div>
+                    <button class="btn-secondary" style="margin-top: 14px;" onclick="changeOwnPassword()">Update password</button>
                 </div>
 
                 <button class="btn-primary" style="margin-top: 20px; width: 100%; max-width: 320px;" onclick="saveProfile()">Save profile</button>
             </section>
         </main>
+        </div>
     </div>
 
     <script type="module" src="app.js"></script>

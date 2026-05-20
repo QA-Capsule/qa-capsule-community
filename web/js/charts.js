@@ -1,7 +1,7 @@
 /**
  * Chart Studio — QCL editor, saved charts library, pin to Dashboard / FinOps
  */
-import { fetchWithAuth } from './api.js';
+import { fetchWithAuth, parseApiJson, describeApiFailure } from './api.js';
 import { notify, showConfirmModal } from './ui.js';
 import { renderChartOnCanvas, destroyChartInstance } from './chart-widgets.js';
 import { setupAutocomplete } from './autocomplete.js';
@@ -27,7 +27,7 @@ export function loadChartsView() {
     initChartLibraryAutocomplete();
     applyChartStudioFinopsUi();
     refreshSavedChartsLibrary();
-    runChartQuery();
+    setTimeout(() => runChartQuery(), 300);
 }
 
 function applyChartStudioFinopsUi() {
@@ -74,16 +74,18 @@ function initChartLibraryAutocomplete() {
 
 function loadChartReference() {
     fetchWithAuth('/api/charts/reference')
-        .then(r => r.json())
-        .then(ref => {
+        .then(r => parseApiJson(r))
+        .then(({ ok, data: ref }) => {
             const el = document.getElementById('qcl-reference-body');
-            if (!el) return;
+            if (!el || !ok || !ref?.directives) return;
+            const metrics = Array.isArray(ref.metrics) ? ref.metrics : [];
             el.innerHTML = `
-                <p class="qcl-ref-lead"><strong>QCL v${ref.version}</strong> — ${ref.directives.join(' · ')}</p>
-                <pre class="qcl-ref-example">${escapeHtml(ref.example)}</pre>
-                <ul class="qcl-ref-metrics">${ref.metrics.map(m =>
+                <p class="qcl-ref-lead"><strong>QCL v${ref.version || '1'}</strong> — ${ref.directives.join(' · ')}</p>
+                <pre class="qcl-ref-example">${escapeHtml(ref.example || '')}</pre>
+                <ul class="qcl-ref-metrics">${metrics.map(m =>
                     `<li><code>${m.id}</code><span>${m.description}</span></li>`).join('')}</ul>`;
-        });
+        })
+        .catch(() => {});
 }
 
 function escapeHtml(s) {
@@ -96,8 +98,8 @@ export async function refreshSavedChartsLibrary() {
 
     try {
         const res = await fetchWithAuth('/api/charts/saved');
-        const data = await res.json();
-        savedCharts = data.charts || [];
+        const { ok, data } = await parseApiJson(res);
+        savedCharts = ok && data?.charts ? data.charts : [];
     } catch {
         savedCharts = [];
     }
@@ -158,19 +160,20 @@ export function runChartQuery() {
     const query = document.getElementById('qcl-editor')?.value?.trim();
     if (!query) return notify('Enter a QCL query', 'error');
 
-    const status = document.getElementById('chart-preview-status');
-    if (status) status.textContent = 'Running query…';
+    const statusEl = document.getElementById('chart-preview-status');
+    if (statusEl) statusEl.textContent = 'Running query…';
 
     fetchWithAuth('/api/charts/evaluate', { method: 'POST', body: JSON.stringify({ query }) })
-        .then(async res => {
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'Query failed');
+        .then(res => parseApiJson(res))
+        .then(({ ok, offline, status: httpStatus, data }) => {
+            if (!ok) throw new Error(describeApiFailure(httpStatus, offline));
+            if (!data) throw new Error('Query failed');
             const canvas = document.getElementById('chart-studio-canvas');
             renderChartOnCanvas(canvas, data, STUDIO_KEY);
-            if (status) status.textContent = data.title || 'Preview ready';
+            if (statusEl) statusEl.textContent = data.title || 'Preview ready';
         })
         .catch(e => {
-            if (status) status.textContent = 'Query failed';
+            if (statusEl) statusEl.textContent = 'Query failed';
             notify(e.message || 'Chart evaluation failed', 'error');
         });
 }
@@ -193,9 +196,9 @@ export function saveCurrentChart() {
 
     const method = activeChartId ? 'PUT' : 'POST';
     fetchWithAuth('/api/charts/saved', { method, body: JSON.stringify(payload) })
-        .then(async res => {
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'Save failed');
+        .then(res => parseApiJson(res))
+        .then(({ ok, data }) => {
+            if (!ok) throw new Error(data?.error || 'Save failed');
             if (!activeChartId && data.id) activeChartId = data.id;
             notify(activeChartId ? 'Chart updated' : 'Chart saved', 'success');
             document.getElementById('chart-editor-title').textContent = name;

@@ -140,70 +140,100 @@ export function canAccessOperations(role) {
 
 
 
+function setRoleElVisible(el, visible) {
+    if (!el) return;
+    const isNav = el.classList.contains('nav-item');
+    el.style.display = visible ? (isNav ? 'flex' : '') : 'none';
+}
+
+/** Elements tagged role-non-admin only (not also manager/operator/workspace/chart). */
+function isPureNonAdminEl(el) {
+    return el.classList.contains('role-non-admin')
+        && !el.classList.contains('role-manager-only')
+        && !el.classList.contains('role-operator')
+        && !el.classList.contains('role-workspace')
+        && !el.classList.contains('role-chart-studio');
+}
+
 export function applyRoleVisibility(role) {
-
-    document.querySelectorAll('.role-admin').forEach(el => {
-
-        el.style.display = role === 'admin' ? '' : 'none';
-
+    document.querySelectorAll('.role-admin, .admin-only').forEach(el => {
+        setRoleElVisible(el, role === 'admin');
     });
-
-
-
-    document.querySelectorAll('.admin-only').forEach(el => {
-
-        el.style.display = role === 'admin' ? '' : 'none';
-
-    });
-
-
 
     document.querySelectorAll('.role-workspace').forEach(el => {
-
-        el.style.display = canManageTeams(role) ? '' : 'none';
-
+        setRoleElVisible(el, canManageTeams(role));
     });
 
-
-
-    document.querySelectorAll('.role-manager-only').forEach(el => {
-
-        el.style.display = role === 'manager' ? '' : 'none';
-
+    document.querySelectorAll('.role-manager-only, .role-manager').forEach(el => {
+        setRoleElVisible(el, role === 'manager');
     });
-
-
-
-    document.querySelectorAll('.role-manager').forEach(el => {
-
-        el.style.display = role === 'manager' ? '' : 'none';
-
-    });
-
-
 
     document.querySelectorAll('.role-operator').forEach(el => {
-
-        el.style.display = (role === 'operator' || role === 'manager') ? '' : 'none';
-
+        setRoleElVisible(el, role === 'operator' || role === 'manager');
     });
-
-
-
-    document.querySelectorAll('.role-non-admin').forEach(el => {
-
-        el.style.display = role === 'admin' ? 'none' : '';
-
-    });
-
-
 
     document.querySelectorAll('.role-chart-studio').forEach(el => {
-
-        el.style.display = canAccessChartStudio(role) ? '' : 'none';
-
+        setRoleElVisible(el, canAccessChartStudio(role));
     });
 
+    document.querySelectorAll('.role-non-admin').forEach(el => {
+        if (!isPureNonAdminEl(el)) return;
+        setRoleElVisible(el, role !== 'admin');
+    });
+
+    document.querySelectorAll('.role-viewer-only').forEach(el => {
+        setRoleElVisible(el, role === 'viewer');
+    });
+
+    document.querySelectorAll('.role-hide-viewer').forEach(el => {
+        setRoleElVisible(el, role !== 'viewer');
+    });
+}
+
+/** Views a role may open via switchView (used after login). */
+export function defaultViewForRole(role) {
+    if (role === 'admin') return 'organizations';
+    return 'dashboard';
+}
+
+export function canAccessView(role, viewId) {
+    switch (viewId) {
+        case 'dashboard':
+            return canAccessOperations(role);
+        case 'about':
+        case 'profile':
+            return true;
+        case 'charts':
+            return canAccessChartStudio(role);
+        case 'finops':
+            return canAccessFinOps(role);
+        case 'organizations':
+            return canManageTeams(role);
+        case 'management':
+        case 'settings':
+            return canManageIAM(role);
+        case 'plugins':
+            return canAccessPlugins(role);
+        case 'ingestion':
+            return canManageProjects(role);
+        default:
+            return false;
+    }
+}
+
+export function accessDeniedMessage(viewId) {
+    const labels = {
+        dashboard: 'Dashboard',
+        charts: 'Chart Studio',
+        finops: 'FinOps Intelligence',
+        organizations: 'Workspaces',
+        management: 'IAM Access',
+        settings: 'Settings',
+        plugins: 'Plugin Engine',
+        ingestion: 'CI/CD Gateways'
+    };
+    const name = labels[viewId] || viewId;
+    return `You do not have access to ${name}.`;
 }
 
 
