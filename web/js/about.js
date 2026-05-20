@@ -2,6 +2,7 @@
  * Help Center — available to all roles
  */
 import { FINOPS_METRICS_DOC_HTML } from './finops-metrics-doc.js';
+import { formulaBlock, bindAboutFormulaCopy } from './about-formula.js';
 import { ROLE_LABELS, ROLE_DESCRIPTIONS } from './roles.js';
 
 const TOPIC_ICONS = {
@@ -17,18 +18,37 @@ const ABOUT_TOPICS = {
         title: 'Product overview',
         breadcrumb: 'Help Center / Overview',
         html: `
-        <article class="about-doc">
-          <h2>QA Flight Recorder</h2>
-          <p class="about-lead">An SRE control plane that ingests CI failures, correlates alerts, detects flaky tests, and connects quality signals to FinOps metrics.</p>
+        <article class="about-doc about-doc-wide">
+          <h2>QA Capsule — SRE control plane</h2>
+          <p class="about-lead">
+            QA Capsule is a <strong>flight recorder for CI quality</strong>: it ingests pipeline failures through signed gateways,
+            deduplicates alerts via cryptographic fingerprints, classifies flaky regressions, and surfaces both
+            <em>operational</em> (MTTR, backlog) and <em>economic</em> (FinOps) indicators in a single pane of glass.
+          </p>
+          <h3>Architecture layers</h3>
+          <ul class="about-detail-list">
+            <li><strong>Ingestion plane</strong> — Webhooks accept JUnit XML / JSON payloads; optional <code>X-Run-Id</code> correlates multi-test failures into one pipeline execution group.</li>
+            <li><strong>Correlation engine</strong> — SHA-256 fingerprint over test name + error message; spam guard per <code>pipeline_run_id</code>.</li>
+            <li><strong>Triage workspace</strong> — Role-aware dashboard with bulk resolve, log export, JUnit regeneration.</li>
+            <li><strong>Analytics &amp; QCL</strong> — Chart Studio evaluates declarative queries; pinned charts hydrate Dashboard and FinOps views.</li>
+            <li><strong>FinOps intelligence</strong> — Manager-only cost modeling from configurable baselines (developer rate, CI minute cost, investigation time).</li>
+          </ul>
           <div class="about-callout">
-            <strong>Typical workflow</strong>
+            <strong>End-to-end workflow</strong>
             <ol>
-              <li>Admin or Operator provisions a CI/CD gateway with an API key.</li>
-              <li>Pipeline uploads JUnit XML or JSON webhooks on failure.</li>
-              <li>Operators triage and resolve incidents from the dashboard.</li>
-              <li>Managers review FinOps trends, exports, and custom charts.</li>
+              <li><strong>Admin</strong> creates workspaces, IAM users, and CI/CD gateways (API keys).</li>
+              <li><strong>CI pipeline</strong> posts failures to <code>/api/webhook/ingest</code> on red builds.</li>
+              <li><strong>Operator / QA Lead</strong> triages grouped pipeline executions, resolves or bulk-resolves tests.</li>
+              <li><strong>Manager</strong> reviews FinOps KPIs, weekly evolution, CSV exports, and custom QCL charts.</li>
+              <li><strong>Viewer</strong> consumes dashboards read-only; Chart Studio access without FinOps write paths.</li>
             </ol>
           </div>
+          <h3>Dashboard analytics (built-in)</h3>
+          <p>
+            Toggle <em>System analytics &amp; quality</em> on the Operations dashboard to reveal MTTR, MTTF, failure-quality
+            doughnut (stable vs flaky), and a 5-week multi-axis evolution chart (volume + MTTR). Extended stat tiles show
+            resolution rate, active backlog, and flaky ratio updated on each refresh.
+          </p>
         </article>`
     },
     roles: {
@@ -45,24 +65,54 @@ const ABOUT_TOPICS = {
         title: 'Chart language (QCL)',
         breadcrumb: 'Help Center / QCL',
         html: `
-        <article class="about-doc">
-          <h2>QA Chart Language (QCL)</h2>
-          <p class="about-lead">Managers can build custom charts in <strong>Chart Studio</strong>, save them to a personal library, and pin them to the <strong>Dashboard</strong> or <strong>FinOps</strong> views.</p>
-          <pre class="about-formula">CHART line "Weekly FinOps cost"
-METRIC finops_cost
-RANGE 12w
-GROUP week
-PROJECT my-service</pre>
-          <h3>Directives</h3>
-          <ul>
-            <li><code>CHART</code> — line | bar | doughnut (+ optional title in quotes)</li>
-            <li><code>METRIC</code> — incidents, flaky, resolved, mttr, finops_cost, finops_flaky_cost, ci_minutes</li>
-            <li><code>RANGE</code> — 7d, 12w, 1y</li>
-            <li><code>GROUP</code> — week | project</li>
-            <li><code>PROJECT</code> — optional gateway filter</li>
-          </ul>
+        <article class="about-doc about-doc-wide">
+          <h2>QA Chart Language (QCL) v1.0</h2>
+          <p class="about-lead">
+            QCL is a <strong>declarative time-series DSL</strong> for quality metrics. Queries compile to Chart.js specs via
+            <code>POST /api/charts/evaluate</code>. Saved definitions persist in <code>saved_charts</code> and can be pinned
+            to Dashboard or FinOps surfaces.
+          </p>
+          <h3>Canonical example</h3>
+          ${formulaBlock('CHART line "Weekly composite FinOps exposure"\nMETRIC finops_cost\nRANGE 12w\nGROUP week\nPROJECT QA-CAP-FRONT-PIPELINE')}
+          <h3>Directive reference</h3>
+          <table class="about-table">
+            <thead><tr><th>Directive</th><th>Syntax</th><th>Semantics</th></tr></thead>
+            <tbody>
+              <tr><td><code>CHART</code></td><td><code>line | bar | doughnut</code> + optional title</td><td>Visualization primitive; doughnut requires a single-series metric.</td></tr>
+              <tr><td><code>METRIC</code></td><td>see table below</td><td>Scalar field aggregated per GROUP bucket.</td></tr>
+              <tr><td><code>RANGE</code></td><td><code>Nd</code>, <code>Nw</code>, <code>Ny</code></td><td>Lookback window (1–730 days). Examples: <code>35d</code>, <code>12w</code>, <code>1y</code>.</td></tr>
+              <tr><td><code>GROUP</code></td><td><code>week | project</code></td><td>Temporal bucket (ISO week start) or gateway dimension.</td></tr>
+              <tr><td><code>PROJECT</code></td><td>gateway name</td><td>Optional filter on <code>project_name</code> (CI gateway).</td></tr>
+            </tbody>
+          </table>
+          <h3>Supported METRIC tokens</h3>
+          <table class="about-table">
+            <thead><tr><th>METRIC</th><th>Unit</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>incidents</code></td><td>count</td><td>Total failures in bucket.</td></tr>
+              <tr><td><code>flaky</code></td><td>count</td><td>Failures tagged <code>[FLAKY]</code>.</td></tr>
+              <tr><td><code>stable</code></td><td>count</td><td>Non-flaky failures (N − N<sub>f</sub>).</td></tr>
+              <tr><td><code>resolved</code></td><td>count</td><td>Incidents with <code>is_resolved = 1</code>.</td></tr>
+              <tr><td><code>active</code></td><td>count</td><td>Unresolved backlog in bucket.</td></tr>
+              <tr><td><code>mttr</code></td><td>minutes</td><td>Mean resolution latency for resolved rows.</td></tr>
+              <tr><td><code>resolution_rate</code></td><td>%</td><td>100 × resolved / total.</td></tr>
+              <tr><td><code>flaky_ratio</code></td><td>%</td><td>100 × flaky / total.</td></tr>
+              <tr><td><code>finops_cost</code></td><td>USD</td><td>Full loaded cost (CI + investigation).</td></tr>
+              <tr><td><code>finops_flaky_cost</code></td><td>USD</td><td>Loaded cost attributed to flaky subset.</td></tr>
+              <tr><td><code>ci_minutes</code></td><td>minutes</td><td>Runner minutes (incidents × T<sub>pipe</sub>).</td></tr>
+              <tr><td><code>ci_cost</code></td><td>USD</td><td>CI spend only.</td></tr>
+              <tr><td><code>invest_cost</code></td><td>USD</td><td>Investigation spend only.</td></tr>
+            </tbody>
+          </table>
+          <h3>Advanced composition patterns</h3>
+          <p><strong>Multi-gateway comparison</strong> — omit PROJECT, set GROUP project, use bar chart:</p>
+          ${formulaBlock('CHART bar "Incident density by gateway"\nMETRIC incidents\nRANGE 30d\nGROUP project')}
+          <p><strong>Quality vs cost</strong> — pin two charts (flaky_ratio + finops_flaky_cost) to FinOps for executive review.</p>
+          ${formulaBlock('CHART line "Resolution efficiency"\nMETRIC resolution_rate\nRANGE 8w\nGROUP week')}
           <div class="about-callout">
-            <strong>Saving &amp; pinning</strong> — Click <em>Save</em> in Chart Studio, then enable <em>Pin to Dashboard</em> or <em>Pin to FinOps</em>. Pinned charts refresh automatically when you open those sections.
+            <strong>Persistence model</strong> — Charts are private to the authenticated author unless shared via exports.
+            Pin flags (<code>pin_dashboard</code>, <code>pin_finops</code>) control lazy hydration when parent views mount.
+            Comments in QCL start with <code>#</code>.
           </div>
         </article>`
     },
@@ -70,14 +120,32 @@ PROJECT my-service</pre>
         title: 'SRE glossary',
         breadcrumb: 'Help Center / Glossary',
         html: `
-        <article class="about-doc">
-          <h2>Glossary</h2>
+        <article class="about-doc about-doc-wide">
+          <h2>SRE &amp; quality engineering glossary</h2>
+          <p class="about-lead">Canonical definitions as used inside QA Capsule telemetry, APIs, and Help Center documentation.</p>
           <dl class="about-dl">
-            <dt>MTTR</dt><dd>Mean Time To Resolution — average time to mark an incident resolved.</dd>
-            <dt>MTTF</dt><dd>Mean Time To Failure — average interval between recorded failures.</dd>
-            <dt>Flaky test</dt><dd>Intermittent failure tagged <code>[FLAKY]</code> after re-failing within 48h of resolution.</dd>
-            <dt>Fingerprint</dt><dd>SHA-256 hash of test name and error message for deduplication.</dd>
-            <dt>FinOps</dt><dd>Practice of aligning CI/cloud spend with engineering quality outcomes.</dd>
+            <dt>MTTR (Mean Time To Resolution)</dt>
+            <dd>Average minutes from <code>created_at</code> to <code>resolved_at</code> for resolved incidents. Lagging indicator of triage efficiency.</dd>
+            <dt>MTTF (Mean Time To Failure)</dt>
+            <dd>Mean inter-arrival time between incident timestamps: (t<sub>max</sub> − t<sub>min</sub>) / (N − 1). Surrogate for CI stability frequency.</dd>
+            <dt>Flaky test</dt>
+            <dd>Non-deterministic failure re-detected within 48 hours of a prior resolution; prefixed <code>[FLAKY]</code> in test name.</dd>
+            <dt>Stable failure</dt>
+            <dd>Structural regression not classified as flaky; appears in failure-quality analytics as the stable slice.</dd>
+            <dt>Fingerprint</dt>
+            <dd>SHA-256(test name ∥ error message) used for deduplication and spam control per pipeline run.</dd>
+            <dt>Pipeline execution group</dt>
+            <dd>UI aggregation keyed by <code>pipeline_run_id</code> (or legacy 2-minute window) representing one CI run with multiple failing tests.</dd>
+            <dt>FinOps</dt>
+            <dd>Financial operations for engineering — maps CI minutes and investigation time into USD (or selected currency).</dd>
+            <dt>Flaky waste</dt>
+            <dd>Subset of FinOps impact attributable to flaky-tagged incidents; key metric for deflaking ROI.</dd>
+            <dt>QCL</dt>
+            <dd>QA Chart Language — declarative chart specification (CHART / METRIC / RANGE / GROUP / PROJECT).</dd>
+            <dt>Gateway</dt>
+            <dd>CI/CD integration endpoint (project) with API key authentication for webhook ingest.</dd>
+            <dt>Resolution rate</dt>
+            <dd>Percentage of incidents marked resolved in a cohort; available in dashboard tiles and QCL <code>resolution_rate</code> metric.</dd>
           </dl>
         </article>`
     }
@@ -132,5 +200,6 @@ export function showAboutTopic(key) {
         content.innerHTML = `
             <div class="about-breadcrumb">${topic.breadcrumb}</div>
             ${topic.html}`;
+        bindAboutFormulaCopy(content);
     }
 }

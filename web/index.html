@@ -5,6 +5,8 @@
     <meta charset="UTF-8">
     <title>QA Flight Recorder | Control Plane</title>
     <link rel="icon" href="/assets/logo.png" type="image/png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&display=swap">
     <link rel="stylesheet" href="/style.css">
     <style>
         /* Form Inputs */
@@ -86,21 +88,7 @@
 
         .sidebar-logo { width: 36px; height: auto; border-radius: 6px; object-fit: contain; }
 
-        .about-shell { display: grid; grid-template-columns: 280px 1fr; gap: 0; min-height: 68vh; border: 1px solid var(--border-main); border-radius: 12px; overflow: hidden; background: var(--bg-surface); }
-        .about-sidebar { background: #0d1117; border-right: 1px solid var(--border-main); padding: 24px 16px; }
-        .about-sidebar h2 { font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: #8b949e; margin: 0 0 16px 8px; }
-        .about-topic-nav { display: flex; flex-direction: column; gap: 4px; }
-        .about-topic-btn {
-            text-align: left; padding: 12px 14px; border-radius: 8px; border: 1px solid transparent;
-            background: transparent; color: #8b949e; cursor: pointer; font-size: 13px; transition: 0.2s;
-            display: flex; align-items: center; gap: 10px;
-        }
-        .about-topic-btn:hover { background: #161b22; color: #c9d1d9; }
-        .about-topic-btn.active { background: rgba(88, 166, 255, 0.15); border-color: rgba(88, 166, 255, 0.4); color: #58a6ff; font-weight: 600; }
-        .about-topic-icon { width: 18px; height: 18px; opacity: 0.7; flex-shrink: 0; }
-        .about-topic-btn.active .about-topic-icon { opacity: 1; }
-        #about-topic-content { padding: 36px 40px; max-height: 68vh; overflow-y: auto; line-height: 1.65; }
-        .about-breadcrumb { font-size: 12px; color: #8b949e; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }
+        /* Help Center layout: see style.css (#view-about, .about-shell) */
         .chart-studio-layout {
             display: grid; grid-template-columns: 260px 1fr; gap: 20px; min-height: 72vh;
         }
@@ -181,20 +169,16 @@
         .pinned-chart-header h4 { margin: 0; font-size: 14px; color: #c9d1d9; }
         .pinned-chart-header p { margin: 4px 0 0; font-size: 11px; opacity: 0.65; }
         .pinned-chart-canvas-wrap { height: 260px; padding: 12px; }
-        @media (max-width: 1100px) {
+            @media (max-width: 1100px) {
             .chart-studio-layout { grid-template-columns: 1fr; }
             .chart-save-meta { grid-template-columns: 1fr; }
-            .about-shell { grid-template-columns: 1fr; }
         }
         .about-doc h2 { margin-top: 0; color: #58a6ff; }
         .about-lead { font-size: 15px; line-height: 1.6; opacity: 0.9; }
         .about-table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 13px; }
         .about-table th, .about-table td { border: 1px solid var(--border-main); padding: 10px 12px; text-align: left; }
         .about-table th { background: #161b22; color: #8b949e; }
-        .about-formula {
-            font-family: 'Consolas', 'Monaco', monospace; background: #0d1117; border-left: 4px solid #58a6ff;
-            padding: 14px 18px; margin: 12px 0; border-radius: 4px; font-size: 14px; line-height: 1.5;
-        }
+        /* Formula blocks: see style.css (.formula-block) */
         .about-dl dt { font-weight: bold; color: #58a6ff; margin-top: 12px; }
         .about-dl dd { margin: 4px 0 0 0; opacity: 0.85; line-height: 1.5; }
         .about-callout { background: rgba(88, 166, 255, 0.08); border: 1px solid rgba(88, 166, 255, 0.25); border-radius: 8px; padding: 16px 20px; margin: 16px 0; font-size: 14px; }
@@ -305,11 +289,11 @@
                 <button type="button" class="sidebar-collapse-btn" id="sidebar-collapse-btn" onclick="toggleSidebar()" aria-expanded="true" title="Collapse sidebar">
                     <svg class="sidebar-collapse-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
                 </button>
-                <div class="sidebar-brand sidebar-title">
+                <div class="sidebar-brand">
                     <img src="assets/logo.png" alt="QA Capsule Logo" class="sidebar-logo">
-                    <div>
-                        <span style="font-size: 14px; font-weight: bold; letter-spacing: 0.5px;">QA Capsule</span><br>
-                        <span style="font-size: 10px; opacity: 0.5; font-weight: normal;">SRE SYS MONITORING</span>
+                    <div class="sidebar-brand-text">
+                        <span class="sidebar-product-name">QA Capsule</span>
+                        <span class="sidebar-product-tagline">SRE SYS MONITORING</span>
                     </div>
                 </div>
             </div>
@@ -406,11 +390,11 @@
 
         <main class="main-content">
 
-            <section id="view-dashboard" class="view-section active">
-                <div class="header-bar" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+            <section id="view-dashboard" class="view-section active ops-dashboard">
+                <div class="ops-page-head">
                     <div>
-                        <h1 style="margin: 0; font-size: 24px;">Telemetry Stream</h1>
-                        <p style="margin: 5px 0 0 0; opacity: 0.6; font-size: 14px;">Real-time incident monitoring and correlation.</p>
+                        <h1>Telemetry Stream</h1>
+                        <p>Real-time incident monitoring and correlation.</p>
                     </div>
 
                     <div class="dashboard-toolbar">
@@ -473,23 +457,23 @@
                     </div>
                 </div>
                 
-                <div class="kpi-grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px;">
-                    <div class="kpi-card" style="border-top: 4px solid #ff7b72;">
-                        <div style="font-size: 11px; opacity: 0.6; font-weight: bold; margin-bottom: 10px; letter-spacing: 1px;">ACTIVE ALERTS</div>
+                <div class="ops-metric-strip">
+                    <div class="kpi-card ops-metric-tile metric-danger">
+                        <div class="metric-label">Active alerts</div>
                         <div class="kpi-value log-fatal" id="kpi-active">0</div>
                     </div>
-                    <div class="kpi-card" style="border-top: 4px solid #3fb950;">
-                        <div style="font-size: 11px; opacity: 0.6; font-weight: bold; margin-bottom: 10px; letter-spacing: 1px;">RESOLVED (48H)</div>
-                        <div class="kpi-value" style="color: #3fb950;" id="kpi-resolved">0</div>
+                    <div class="kpi-card ops-metric-tile metric-success">
+                        <div class="metric-label">Resolved (48h)</div>
+                        <div class="kpi-value" style="color: var(--log-pass);" id="kpi-resolved">0</div>
                     </div>
-                    <div class="kpi-card" style="border-top: 4px solid #58a6ff;">
-                        <div style="font-size: 11px; opacity: 0.6; font-weight: bold; margin-bottom: 10px; letter-spacing: 1px;">PIPELINE HEALTH</div>
-                        <div class="kpi-value" style="color: #58a6ff;" id="kpi-health">100%</div>
+                    <div class="kpi-card ops-metric-tile metric-info">
+                        <div class="metric-label">Pipeline health</div>
+                        <div class="kpi-value" style="color: var(--log-info);" id="kpi-health">100%</div>
                     </div>
-                    <div class="kpi-card" style="border-top: 4px solid #d29922; background: rgba(210, 153, 34, 0.05);">
-                        <div style="font-size: 11px; opacity: 0.6; font-weight: bold; margin-bottom: 10px; letter-spacing: 1px; color: #d29922;">FLAKY TESTS</div>
-                        <div class="kpi-value" style="color: #d29922;" id="kpi-flaky">0</div>
-                        <div style="font-size: 10px; opacity: 0.5; margin-top: 5px;">Unstable flickering failures</div>
+                    <div class="kpi-card ops-metric-tile metric-warn">
+                        <div class="metric-label">Flaky tests</div>
+                        <div class="kpi-value" style="color: var(--log-warn);" id="kpi-flaky">0</div>
+                        <div class="metric-hint">Unstable flickering failures</div>
                     </div>
                 </div>
 
@@ -498,31 +482,42 @@
                     <div id="dashboard-pinned-charts" class="pinned-charts-grid"></div>
                 </div>
 
-                <div id="analytics-view" style="display: none; background: #161b22; padding: 20px; border-radius: 8px; border: 1px solid #30363d; margin-top: 20px; margin-bottom: 20px;">
-                    <h3 style="color: #58a6ff; margin-top: 0; margin-bottom: 15px;">System Analytics & Quality</h3>
-                    
-                    <div style="display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; margin-bottom: 20px;">
-                        
-                        <div style="background: #0d1117; padding: 20px; border-radius: 8px; text-align: center; width: 200px; border: 1px solid #30363d; display: flex; flex-direction: column; justify-content: center;">
-                            <h4 style="color: #8b949e; margin: 0;">MTTR</h4>
-                            <h1 id="mttr-value" style="color: #3fb950; font-size: 2.5em; margin: 10px 0;">-- min</h1>
-                            <small style="color: #8b949e;">Mean Time To Resolution</small>
+                <div id="analytics-view" class="ops-analytics-panel">
+                    <h3>System analytics &amp; quality</h3>
+                    <p class="ops-chart-caption">
+                        Operational telemetry derived from <code>/api/metrics</code>: resolution latency (MTTR), inter-failure
+                        cadence (MTTF), failure taxonomy (stable vs flaky), and multi-week volume/MTTR co-movement.
+                    </p>
+                    <div id="ops-analytics-detail" class="ops-analytics-detail-grid">
+                        <div class="ops-analytics-detail-tile"><h5>Total incidents</h5><div class="detail-value" id="an-total">—</div><small>All ingested failure records</small></div>
+                        <div class="ops-analytics-detail-tile"><h5>Active backlog</h5><div class="detail-value kpi-danger" id="an-active">—</div><small>Unresolved (is_resolved = 0)</small></div>
+                        <div class="ops-analytics-detail-tile"><h5>Resolution rate</h5><div class="detail-value kpi-info" id="an-resolution">—</div><small>N<sub>r</sub> / N × 100</small></div>
+                        <div class="ops-analytics-detail-tile"><h5>Flaky ratio</h5><div class="detail-value kpi-warn" id="an-flaky-ratio">—</div><small>N<sub>f</sub> / N × 100</small></div>
+                    </div>
+                    <div class="ops-analytics-grid">
+                        <div class="ops-stat-card">
+                            <h4>MTTR</h4>
+                            <div class="stat-value" id="mttr-value" style="color: var(--log-pass);">-- min</div>
+                            <small style="color: var(--text-muted);">Mean time to resolution</small>
                         </div>
-
-                        <div style="background: #0d1117; padding: 20px; border-radius: 8px; text-align: center; width: 200px; border: 1px solid #30363d; display: flex; flex-direction: column; justify-content: center;">
-                            <h4 style="color: #8b949e; margin: 0;">MTTF</h4>
-                            <h1 id="mttf-value" style="color: #58a6ff; font-size: 2.5em; margin: 10px 0;">-- min</h1>
-                            <small style="color: #8b949e;">Mean Time To Failure</small>
+                        <div class="ops-stat-card">
+                            <h4>MTTF</h4>
+                            <div class="stat-value" id="mttf-value" style="color: var(--log-info);">-- min</div>
+                            <small style="color: var(--text-muted);">Mean time to failure</small>
                         </div>
-
-                        <div style="width: 300px; background: #0d1117; padding: 15px; border-radius: 8px; border: 1px solid #30363d;">
-                            <canvas id="flakyChart"></canvas>
+                        <div class="ops-stat-card ops-donut-card">
+                            <div class="ops-donut-wrap">
+                                <canvas id="flakyChart"></canvas>
+                            </div>
                         </div>
                     </div>
-
-                    <div style="width: 100%; background: #0d1117; padding: 20px; border-radius: 8px; border: 1px solid #30363d; box-sizing: border-box;">
-                        <h4 style="color: #c9d1d9; margin-top: 0; margin-bottom: 15px;">5-Week Evolution (Alert Volume vs. Resolution Time)</h4>
-                        <div style="height: 280px; width: 100%;">
+                    <div class="ops-chart-wide">
+                        <h4 style="margin: 0 0 8px; font-size: 13px; font-weight: 600; color: var(--text-main);">5-week evolution — incident volume, flaky density &amp; MTTR</h4>
+                        <p class="ops-chart-caption" style="margin-bottom: 14px;">
+                            Dual-axis composite: bar stacks for total and flaky counts (left Y), MTTR trend line (right Y).
+                            Rising volume with flat MTTR often indicates capacity saturation; rising MTTR with flat volume signals triage complexity.
+                        </p>
+                        <div style="height: 300px; width: 100%;">
                             <canvas id="evolutionChart"></canvas>
                         </div>
                     </div>
@@ -734,7 +729,7 @@
                                     </button>
                                 </div>
                             </div>
-                            <button class="btn-primary" style="width: 100%; margin-top: 20px; font-size: 14px; padding: 12px;" onclick="saveCIConfig()">Provision Project Endpoint</button>
+                            <button id="save-ci-btn" class="btn-primary" style="width: 100%; margin-top: 20px; font-size: 14px; padding: 12px;" onclick="saveCIConfig()">Provision Project Endpoint</button>
                         </div>
                     </div>
 
@@ -760,40 +755,19 @@
                 </div>
             </section>
 
-            <section id="view-finops" class="view-section">
-                <div class="header-bar">
-                    <div>
-                        <h1 style="margin: 0; font-size: 24px;">FinOps Intelligence</h1>
-                        <p style="margin: 5px 0 0 0; opacity: 0.6; font-size: 14px;">Weekly cost evolution, flaky waste, and CI spend — Managers only.</p>
-                    </div>
+            <section id="view-finops" class="view-section finops-dashboard">
+                <div class="finops-page-head">
+                    <h1>FinOps Intelligence</h1>
+                    <p>Weekly cost evolution, flaky waste, and CI spend — executive view.</p>
                 </div>
 
-                <div class="finops-kpi-grid">
-                    <div class="kpi-card" style="border-top: 4px solid #58a6ff;">
-                        <div style="font-size: 11px; opacity: 0.6; font-weight: bold;">TOTAL FINANCIAL IMPACT</div>
-                        <div class="kpi-value" style="color: #58a6ff;" id="finops-kpi-total-cost">—</div>
-                    </div>
-                    <div class="kpi-card" style="border-top: 4px solid #d29922;">
-                        <div style="font-size: 11px; opacity: 0.6; font-weight: bold;">FLAKY WASTE COST</div>
-                        <div class="kpi-value" style="color: #d29922;" id="finops-kpi-flaky-cost">—</div>
-                        <div style="font-size: 10px; opacity: 0.5; margin-top: 5px;" id="finops-kpi-waste-pct">—</div>
-                    </div>
-                    <div class="kpi-card" style="border-top: 4px solid #ff7b72;">
-                        <div style="font-size: 11px; opacity: 0.6; font-weight: bold;">CI MINUTES LOST</div>
-                        <div class="kpi-value log-fatal" id="finops-kpi-ci-minutes">—</div>
-                    </div>
-                    <div class="kpi-card" style="border-top: 4px solid #3fb950;">
-                        <div style="font-size: 11px; opacity: 0.6; font-weight: bold;">AVERAGE MTTR</div>
-                        <div class="kpi-value" style="color: #3fb950;" id="finops-kpi-mttr">—</div>
-                    </div>
-                    <div class="kpi-card">
-                        <div style="font-size: 11px; opacity: 0.6; font-weight: bold;">TOTAL INCIDENTS</div>
-                        <div class="kpi-value" id="finops-kpi-incidents">—</div>
-                    </div>
-                    <div class="kpi-card">
-                        <div style="font-size: 11px; opacity: 0.6; font-weight: bold;">FLAKY TESTS</div>
-                        <div class="kpi-value" style="color: #d29922;" id="finops-kpi-flaky-count">—</div>
-                    </div>
+                <div class="finops-bento-metrics">
+                    <div class="kpi-card"><div>Total impact</div><div class="kpi-value" style="color: var(--log-info);" id="finops-kpi-total-cost">—</div></div>
+                    <div class="kpi-card"><div>Flaky waste</div><div class="kpi-value" style="color: var(--log-warn);" id="finops-kpi-flaky-cost">—</div><div class="metric-hint" id="finops-kpi-waste-pct">—</div></div>
+                    <div class="kpi-card"><div>CI minutes lost</div><div class="kpi-value log-fatal" id="finops-kpi-ci-minutes">—</div></div>
+                    <div class="kpi-card"><div>Average MTTR</div><div class="kpi-value" style="color: var(--log-pass);" id="finops-kpi-mttr">—</div></div>
+                    <div class="kpi-card"><div>Total incidents</div><div class="kpi-value" id="finops-kpi-incidents">—</div></div>
+                    <div class="kpi-card"><div>Flaky tests</div><div class="kpi-value" style="color: var(--log-warn);" id="finops-kpi-flaky-count">—</div></div>
                 </div>
 
                                 <div class="data-card" style="margin-bottom: 24px; display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end;">
@@ -814,13 +788,13 @@
                     <button class="btn-primary" onclick="exportFinOpsReport()">Export CSV</button>
                 </div>
 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px;">
+                <div class="finops-bento-grid">
                     <div class="data-card">
-                        <h3 style="margin-top: 0; color: #58a6ff;">12-week volume &amp; MTTR</h3>
+                        <h3 style="margin-top: 0; color: var(--accent);">12-week volume &amp; MTTR</h3>
                         <div style="height: 280px;"><canvas id="finops-evolution-chart"></canvas></div>
                     </div>
                     <div class="data-card">
-                        <h3 style="margin-top: 0; color: #d29922;">12-week FinOps cost evolution</h3>
+                        <h3 style="margin-top: 0; color: var(--log-warn);">12-week FinOps cost evolution</h3>
                         <div style="height: 280px;"><canvas id="finops-cost-evolution-chart"></canvas></div>
                     </div>
                 </div>
@@ -830,7 +804,7 @@
                     <div id="finops-pinned-charts" class="pinned-charts-grid"></div>
                 </div>
 
-                <div style="display: grid; grid-template-columns: 1fr 380px; gap: 24px; margin-bottom: 24px;">
+                <div class="finops-bento-wide">
                     <div class="data-card">
                         <h3 style="margin-top: 0;">Weekly pipeline health (last 7 days)</h3>
                         <table style="width:100%; border-collapse: collapse;">
@@ -922,10 +896,14 @@
                                 </label>
                             </div>
                             <div class="chart-snippet-row">
-                                <button type="button" class="chart-snippet-btn" onclick="insertQclSnippet('CHART line &quot;Weekly incidents&quot;\nMETRIC incidents\nRANGE 12w\nGROUP week')">Incidents</button>
-                                <button type="button" class="chart-snippet-btn role-manager-only" onclick="insertQclSnippet('CHART bar &quot;FinOps cost&quot;\nMETRIC finops_cost\nRANGE 12w\nGROUP week')">FinOps cost</button>
+                                <button type="button" class="chart-snippet-btn" onclick="insertQclSnippet('CHART line &quot;Weekly incident volume&quot;\nMETRIC incidents\nRANGE 12w\nGROUP week')">Incidents</button>
+                                <button type="button" class="chart-snippet-btn" onclick="insertQclSnippet('CHART line &quot;Resolution efficiency&quot;\nMETRIC resolution_rate\nRANGE 12w\nGROUP week')">Resolution %</button>
+                                <button type="button" class="chart-snippet-btn" onclick="insertQclSnippet('CHART line &quot;Flaky ratio trend&quot;\nMETRIC flaky_ratio\nRANGE 12w\nGROUP week')">Flaky ratio</button>
+                                <button type="button" class="chart-snippet-btn" onclick="insertQclSnippet('CHART bar &quot;Active backlog by gateway&quot;\nMETRIC active\nRANGE 30d\nGROUP project')">Active backlog</button>
+                                <button type="button" class="chart-snippet-btn role-manager-only" onclick="insertQclSnippet('CHART bar &quot;FinOps loaded cost&quot;\nMETRIC finops_cost\nRANGE 12w\nGROUP week')">FinOps cost</button>
+                                <button type="button" class="chart-snippet-btn role-manager-only" onclick="insertQclSnippet('CHART line &quot;Investigation spend&quot;\nMETRIC invest_cost\nRANGE 12w\nGROUP week')">Invest cost</button>
                                 <button type="button" class="chart-snippet-btn" onclick="insertQclSnippet('CHART line &quot;MTTR trend&quot;\nMETRIC mttr\nRANGE 8w\nGROUP week')">MTTR</button>
-                                <button type="button" class="chart-snippet-btn" onclick="insertQclSnippet('CHART bar &quot;By gateway&quot;\nMETRIC incidents\nRANGE 30d\nGROUP project')">By project</button>
+                                <button type="button" class="chart-snippet-btn" onclick="insertQclSnippet('CHART doughnut &quot;Failure taxonomy&quot;\nMETRIC stable\nRANGE 30d\nGROUP week')">Stable vs flaky</button>
                             </div>
                             <textarea id="qcl-editor" class="login-input qcl-editor" spellcheck="false" placeholder="CHART line ..."></textarea>
                             <div style="margin-top: 12px;">

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/QA-Capsule/qa-capsule-community/pkg/core"
@@ -234,7 +235,7 @@ func registerTeamRoutes(config *core.Config) {
 		if r.Method == http.MethodGet {
 			teamID := r.URL.Query().Get("team_id")
 			query := `
-				SELECT u.username, u.fullname, u.role, ut.team_role 
+				SELECT u.username, u.fullname, u.role, ut.team_role, ut.inherited_from
 				FROM users u
 				JOIN user_teams ut ON u.id = ut.user_id
 				WHERE ut.team_id = ?`
@@ -249,13 +250,19 @@ func registerTeamRoutes(config *core.Config) {
 			var members []map[string]interface{}
 			for rows.Next() {
 				var u, fn, globalRole, teamRole string
-				rows.Scan(&u, &fn, &globalRole, &teamRole)
-				members = append(members, map[string]interface{}{
+				var inheritedFrom sql.NullInt64
+				rows.Scan(&u, &fn, &globalRole, &teamRole, &inheritedFrom)
+				m := map[string]interface{}{
 					"username":    u,
 					"fullname":    fn,
 					"global_role": globalRole,
 					"team_role":   teamRole,
-				})
+					"inherited":   inheritedFrom.Valid,
+				}
+				if inheritedFrom.Valid {
+					m["inherited_from"] = inheritedFrom.Int64
+				}
+				members = append(members, m)
 			}
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(members)
@@ -285,8 +292,8 @@ func registerTeamRoutes(config *core.Config) {
 					return
 				}
 
-				_, err = core.DB.Exec("INSERT OR REPLACE INTO user_teams (user_id, team_id, team_role) VALUES (?, ?, ?)", userID, req.TeamID, req.TeamRole)
-				if err != nil {
+				propagate := core.CanManageTeams(claims.Role)
+				if err := core.AssignUserToTeamWithInheritance(userID, req.TeamID, req.TeamRole, propagate); err != nil {
 					http.Error(w, "Failed to assign user", http.StatusInternalServerError)
 					return
 				}
@@ -294,7 +301,7 @@ func registerTeamRoutes(config *core.Config) {
 
 			} else if r.Method == http.MethodDelete {
 				username := r.URL.Query().Get("username")
-				teamID := r.URL.Query().Get("team_id")
+				teamID, _ := strconv.Atoi(r.URL.Query().Get("team_id"))
 
 				var userID int
 				err := core.DB.QueryRow("SELECT id FROM users WHERE username = ?", username).Scan(&userID)
@@ -303,8 +310,7 @@ func registerTeamRoutes(config *core.Config) {
 					return
 				}
 
-				_, err = core.DB.Exec("DELETE FROM user_teams WHERE user_id = ? AND team_id = ?", userID, teamID)
-				if err != nil {
+				if err := core.RemoveUserFromTeam(userID, teamID); err != nil {
 					http.Error(w, "Failed to remove user", http.StatusInternalServerError)
 					return
 				}

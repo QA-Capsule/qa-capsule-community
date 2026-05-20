@@ -287,9 +287,12 @@ export function loadOrgMembers(orgId) {
             }
             tbody.innerHTML = members.map(m => {
                 let roleColor = m.team_role === 'team_admin' ? '#d33833' : (m.team_role === 'team_operator' ? '#d29922' : '#58a6ff');
+                const inheritedTag = m.inherited
+                    ? '<span class="member-inherited-tag" title="Inherited from parent group — remove to opt out">inherited</span>'
+                    : '';
                 return `
                 <tr style="border-bottom:1px solid var(--border-main);">
-                    <td style="padding:12px 10px;"><strong>${m.fullname}</strong><br><small style="opacity:0.6;">${m.username}</small></td>
+                    <td style="padding:12px 10px;"><strong>${m.fullname}</strong> ${inheritedTag}<br><small style="opacity:0.6;">${m.username}</small></td>
                     <td><span style="border: 1px solid ${roleColor}; color: ${roleColor}; padding: 3px 8px; border-radius: 12px; font-size: 10px; font-weight: bold; text-transform:uppercase;">${m.team_role.replace('team_', '')}</span></td>
                     <td><span style="opacity:0.5; font-size: 11px; text-transform:uppercase;">${m.global_role}</span></td>
                     <td style="text-align:right;">

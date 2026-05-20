@@ -20,8 +20,23 @@ export const currencySymbols = {
 };
 
 // --- GLOBAL CHART.JS DESIGN DEFAULTS ---
-Chart.defaults.color = '#8b949e';
-Chart.defaults.font.family = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+Chart.defaults.font.family = "'DM Sans', system-ui, -apple-system, sans-serif";
+
+function getChartTheme() {
+    const dark = document.body.getAttribute('data-theme') === 'dark';
+    return {
+        legend: dark ? '#c9d1d9' : '#334155',
+        title: dark ? '#94a3b8' : '#475569',
+        tick: dark ? '#8b949e' : '#64748b',
+        border: dark ? '#111827' : '#ffffff',
+        grid: dark ? 'rgba(48, 54, 61, 0.45)' : 'rgba(203, 213, 225, 0.9)',
+    };
+}
+
+function applyChartThemeDefaults() {
+    const t = getChartTheme();
+    Chart.defaults.color = t.tick;
+}
 
 export function setSelectedCurrency(val) { selectedCurrency = val; }
 
@@ -122,7 +137,7 @@ export function editProject(projectId) {
         apiKeyInput.type = 'password';
     }
 
-    const btn = document.querySelector("button[onclick='window.saveCIConfig()']");
+    const btn = document.getElementById('save-ci-btn');
     if (btn) {
         btn.innerText = "Update Project Endpoint";
         btn.style.borderColor = "#58a6ff";
@@ -167,36 +182,34 @@ export function saveCIConfig() {
     const method = editingProjectId ? 'PUT' : 'POST';
 
     fetchWithAuth('/api/config/projects', { method: method, body: JSON.stringify(payload) })
-        .then(res => {
-            if (res.ok) {
-                notify(editingProjectId ? "Project updated!" : "Endpoint Provisioned!", "success");
-
-                editingProjectId = null;
-                document.getElementById('ci-project-name').value = "";
-                document.getElementById('ci-specific').value = "";
-                document.getElementById('ci-slack-channel').value = "";
-                document.getElementById('ci-jira-key').value = "";
-                document.getElementById('ci-teams-webhook').value = "";
-
-                const apiKeyInput = document.getElementById('ci-api-key');
-                if (apiKeyInput) {
-                    apiKeyInput.type = 'text';
-                    const randomHex = Math.random().toString(16).substring(2, 10);
-                    apiKeyInput.value = `sre_pk_${currentSelectedCI}_${randomHex}`;
-                }
-
-                const btn = document.querySelector("button[onclick='window.saveCIConfig()']");
-                if (btn) {
-                    btn.innerText = "Provision Project Endpoint";
-                    btn.style.borderColor = "";
-                    btn.style.color = "";
-                }
-
-                loadGatewaysData();
-                window.loadDashboardFilters();
-            } else {
-                notify("Operation failed", "error");
+        .then(res => parseApiJson(res))
+        .then(({ ok, offline, status, data }) => {
+            if (!ok) {
+                const msg = offline ? 'Server unreachable.' : (data?.error || `Operation failed (${status || 'error'})`);
+                notify(msg, 'error');
+                return;
             }
+            notify(editingProjectId ? "Project updated!" : "Endpoint Provisioned!", "success");
+            editingProjectId = null;
+            document.getElementById('ci-project-name').value = "";
+            document.getElementById('ci-specific').value = "";
+            document.getElementById('ci-slack-channel').value = "";
+            document.getElementById('ci-jira-key').value = "";
+            document.getElementById('ci-teams-webhook').value = "";
+            const apiKeyInput = document.getElementById('ci-api-key');
+            if (apiKeyInput) {
+                apiKeyInput.type = 'text';
+                const randomHex = Math.random().toString(16).substring(2, 10);
+                apiKeyInput.value = `sre_pk_${currentSelectedCI}_${randomHex}`;
+            }
+            const btn = document.getElementById('save-ci-btn');
+            if (btn) {
+                btn.innerText = "Provision Project Endpoint";
+                btn.style.borderColor = "";
+                btn.style.color = "";
+            }
+            loadGatewaysData();
+            if (window.loadDashboardFilters) window.loadDashboardFilters();
         }).catch(() => notify("Network error", "error"));
 }
 
@@ -241,9 +254,28 @@ export function toggleAnalytics() {
 }
 
 export function loadAnalytics(isExport = false) {
+    applyChartThemeDefaults();
+    const theme = getChartTheme();
     return fetchWithAuth(`/api/metrics?_ts=${Date.now()}`)
         .then(res => res.json())
         .then(data => {
+            const total = data.total_incidents ?? 0;
+            const resolved = data.resolved_incidents ?? 0;
+            const flaky = data.flaky_tests ?? 0;
+            const stable = data.stable_failures ?? Math.max(0, total - flaky);
+            const active = Math.max(0, total - resolved);
+            const resRate = total > 0 ? Math.round((resolved / total) * 100) : 0;
+            const flakyRate = total > 0 ? Math.round((flaky / total) * 100) : 0;
+
+            const setDetail = (id, text) => {
+                const el = document.getElementById(id);
+                if (el) el.textContent = text;
+            };
+            setDetail('an-total', String(total));
+            setDetail('an-active', String(active));
+            setDetail('an-resolution', total > 0 ? `${resRate}%` : 'N/A');
+            setDetail('an-flaky-ratio', total > 0 ? `${flakyRate}%` : 'N/A');
+
             document.getElementById('mttr-value').innerText = data.mttr_minutes + " min";
             
             const mttfElement = document.getElementById('mttf-value');
@@ -262,9 +294,9 @@ export function loadAnalytics(isExport = false) {
                     labels: ['Stable Failures', 'Flaky Tests'],
                     datasets: [{
                         data: [data.stable_failures, data.flaky_tests],
-                        backgroundColor: ['#ff7b72', '#d29922'],
-                        borderColor: '#0d1117',
-                        borderWidth: 4,
+                        backgroundColor: ['#ef4444', '#d97706'],
+                        borderColor: theme.border,
+                        borderWidth: 2,
                         hoverOffset: 5
                     }]
                 },
@@ -274,11 +306,25 @@ export function loadAnalytics(isExport = false) {
                     animation: isExport ? false : { duration: 800, easing: 'easeOutQuart' },
                     cutout: '75%',
                     plugins: {
-                        legend: { 
-                            position: 'bottom', 
-                            labels: { color: '#c9d1d9', usePointStyle: true, padding: 15, font: { size: 11 } } 
+                        legend: {
+                            position: 'bottom',
+                            labels: { color: theme.legend, usePointStyle: true, padding: 15, font: { size: 12, weight: '500' } }
                         },
-                        title: { display: true, text: 'Failure Quality Assessment', color: '#8b949e', font: { size: 12, weight: 'normal' } }
+                        title: {
+                            display: true,
+                            text: `Failure taxonomy — ${stable} stable / ${flaky} flaky`,
+                            color: theme.title,
+                            font: { size: 13, weight: '600' }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label(ctx) {
+                                    const sum = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                                    const pct = sum ? Math.round((ctx.raw / sum) * 100) : 0;
+                                    return `${ctx.label}: ${ctx.raw} (${pct}%)`;
+                                }
+                            }
+                        }
                     }
                 }
             });
@@ -291,6 +337,7 @@ export function loadAnalytics(isExport = false) {
                 const totals = data.evolution.map(e => e.total_failures);
                 const flakies = data.evolution.map(e => e.flaky_count);
                 const mttrs = data.evolution.map(e => Math.round(e.mttr));
+                const resolvedSeries = data.evolution.map(e => Math.max(0, (e.total_failures || 0) - (e.flaky_count || 0)));
 
                 evolutionChart = new Chart(ctxEvo, {
                     type: 'bar',
@@ -318,17 +365,26 @@ export function loadAnalytics(isExport = false) {
                                 yAxisID: 'y'
                             },
                             {
+                                label: 'Stable failures (est.)',
+                                type: 'bar',
+                                data: resolvedSeries,
+                                backgroundColor: 'rgba(100, 116, 139, 0.45)',
+                                borderRadius: 4,
+                                barPercentage: 0.4,
+                                yAxisID: 'y'
+                            },
+                            {
                                 label: 'Avg MTTR (min)',
                                 type: 'line',
                                 data: mttrs,
-                                borderColor: '#3fb950',
-                                backgroundColor: 'rgba(63, 185, 80, 0.08)',
+                                borderColor: '#059669',
+                                backgroundColor: 'rgba(5, 150, 105, 0.08)',
                                 fill: true,
                                 borderWidth: 3,
                                 tension: 0.4,
-                                pointRadius: isExport ? 4 : 0, // Points visible on print export
+                                pointRadius: isExport ? 4 : 0,
                                 pointHoverRadius: 6,
-                                pointBackgroundColor: '#3fb950',
+                                pointBackgroundColor: '#059669',
                                 yAxisID: 'y1'
                             }
                         ]
@@ -338,24 +394,42 @@ export function loadAnalytics(isExport = false) {
                         maintainAspectRatio: false,
                         animation: isExport ? false : { duration: 1000, easing: 'easeOutQuart' },
                         interaction: { mode: 'index', intersect: false },
+                        plugins: {
+                            legend: { labels: { color: theme.legend, usePointStyle: true, font: { size: 11 } } },
+                            tooltip: {
+                                callbacks: {
+                                    footer(items) {
+                                        const t = items.find(i => i.datasetIndex === 0);
+                                        const f = items.find(i => i.datasetIndex === 1);
+                                        if (t && f && t.raw != null && f.raw != null) {
+                                            const sum = Number(t.raw) + Number(f.raw);
+                                            if (sum > 0) {
+                                                const fp = Math.round((Number(f.raw) / sum) * 100);
+                                                return `Flaky share: ${fp}%`;
+                                            }
+                                        }
+                                        return '';
+                                    }
+                                }
+                            }
+                        },
                         scales: {
-                            x: { ticks: { color: '#8b949e' }, grid: { display: false } },
+                            x: { ticks: { color: theme.tick }, grid: { display: false } },
                             y: {
                                 type: 'linear', display: true, position: 'left',
-                                title: { display: true, text: 'Incidents Volume', color: '#8b949e', font: { size: 11 } },
-                                ticks: { color: '#8b949e', stepSize: 1 }, 
-                                grid: { color: 'rgba(48, 54, 61, 0.3)', borderDash: [4, 4] },
+                                title: { display: true, text: 'Incidents Volume', color: theme.title, font: { size: 11 } },
+                                ticks: { color: theme.tick, stepSize: 1 },
+                                grid: { color: theme.grid, borderDash: [4, 4] },
                                 border: { display: false }
                             },
                             y1: {
                                 type: 'linear', display: true, position: 'right',
-                                title: { display: true, text: 'MTTR (min)', color: '#3fb950', font: { size: 11 } },
-                                ticks: { color: '#3fb950' }, 
+                                title: { display: true, text: 'MTTR (min)', color: '#059669', font: { size: 11 } },
+                                ticks: { color: '#059669' },
                                 grid: { drawOnChartArea: false },
                                 border: { display: false }
                             }
                         },
-                        plugins: { legend: { labels: { color: '#c9d1d9', usePointStyle: true } } }
                     }
                 });
             }

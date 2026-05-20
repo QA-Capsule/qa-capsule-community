@@ -20,6 +20,10 @@ export function applyTheme(theme) {
         document.body.removeAttribute('data-theme');
         localStorage.setItem('sre-theme', 'light');
     }
+    const analyticsView = document.getElementById('analytics-view');
+    if (analyticsView && analyticsView.style.display !== 'none' && typeof window.loadAnalytics === 'function') {
+        window.loadAnalytics(false);
+    }
 }
 
 export function applyPreferences(prefs) {

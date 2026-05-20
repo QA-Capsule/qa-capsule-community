@@ -31,15 +31,15 @@ func registerIncidentRoutes(config *core.Config) {
 			var query string
 			var args []interface{}
 
-			if claims.Role == "admin" {
+			if claims.Role == "admin" || claims.Role == "manager" {
 				if projectFilter != "" && projectFilter != "all" {
-					query = "SELECT id, project_name, name, status, error_message, console_logs, error_logs, is_resolved, resolved_by, created_at, resolved_at FROM incidents WHERE project_name = ? ORDER BY created_at DESC LIMIT 200"
+					query = "SELECT id, project_name, name, status, error_message, console_logs, error_logs, is_resolved, resolved_by, created_at, resolved_at, pipeline_run_id FROM incidents WHERE project_name = ? ORDER BY created_at DESC LIMIT 200"
 					args = []interface{}{projectFilter}
 				} else {
-					query = "SELECT id, project_name, name, status, error_message, console_logs, error_logs, is_resolved, resolved_by, created_at, resolved_at FROM incidents ORDER BY created_at DESC LIMIT 200"
+					query = "SELECT id, project_name, name, status, error_message, console_logs, error_logs, is_resolved, resolved_by, created_at, resolved_at, pipeline_run_id FROM incidents ORDER BY created_at DESC LIMIT 200"
 				}
 			} else {
-				query = `SELECT DISTINCT i.id, i.project_name, i.name, i.status, i.error_message, i.console_logs, i.error_logs, i.is_resolved, i.resolved_by, i.created_at, i.resolved_at 
+				query = `SELECT DISTINCT i.id, i.project_name, i.name, i.status, i.error_message, i.console_logs, i.error_logs, i.is_resolved, i.resolved_by, i.created_at, i.resolved_at, i.pipeline_run_id 
 						 FROM incidents i
 						 JOIN projects p ON i.project_name = p.name
 						 JOIN user_teams ut ON p.team_id = ut.team_id
@@ -64,13 +64,14 @@ func registerIncidentRoutes(config *core.Config) {
 			for rows.Next() {
 				var id, isResolved int
 				var pName, name, status, errMsg, cLogs, eLogs string
-				var resolvedBy, createdAt, resolvedAt sql.NullString
+				var resolvedBy, createdAt, resolvedAt, pipelineRunID sql.NullString
 
-				rows.Scan(&id, &pName, &name, &status, &errMsg, &cLogs, &eLogs, &isResolved, &resolvedBy, &createdAt, &resolvedAt)
+				rows.Scan(&id, &pName, &name, &status, &errMsg, &cLogs, &eLogs, &isResolved, &resolvedBy, &createdAt, &resolvedAt, &pipelineRunID)
 				incidents = append(incidents, map[string]interface{}{
 					"id": id, "project_name": pName, "name": name, "status": status,
 					"error_message": errMsg, "console_logs": cLogs, "error_logs": eLogs, "is_resolved": isResolved == 1,
 					"resolved_by": resolvedBy.String, "created_at": createdAt.String, "resolved_at": resolvedAt.String,
+					"pipeline_run_id": pipelineRunID.String,
 				})
 			}
 			json.NewEncoder(w).Encode(incidents)
@@ -382,13 +383,23 @@ func registerIncidentRoutes(config *core.Config) {
 
 		if r.Method == http.MethodGet {
 			var devRate, ciCost, avgDuration, avgInvestigation float64
-			core.DB.QueryRow("SELECT dev_hourly_rate, ci_minute_cost, avg_pipeline_duration, avg_investigation_time FROM finops_settings WHERE id = 1").Scan(&devRate, &ciCost, &avgDuration, &avgInvestigation)
-
-			json.NewEncoder(w).Encode(map[string]float64{
+			var currency sql.NullString
+			err := core.DB.QueryRow(
+				"SELECT dev_hourly_rate, ci_minute_cost, avg_pipeline_duration, avg_investigation_time, currency FROM finops_settings WHERE id = 1",
+			).Scan(&devRate, &ciCost, &avgDuration, &avgInvestigation, &currency)
+			if err == sql.ErrNoRows {
+				devRate, ciCost, avgDuration, avgInvestigation = 50, 0.008, 15, 30
+			}
+			cur := "USD"
+			if currency.Valid && currency.String != "" {
+				cur = currency.String
+			}
+			json.NewEncoder(w).Encode(map[string]interface{}{
 				"dev_hourly_rate":        devRate,
 				"ci_minute_cost":         ciCost,
 				"avg_pipeline_duration":  avgDuration,
 				"avg_investigation_time": avgInvestigation,
+				"currency":               cur,
 			})
 		} else if r.Method == http.MethodPut {
 			var req struct {
@@ -404,10 +415,23 @@ func registerIncidentRoutes(config *core.Config) {
 				return
 			}
 
+			currency := strings.TrimSpace(req.Currency)
+			if currency == "" {
+				currency = "USD"
+			}
+
 			var dbErr error
 			for attempt := 1; attempt <= 5; attempt++ {
-				_, dbErr = core.DB.Exec(`UPDATE finops_settings SET dev_hourly_rate = ?, ci_minute_cost = ?, avg_pipeline_duration = ?, avg_investigation_time = ? WHERE id = 1`,
-					req.DevHourlyRate, req.CiMinuteCost, req.AvgPipelineDuration, req.AvgInvestigationTime)
+				_, dbErr = core.DB.Exec(`
+					INSERT INTO finops_settings (id, dev_hourly_rate, ci_minute_cost, avg_pipeline_duration, avg_investigation_time, currency)
+					VALUES (1, ?, ?, ?, ?, ?)
+					ON CONFLICT(id) DO UPDATE SET
+						dev_hourly_rate = excluded.dev_hourly_rate,
+						ci_minute_cost = excluded.ci_minute_cost,
+						avg_pipeline_duration = excluded.avg_pipeline_duration,
+						avg_investigation_time = excluded.avg_investigation_time,
+						currency = excluded.currency`,
+					req.DevHourlyRate, req.CiMinuteCost, req.AvgPipelineDuration, req.AvgInvestigationTime, currency)
 				if dbErr == nil {
 					break
 				}

@@ -162,18 +162,6 @@ func enterpriseMiddleware(config *core.Config, next http.HandlerFunc) http.Handl
 func Start(initialConfig core.Config) {
 	config := &initialConfig
 
-	// Initialize FinOps settings table
-	core.DB.Exec(`CREATE TABLE IF NOT EXISTS finops_settings (
-		id INTEGER PRIMARY KEY,
-		dev_hourly_rate REAL,
-		ci_minute_cost REAL,
-		avg_pipeline_duration REAL,
-		avg_investigation_time REAL
-	)`)
-	core.DB.Exec(`INSERT INTO finops_settings (id, dev_hourly_rate, ci_minute_cost, avg_pipeline_duration, avg_investigation_time) 
-				  SELECT 1, 50.0, 0.008, 15.0, 30.0 
-				  WHERE NOT EXISTS (SELECT 1 FROM finops_settings WHERE id = 1)`)
-
 	// Create Enterprise Configuration Table
 	core.DB.Exec(`CREATE TABLE IF NOT EXISTS enterprise_config (
 		id INTEGER PRIMARY KEY,

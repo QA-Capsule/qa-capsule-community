@@ -314,16 +314,16 @@ window.toggleActionDropdown = function (id, event) {
     if (event) { event.preventDefault(); event.stopPropagation(); }
     const dropdown = document.getElementById(`action-dropdown-${id}`);
     if (dropdown) {
-        const isCurrentlyHidden = dropdown.style.display === 'none';
-        document.querySelectorAll('[id^="action-dropdown-"]').forEach(el => el.style.display = 'none');
-        if (isCurrentlyHidden) { dropdown.style.display = 'block'; window.pausePollingUntil = Date.now() + 15000; }
-        else { dropdown.style.display = 'none'; window.pausePollingUntil = 0; }
+        const isCurrentlyHidden = !dropdown.classList.contains('is-open');
+        document.querySelectorAll('.action-dropdown-menu').forEach(el => el.classList.remove('is-open'));
+        if (isCurrentlyHidden) { dropdown.classList.add('is-open'); window.pausePollingUntil = Date.now() + 15000; }
+        else { window.pausePollingUntil = 0; }
     }
 }
 
 document.addEventListener('click', function (event) {
     if (!event.target.closest('.action-dropdown-container')) {
-        document.querySelectorAll('[id^="action-dropdown-"]').forEach(el => el.style.display = 'none');
+        document.querySelectorAll('.action-dropdown-menu').forEach(el => el.classList.remove('is-open'));
     }
 });
 
@@ -497,15 +497,28 @@ window.renderIncidentsList = function () {
 
     if (searchQuery) filteredData = filteredData.filter(inc => (inc.name && inc.name.toLowerCase().includes(searchQuery)) || (inc.project_name && inc.project_name.toLowerCase().includes(searchQuery)) || (inc.error_message && inc.error_message.toLowerCase().includes(searchQuery)));
 
-    if (filteredData.length === 0) { listEl.innerHTML = '<div style="text-align:center; padding: 40px; opacity: 0.5;">No results match your search.</div>'; return; }
+    if (filteredData.length === 0) {
+        const total = (window.currentIncidents || []).length;
+        let msg = 'No incidents yet. Run a pipeline and send results to your CI/CD gateway webhook.';
+        if (total > 0 && searchQuery) msg = 'No incidents match your search. Clear the search box or change filters.';
+        else if (total > 0 && window.statusFilter === 'active') msg = 'No active incidents. Switch status filter to "All" or "Resolved".';
+        else if (total > 0 && window.statusFilter === 'resolved') msg = 'No resolved incidents yet.';
+        else if (total > 0) msg = 'No incidents match the current project filter.';
+        listEl.innerHTML = `<div class="incident-empty-state">${msg}</div>`;
+        return;
+    }
 
     const activeCount = filteredData.filter(i => !normalizeIsResolved(i)).length;
     const resolvedCount = filteredData.filter(i => normalizeIsResolved(i)).length;
     const health = filteredData.length > 0 ? Math.round((resolvedCount / filteredData.length) * 100) : 100;
 
-    document.getElementById('kpi-active').innerText = activeCount; document.getElementById('kpi-active').style.color = activeCount > 0 ? '#ff7b72' : '#3fb950';
+    const kpiActive = document.getElementById('kpi-active');
+    kpiActive.innerText = activeCount;
+    kpiActive.className = `kpi-value ${activeCount > 0 ? 'kpi-danger' : 'kpi-success'}`;
     document.getElementById('kpi-resolved').innerText = resolvedCount;
-    document.getElementById('kpi-health').innerText = `${health}%`; document.getElementById('kpi-health').style.color = health < 80 ? '#d29922' : '#58a6ff';
+    const kpiHealth = document.getElementById('kpi-health');
+    kpiHealth.innerText = `${health}%`;
+    kpiHealth.className = `kpi-value ${health < 80 ? 'kpi-warn' : 'kpi-info'}`;
 
     const sortedData = [...filteredData].sort((a, b) => a.id - b.id);
     const groupsArray = []; let currentGroup = null;
@@ -513,18 +526,19 @@ window.renderIncidentsList = function () {
     sortedData.forEach(inc => {
         const safeDateStr = inc.created_at ? inc.created_at.replace(' ', 'T') + 'Z' : '';
         const incTime = new Date(safeDateStr).getTime() || 0;
+        const runKey = (inc.pipeline_run_id && String(inc.pipeline_run_id).trim())
+            ? String(inc.pipeline_run_id)
+            : `legacy-${inc.project_name}-${Math.floor(incTime / 120000)}`;
 
         if (!currentGroup) {
-            currentGroup = { id: inc.id, project_name: inc.project_name, created_at: inc.created_at, is_resolved: true, incidents: [], firstTime: incTime, lastTime: incTime, lastId: inc.id };
+            currentGroup = { id: inc.id, project_name: inc.project_name, created_at: inc.created_at, pipeline_run_id: runKey, is_resolved: true, incidents: [], firstTime: incTime, lastTime: incTime, lastId: inc.id };
             groupsArray.push(currentGroup);
         } else {
-            const timeDiffSec = Math.abs(incTime - currentGroup.firstTime) / 1000;
-            const idDiff = Math.abs(inc.id - currentGroup.lastId);
-
-            if (inc.project_name === currentGroup.project_name && timeDiffSec <= 120 && idDiff <= 100) {
+            const sameRun = inc.project_name === currentGroup.project_name && runKey === currentGroup.pipeline_run_id;
+            if (sameRun) {
                 currentGroup.lastTime = incTime; currentGroup.lastId = inc.id;
             } else {
-                currentGroup = { id: inc.id, project_name: inc.project_name, created_at: inc.created_at, is_resolved: true, incidents: [], firstTime: incTime, lastTime: incTime, lastId: inc.id };
+                currentGroup = { id: inc.id, project_name: inc.project_name, created_at: inc.created_at, pipeline_run_id: runKey, is_resolved: true, incidents: [], firstTime: incTime, lastTime: incTime, lastId: inc.id };
                 groupsArray.push(currentGroup);
             }
         }
@@ -533,7 +547,10 @@ window.renderIncidentsList = function () {
     });
 
     groupsArray.reverse(); window.groupedIncidents = {};
-    groupsArray.forEach(g => { window.groupedIncidents[g.id] = g; });
+    groupsArray.forEach(g => {
+        window.groupedIncidents[g.id] = g;
+        openGroups.add(String(g.id));
+    });
 
     const userRole = parseJwt(localStorage.getItem('sre-jwt')).role;
     const canResolve = canResolveIncidents(userRole);
@@ -551,40 +568,42 @@ window.renderIncidentsList = function () {
     const globalAllSelected = window.currentIncidents.length > 0 && window.currentIncidents.every(inc => window.selectedIncidents.has(String(inc.id)));
 
     let htmlContent = `
-    <div id="bulk-action-banner" style="display: ${window.selectedIncidents.size > 0 ? 'flex' : 'none'}; margin-bottom: 20px; justify-content: space-between; align-items: center; background: #161b22; padding: 12px 20px; border: 1px solid #58a6ff; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); position: sticky; top: 10px; z-index: 100;">
+    <div id="bulk-action-banner" class="bulk-action-bar" style="display: ${window.selectedIncidents.size > 0 ? 'flex' : 'none'};">
         <div style="display:flex; align-items:center; gap: 10px;">
             <input type="checkbox" id="select-all-cb" onclick="toggleSelectAll(this.checked)" ${globalAllSelected ? 'checked' : ''} style="width: 16px; height: 16px; cursor: pointer;">
-            <label for="select-all-cb" id="bulk-count-label" style="color: #58a6ff; font-size: 13px; font-weight: bold; cursor: pointer;">${window.selectedIncidents.size} Test(s) Selected</label>
+            <label for="select-all-cb" id="bulk-count-label" class="bulk-action-label">${window.selectedIncidents.size} Test(s) Selected</label>
         </div>
-        <div style="display: flex; gap: 10px;">
-            ${canResolve ? `<button class="btn-primary" style="font-size: 12px; padding: 6px 12px; border-color:#3fb950; background:rgba(63, 185, 80, 0.1); color:#3fb950;" onclick="resolveSelected()">${iconCheck} Resolve</button>` : ''}
-            ${isAdmin ? `<button class="btn-secondary" style="font-size: 12px; padding: 6px 12px; color: #ff7b72; border-color: #ff7b72;" onclick="deleteSelected()">${iconTrash} Delete</button>` : ''}
+        <div style="display: flex; gap: 10px; margin-left: auto;">
+            ${canResolve ? `<button class="btn-primary" style="font-size: 12px; padding: 6px 12px; border-color: var(--log-pass); background: rgba(5, 150, 105, 0.1); color: var(--log-pass);" onclick="resolveSelected()">${iconCheck} Resolve</button>` : ''}
+            ${isAdmin ? `<button class="btn-secondary" style="font-size: 12px; padding: 6px 12px; color: var(--log-fatal); border-color: var(--log-fatal);" onclick="deleteSelected()">${iconTrash} Delete</button>` : ''}
         </div>
     </div>`;
 
     htmlContent += groupsArray.map(group => {
         const activeSubAlerts = group.incidents.filter(i => !normalizeIsResolved(i)).length;
-        let severityColor = activeSubAlerts > 0 ? '#ff7b72' : '#3fb950';
+        const cardStateClass = activeSubAlerts > 0 ? 'pipeline-exec-card--active' : 'pipeline-exec-card--resolved';
 
-        let resolvedBadge = activeSubAlerts === 0
-            ? `<span style="display:inline-flex; align-items:center; background: rgba(63, 185, 80, 0.1); color: #3fb950; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: bold;">${iconCheck} EXECUTION RESOLVED</span>`
-            : `<span style="display:inline-flex; align-items:center; background: rgba(255, 123, 114, 0.1); color: #ff7b72; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: bold;">${iconAlert} ${activeSubAlerts} ACTIVE / ${group.incidents.length} TOTAL</span>`;
+        const resolvedBadge = activeSubAlerts === 0
+            ? `<span class="exec-status-badge exec-status-badge--resolved">${iconCheck} EXECUTION RESOLVED</span>`
+            : `<span class="exec-status-badge exec-status-badge--active">${iconAlert} ${activeSubAlerts} ACTIVE / ${group.incidents.length} TOTAL</span>`;
 
-        let subAlertsHTML = group.incidents.map(inc => {
+        const subAlertsHTML = group.incidents.map(inc => {
             const isFlaky = inc.name.includes("[FLAKY]");
-            const flakyBadge = isFlaky ? `<span style="color: #d29922; margin-right: 8px;">${iconWarning} FLAKY</span>` : ``;
+            const flakyBadge = isFlaky ? `<span class="kpi-warn" style="margin-right:8px;">${iconWarning} FLAKY</span>` : '';
             const cleanName = inc.name.replace("[FLAKY] ", "");
-            const displayLog = inc.error_logs || inc.error_message || "No logs available.";
+            const rawLog = inc.error_logs || inc.error_message || "No logs available.";
+            const displayLog = String(rawLog)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
             const isResolved = normalizeIsResolved(inc);
-            const textDecoration = isResolved ? 'text-decoration: line-through;' : '';
-            const textColor = isResolved ? '#3fb950' : 'var(--text-main)';
+            const nameClass = isResolved ? 'kpi-success' : '';
+            const nameStyle = isResolved ? 'text-decoration:line-through;' : '';
             const isChecked = window.selectedIncidents.has(String(inc.id)) ? 'checked' : '';
-            const bgStyle = isResolved ? 'background: rgba(63, 185, 80, 0.05); border-left: 3px solid #3fb950;' : 'background: #0d1117; border-left: 3px solid #30363d;';
+            const rowClass = isResolved ? 'is-resolved' : 'is-active';
 
             const subAlertFlag = isResolved
-                ? `<span style="display:inline-flex; align-items:center; background: rgba(63, 185, 80, 0.1); color: #3fb950; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: bold; margin-left: 10px;">${iconCheck} RESOLVED BY ${inc.resolved_by || 'SYSTEM'}</span>`
-                : `<span style="display:inline-flex; align-items:center; background: rgba(255, 123, 114, 0.1); color: #ff7b72; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: bold; margin-left: 10px;">${iconAlert} ACTIVE TEST</span>`;
+                ? `<span class="incident-test-badge exec-status-badge exec-status-badge--resolved">${iconCheck} RESOLVED BY ${inc.resolved_by || 'SYSTEM'}</span>`
+                : `<span class="incident-test-badge exec-status-badge exec-status-badge--active">${iconAlert} ACTIVE TEST</span>`;
 
             const isLogOpen = openLogs.has(String(inc.id));
             const logDisplay = isLogOpen ? 'block' : 'none';
@@ -592,34 +611,33 @@ window.renderIncidentsList = function () {
             const textLabel = isLogOpen ? 'Collapse logs' : 'Show logs';
 
             return `
-            <div style="${bgStyle} border: 1px solid #30363d; border-radius: 6px; margin-top: 10px; padding: 12px; transition: all 0.3s ease;">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div style="display:flex; align-items:center; gap: 10px;">
-                        <input type="checkbox" id="cb-inc-${inc.id}" onclick="toggleIncidentSelection('${inc.id}', this.checked)" ${isChecked} style="width: 14px; height: 14px; cursor: pointer;">
-                        <strong style="font-size: 13px; color: ${textColor}; ${textDecoration}">${flakyBadge}${cleanName}</strong>
-                        ${subAlertFlag}
+            <div class="incident-test-row ${rowClass}">
+                <div class="incident-test-row-header">
+                    <div class="incident-test-row-title">
+                        <input type="checkbox" id="cb-inc-${inc.id}" onclick="toggleIncidentSelection('${inc.id}', this.checked)" ${isChecked} style="width: 14px; height: 14px; cursor: pointer; flex-shrink: 0;">
+                        <strong class="${nameClass}" style="font-size: 13px; ${nameStyle}">${flakyBadge}${cleanName}</strong>
                     </div>
+                    ${subAlertFlag}
                 </div>
-                
-                <div style="margin-top: 8px;">
-                    <button class="btn-secondary" style="font-size: 10px; padding: 2px 6px; border: none; background: transparent; color: #58a6ff; cursor: pointer; display: flex; align-items: center; gap: 4px;" onclick="window.toggleIncidentLog('${inc.id}', event)">
+                <div style="margin-top: 8px; text-align: left;">
+                    <button type="button" class="log-toggle-btn" onclick="window.toggleIncidentLog('${inc.id}', event)">
                         <svg id="log-icon-${inc.id}" style="width:12px;height:12px;stroke:currentColor;fill:none;transition: transform 0.2s; transform: ${iconTransform};" viewBox="0 0 24 24" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
                         <span id="log-text-${inc.id}">${textLabel}</span>
                     </button>
-                    <div id="log-content-${inc.id}" style="display: ${logDisplay}; font-family: monospace; font-size: 11px; color: #8b949e; background: #161b22; padding: 10px; border-radius: 4px; overflow-x: auto; white-space: pre-wrap; max-height: 150px; overflow-y: auto; border: 1px solid #30363d; margin-top: 5px;">${displayLog}</div>
+                    <div id="log-content-${inc.id}" class="incident-log-panel" style="display: ${logDisplay};">${displayLog}</div>
                 </div>
             </div>`;
         }).join('');
 
-        let actionDropdown = `
-            <div style="position: relative; display: inline-block;" class="action-dropdown-container">
-                <button class="btn-secondary" style="font-size: 11px; padding: 5px 10px; display: flex; align-items: center;" onclick="toggleActionDropdown('${group.id}', event)">${iconGear} Actions</button>
-                <div id="action-dropdown-${group.id}" style="display: none; position: absolute; right: 0; top: 30px; background: #161b22; border: 1px solid #30363d; z-index: 10; border-radius: 6px; min-width: 180px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); overflow: hidden;">
-                    ${(!group.is_resolved && canResolve) ? `<a href="#" onclick="resolveGroup('${group.id}', event)" style="display: flex; align-items: center; padding: 10px 12px; color: #3fb950; text-decoration: none; font-size: 12px; border-bottom: 1px solid #30363d; transition: background 0.2s;"><span style="flex-grow:1;">${iconCheck} Resolve Execution</span></a>` : ''}
-                    ${isAdmin ? `<a href="#" onclick="deleteGroup('${group.id}', event)" style="display: flex; align-items: center; padding: 10px 12px; color: #ff7b72; text-decoration: none; font-size: 12px; border-bottom: 1px solid #30363d; transition: background 0.2s;"><span style="flex-grow:1;">${iconTrash} Delete Execution</span></a>` : ''}
-                    <a href="#" onclick="downloadGroupLog('${group.id}', 'error', event)" style="display: flex; align-items: center; padding: 10px 12px; color: #ff7b72; text-decoration: none; font-size: 12px; border-bottom: 1px solid #30363d; transition: background 0.2s;"><span style="flex-grow:1;">${iconAlert} Export Errors</span></a>
-                    <a href="#" onclick="downloadGroupLog('${group.id}', 'full', event)" style="display: flex; align-items: center; padding: 10px 12px; color: #c9d1d9; text-decoration: none; font-size: 12px; border-bottom: 1px solid #30363d; transition: background 0.2s;"><span style="flex-grow:1;">${iconFile} Export Full Logs</span></a>
-                    <a href="#" onclick="downloadGroupLog('${group.id}', 'xml', event)" style="display: flex; align-items: center; padding: 10px 12px; color: #58a6ff; text-decoration: none; font-size: 12px; transition: background 0.2s;"><span style="flex-grow:1;">${iconCode} Generate JUnit XML</span></a>
+        const actionDropdown = `
+            <div class="action-dropdown-container">
+                <button type="button" class="btn-secondary" style="font-size: 11px; padding: 5px 10px; display: flex; align-items: center;" onclick="toggleActionDropdown('${group.id}', event)">${iconGear} Actions</button>
+                <div id="action-dropdown-${group.id}" class="action-dropdown-menu">
+                    ${(!group.is_resolved && canResolve) ? `<a href="#" class="action-resolve" onclick="resolveGroup('${group.id}', event)">${iconCheck} Resolve Execution</a>` : ''}
+                    ${isAdmin ? `<a href="#" class="action-delete" onclick="deleteGroup('${group.id}', event)">${iconTrash} Delete Execution</a>` : ''}
+                    <a href="#" class="action-export-err" onclick="downloadGroupLog('${group.id}', 'error', event)">${iconAlert} Export Errors</a>
+                    <a href="#" class="action-export-full" onclick="downloadGroupLog('${group.id}', 'full', event)">${iconFile} Export Full Logs</a>
+                    <a href="#" class="action-export-xml" onclick="downloadGroupLog('${group.id}', 'xml', event)">${iconCode} Generate JUnit XML</a>
                 </div>
             </div>`;
 
@@ -627,25 +645,25 @@ window.renderIncidentsList = function () {
         const groupChecked = groupAllSelected ? 'checked' : '';
 
         return `
-        <div class="data-card" style="border-left: 4px solid ${severityColor}; margin-bottom: 20px; opacity: ${group.is_resolved ? '0.7' : '1'}; transition: 0.3s; padding: 20px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #30363d; padding-bottom: 15px;">
-                <div style="display: flex; align-items: center; gap: 15px;">
-                    <input type="checkbox" id="cb-group-${group.id}" onclick="toggleGroupSelection('${group.id}', this.checked)" ${groupChecked} style="width: 16px; height: 16px; cursor: pointer;">
+        <div class="data-card pipeline-exec-card ${cardStateClass}">
+            <div class="pipeline-exec-header">
+                <div class="pipeline-exec-meta">
+                    <input type="checkbox" id="cb-group-${group.id}" onclick="toggleGroupSelection('${group.id}', this.checked)" ${groupChecked} style="width: 16px; height: 16px; cursor: pointer; flex-shrink: 0; margin-top: 4px;">
                     <div>
-                        <div style="font-size: 11px; color: #8b949e; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 1px;">Pipeline Execution</div>
-                        <strong style="font-size: 16px; color: var(--text-main);">${group.project_name}</strong>
-                        <span style="font-size: 12px; color: #8b949e; margin-left: 10px;">• ${group.created_at}</span>
+                        <span class="pipeline-exec-label">Pipeline execution</span>
+                        <span class="pipeline-exec-title">${group.project_name}</span>
+                        <span class="pipeline-exec-submeta">${group.created_at} · ${group.incidents.length} failed test(s)</span>
                     </div>
                 </div>
-                <div style="display: flex; align-items: center; gap: 10px;">
+                <div class="pipeline-exec-toolbar">
                     ${resolvedBadge}
                     ${actionDropdown}
-                    <button class="btn-secondary" style="border: none; background: #161b22; padding: 6px 12px; display: flex; align-items: center; gap: 6px;" onclick="toggleSubAlerts('${group.id}', event)">
+                    <button type="button" class="btn-secondary" style="padding: 6px 12px; display: flex; align-items: center; gap: 6px;" onclick="toggleSubAlerts('${group.id}', event)">
                         ${group.incidents.length} Alert(s) <span id="toggle-icon-${group.id}" style="display: inline-block;">${iconChevron}</span>
                     </button>
                 </div>
             </div>
-            <div id="sub-alerts-${group.id}" style="display: none; padding-top: 10px;">${subAlertsHTML}</div>
+            <div id="sub-alerts-${group.id}" class="pipeline-exec-body" style="display: none;">${subAlertsHTML}</div>
         </div>`;
     }).join('');
 
@@ -827,7 +845,9 @@ window.switchView = function (id, el) {
     if (id === 'plugins' && payload && canAccessPlugins(payload.role)) {
         if (window.loadPlugins) window.loadPlugins();
     }
-    if (id === 'settings') { if(window.loadConfig) window.loadConfig(); }
+    if (id === 'settings' && payload && canManageIAM(payload.role)) {
+        if (window.loadConfig) window.loadConfig();
+    }
     if (id === 'ingestion' && payload && hasMinRole(payload.role, 'operator')) {
         if (window.loadGatewaysData) window.loadGatewaysData();
     }

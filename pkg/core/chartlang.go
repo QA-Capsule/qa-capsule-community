@@ -141,7 +141,9 @@ func validateChartQuery(q ChartQuery) error {
 		return fmt.Errorf("CHART must be line, bar, or doughnut")
 	}
 	switch q.Metric {
-	case "incidents", "flaky", "mttr", "finops_cost", "finops_flaky_cost", "ci_minutes", "resolved":
+	case "incidents", "flaky", "stable", "resolved", "active", "mttr",
+		"resolution_rate", "flaky_ratio",
+		"finops_cost", "finops_flaky_cost", "ci_minutes", "ci_cost", "invest_cost":
 	default:
 		return fmt.Errorf("unsupported METRIC: %s", q.Metric)
 	}

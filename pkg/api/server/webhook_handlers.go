@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/QA-Capsule/qa-capsule-community/pkg/core"
 )
@@ -84,21 +85,27 @@ func registerWebhookRoutes(config *core.Config) {
 			return
 		}
 
+		// One pipeline execution = one webhook POST (distinct runs must not be deduplicated).
+		runID := r.Header.Get("X-Run-Id")
+		if runID == "" {
+			runID = r.Header.Get("X-Pipeline-Run-Id")
+		}
+		if runID == "" {
+			runID = fmt.Sprintf("run-%d", time.Now().UnixNano())
+		}
+
 		// 2. PROCESS EXTRACTED FAILURES
 		for _, alert := range alerts {
 			rawString := fmt.Sprintf("%s|%s", alert.Name, alert.Error)
 			fingerprint := fmt.Sprintf("%x", sha256.Sum256([]byte(rawString)))
 
-			// --- SRE CRITICAL FIX: SMART CORRELATION & FLAKY DETECTION ---
-			// We no longer suppress new executions. Every pipeline run is recorded so the UI can group them.
-
-			// A. Anti-Spam Check: Prevent exact duplicate uploads within 2 minutes
+			// Anti-spam: only block duplicate retry of the same test within the same pipeline run.
 			var recentCount int
-			core.DB.QueryRow("SELECT COUNT(*) FROM incidents WHERE fingerprint = ? AND project_name = ? AND created_at > datetime('now', '-2 minutes')",
-				fingerprint, projectName).Scan(&recentCount)
+			core.DB.QueryRow(`SELECT COUNT(*) FROM incidents WHERE fingerprint = ? AND project_name = ? AND pipeline_run_id = ?`,
+				fingerprint, projectName, runID).Scan(&recentCount)
 
 			if recentCount > 0 {
-				log.Printf("[CORRELATION] Incident fingerprint %s uploaded twice within 2 mins. Skipping spam.", fingerprint)
+				log.Printf("[CORRELATION] Duplicate test %s in run %s skipped.", alert.Name, runID)
 				continue
 			}
 
@@ -115,9 +122,9 @@ func registerWebhookRoutes(config *core.Config) {
 
 			// C. Insert new incident into DB
 			// FIX: Added the missing 'error_logs' column to persist stacktraces correctly!
-			_, err = core.DB.Exec(`INSERT INTO incidents (project_name, name, status, error_message, console_logs, error_logs, fingerprint, is_resolved, created_at) 
-				VALUES (?, ?, ?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
-				projectName, finalName, alert.Status, alert.Error, alert.ConsoleLogs, alert.ErrorLogs, fingerprint)
+			_, err = core.DB.Exec(`INSERT INTO incidents (project_name, name, status, error_message, console_logs, error_logs, fingerprint, pipeline_run_id, is_resolved, created_at) 
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
+				projectName, finalName, alert.Status, alert.Error, alert.ConsoleLogs, alert.ErrorLogs, fingerprint, runID)
 
 			if err != nil {
 				log.Printf("[DB ERROR] Failed to insert incident: %v", err)
@@ -140,6 +147,7 @@ func registerWebhookRoutes(config *core.Config) {
 			"status":             "success",
 			"failures_processed": len(alerts),
 			"project":            projectName,
+			"pipeline_run_id":    runID,
 		})
 	})
 }

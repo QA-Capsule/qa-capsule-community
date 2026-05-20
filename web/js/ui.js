@@ -60,6 +60,10 @@ export function toggleTheme(e) {
     if (typeof window.persistThemeFromToggle === 'function') {
         window.persistThemeFromToggle(next);
     }
+    const analyticsView = document.getElementById('analytics-view');
+    if (analyticsView && analyticsView.style.display !== 'none' && typeof window.loadAnalytics === 'function') {
+        window.loadAnalytics(false);
+    }
 }
 
 export function showConfirmModal(title, message, type, confirmCallback) {

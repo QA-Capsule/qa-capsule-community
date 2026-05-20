@@ -30,7 +30,7 @@ func registerProjectRoutes(config *core.Config) {
 		var rows *sql.Rows
 		var err error
 
-		if claims.Role == "admin" {
+		if claims.Role == "admin" || claims.Role == "manager" {
 			rows, err = core.DB.Query(`
 				SELECT id, name, ci_system, repo_path, team_id, api_key, slack_channel, jira_project_key, teams_webhook 
 				FROM projects`)
@@ -117,7 +117,17 @@ func registerProjectRoutes(config *core.Config) {
 				http.Error(w, "Database error.", http.StatusInternalServerError)
 				return
 			}
+
+			var userID int
+			if err := core.DB.QueryRow("SELECT id FROM users WHERE username = ?", claims.Username).Scan(&userID); err == nil {
+				_ = core.EnsureUserTeamMembership(userID, newProject.TeamID, "team_operator")
+			}
+
+			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusCreated)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"id": newProject.ID, "name": newProject.Name, "team_id": newProject.TeamID, "ci_system": newProject.CISystem,
+			})
 
 		} else if r.Method == http.MethodPut {
 			var updateProject struct {

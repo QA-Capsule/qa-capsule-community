@@ -44,15 +44,21 @@ func registerChartRoutes(config *core.Config) {
 			"version":  "1.0",
 			"directives": []string{"CHART", "METRIC", "RANGE", "GROUP", "PROJECT"},
 			"metrics": []map[string]string{
-				{"id": "incidents", "description": "Total incident count"},
-				{"id": "flaky", "description": "Flaky-tagged incidents"},
-				{"id": "resolved", "description": "Resolved incidents"},
-				{"id": "mttr", "description": "Average MTTR in minutes"},
-				{"id": "finops_cost", "description": "Estimated total FinOps cost (USD)"},
-				{"id": "finops_flaky_cost", "description": "Estimated flaky waste cost (USD)"},
-				{"id": "ci_minutes", "description": "Estimated CI minutes lost"},
+				{"id": "incidents", "description": "Total failure count per bucket"},
+				{"id": "flaky", "description": "Flaky-tagged failures ([FLAKY] prefix)"},
+				{"id": "stable", "description": "Non-flaky structural failures"},
+				{"id": "resolved", "description": "Resolved incident count"},
+				{"id": "active", "description": "Unresolved backlog count"},
+				{"id": "mttr", "description": "Mean time to resolution (minutes)"},
+				{"id": "resolution_rate", "description": "Resolved / total × 100 (%)"},
+				{"id": "flaky_ratio", "description": "Flaky / total × 100 (%)"},
+				{"id": "finops_cost", "description": "Total loaded cost: CI + investigation (USD)"},
+				{"id": "finops_flaky_cost", "description": "Flaky subset loaded cost (USD)"},
+				{"id": "ci_minutes", "description": "Runner minutes lost (incidents × T_pipe)"},
+				{"id": "ci_cost", "description": "CI spend only (USD)"},
+				{"id": "invest_cost", "description": "Investigation spend only (USD)"},
 			},
-			"example": "CHART line \"Weekly incidents\"\nMETRIC incidents\nRANGE 12w\nGROUP week",
+			"example": "CHART line \"Weekly FinOps exposure\"\nMETRIC finops_cost\nRANGE 12w\nGROUP week\n# PROJECT optional-gateway",
 		})
 	})))
 }
@@ -345,15 +351,14 @@ func buildChartSpecWithQuery(query string) (map[string]interface{}, core.ChartQu
 
 func evaluateChartQuery(q core.ChartQuery) ([]string, []map[string]interface{}, error) {
 	devRate, ciCost, avgDuration, avgInvestigation := loadFinOpsBaseline()
-	costPerInc := finopsCostPerIncident(devRate, avgInvestigation, ciCost, avgDuration)
 
 	if q.GroupBy == "project" {
-		return evaluateByProject(q, costPerInc, avgDuration)
+		return evaluateByProject(q, devRate, ciCost, avgDuration, avgInvestigation)
 	}
-	return evaluateByWeek(q, costPerInc, avgDuration)
+	return evaluateByWeek(q, devRate, ciCost, avgDuration, avgInvestigation)
 }
 
-func evaluateByWeek(q core.ChartQuery, costPerInc, avgDuration float64) ([]string, []map[string]interface{}, error) {
+func evaluateByWeek(q core.ChartQuery, devRate, ciCost, avgDuration, avgInvestigation float64) ([]string, []map[string]interface{}, error) {
 	filter := ""
 	args := []interface{}{fmt.Sprintf("-%d days", q.RangeDays)}
 	if q.Project != "" {
@@ -367,6 +372,7 @@ func evaluateByWeek(q core.ChartQuery, costPerInc, avgDuration float64) ([]strin
 			COUNT(*) as total,
 			SUM(CASE WHEN name LIKE '[FLAKY]%' THEN 1 ELSE 0 END) as flaky,
 			SUM(CASE WHEN is_resolved = 1 THEN 1 ELSE 0 END) as resolved,
+			SUM(CASE WHEN is_resolved = 0 THEN 1 ELSE 0 END) as active,
 			AVG(CASE WHEN is_resolved = 1 AND resolved_at IS NOT NULL 
 				THEN (julianday(resolved_at) - julianday(created_at)) * 24 * 60 ELSE NULL END) as mttr
 		FROM incidents
@@ -382,11 +388,11 @@ func evaluateByWeek(q core.ChartQuery, costPerInc, avgDuration float64) ([]strin
 	var values []float64
 	for rows.Next() {
 		var bucket string
-		var total, flaky, resolved int
+		var total, flaky, resolved, active int
 		var mttr *float64
-		rows.Scan(&bucket, &total, &flaky, &resolved, &mttr)
+		rows.Scan(&bucket, &total, &flaky, &resolved, &active, &mttr)
 		labels = append(labels, bucket)
-		values = append(values, metricValue(q.Metric, total, flaky, resolved, mttr, costPerInc, avgDuration))
+		values = append(values, metricValue(q.Metric, total, flaky, resolved, active, mttr, devRate, ciCost, avgDuration, avgInvestigation))
 	}
 
 	return labels, []map[string]interface{}{{
@@ -395,13 +401,14 @@ func evaluateByWeek(q core.ChartQuery, costPerInc, avgDuration float64) ([]strin
 	}}, nil
 }
 
-func evaluateByProject(q core.ChartQuery, costPerInc, avgDuration float64) ([]string, []map[string]interface{}, error) {
+func evaluateByProject(q core.ChartQuery, devRate, ciCost, avgDuration, avgInvestigation float64) ([]string, []map[string]interface{}, error) {
 	rows, err := core.DB.Query(`
 		SELECT 
 			project_name,
 			COUNT(*) as total,
 			SUM(CASE WHEN name LIKE '[FLAKY]%' THEN 1 ELSE 0 END) as flaky,
 			SUM(CASE WHEN is_resolved = 1 THEN 1 ELSE 0 END) as resolved,
+			SUM(CASE WHEN is_resolved = 0 THEN 1 ELSE 0 END) as active,
 			AVG(CASE WHEN is_resolved = 1 AND resolved_at IS NOT NULL 
 				THEN (julianday(resolved_at) - julianday(created_at)) * 24 * 60 ELSE NULL END) as mttr
 		FROM incidents
@@ -417,14 +424,14 @@ func evaluateByProject(q core.ChartQuery, costPerInc, avgDuration float64) ([]st
 	var values []float64
 	for rows.Next() {
 		var proj string
-		var total, flaky, resolved int
+		var total, flaky, resolved, active int
 		var mttr *float64
-		rows.Scan(&proj, &total, &flaky, &resolved, &mttr)
+		rows.Scan(&proj, &total, &flaky, &resolved, &active, &mttr)
 		if q.Project != "" && q.Project != proj {
 			continue
 		}
 		labels = append(labels, proj)
-		values = append(values, metricValue(q.Metric, total, flaky, resolved, mttr, costPerInc, avgDuration))
+		values = append(values, metricValue(q.Metric, total, flaky, resolved, active, mttr, devRate, ciCost, avgDuration, avgInvestigation))
 	}
 
 	return labels, []map[string]interface{}{{
@@ -433,25 +440,47 @@ func evaluateByProject(q core.ChartQuery, costPerInc, avgDuration float64) ([]st
 	}}, nil
 }
 
-func metricValue(metric string, total, flaky, resolved int, mttr *float64, costPerInc, avgDuration float64) float64 {
+func metricValue(metric string, total, flaky, resolved, active int, mttr *float64, devRate, ciCost, avgDuration, avgInvestigation float64) float64 {
+	invest := (devRate / 60.0) * avgInvestigation
+	ciPerInc := avgDuration * ciCost
+	costPerInc := invest + ciPerInc
+
 	switch metric {
 	case "incidents":
 		return float64(total)
 	case "flaky":
 		return float64(flaky)
+	case "stable":
+		return float64(total - flaky)
 	case "resolved":
 		return float64(resolved)
+	case "active":
+		return float64(active)
 	case "mttr":
 		if mttr != nil {
 			return math.Round(*mttr*10) / 10
 		}
 		return 0
+	case "resolution_rate":
+		if total == 0 {
+			return 0
+		}
+		return math.Round((float64(resolved)/float64(total))*1000) / 10
+	case "flaky_ratio":
+		if total == 0 {
+			return 0
+		}
+		return math.Round((float64(flaky)/float64(total))*1000) / 10
 	case "finops_cost":
 		return math.Round(float64(total) * costPerInc)
 	case "finops_flaky_cost":
 		return math.Round(float64(flaky) * costPerInc)
 	case "ci_minutes":
 		return float64(total) * avgDuration
+	case "ci_cost":
+		return math.Round(float64(total) * ciPerInc)
+	case "invest_cost":
+		return math.Round(float64(total) * invest)
 	default:
 		return 0
 	}
@@ -465,6 +494,14 @@ func metricLabel(metric string) string {
 		return "Flaky"
 	case "resolved":
 		return "Resolved"
+	case "stable":
+		return "Stable failures"
+	case "active":
+		return "Active backlog"
+	case "resolution_rate":
+		return "Resolution rate (%)"
+	case "flaky_ratio":
+		return "Flaky ratio (%)"
 	case "mttr":
 		return "MTTR (min)"
 	case "finops_cost":
@@ -473,6 +510,10 @@ func metricLabel(metric string) string {
 		return "Flaky Waste (USD)"
 	case "ci_minutes":
 		return "CI Minutes"
+	case "ci_cost":
+		return "CI cost (USD)"
+	case "invest_cost":
+		return "Investigation cost (USD)"
 	default:
 		return metric
 	}

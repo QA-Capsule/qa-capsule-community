@@ -153,19 +153,14 @@ func InitDB(ignoredPath string) {
 		log.Printf("[WARNING] Failed to create index for fingerprint: %v", err)
 	}
 
-	// ==========================================
-	// FORCE RESET FINOPS TABLE (DEV MODE)
-	// ==========================================
-	DB.Exec("DROP TABLE IF EXISTS finops_settings;")
-
 	createFinOpsTable := `
-	CREATE TABLE finops_settings (
+	CREATE TABLE IF NOT EXISTS finops_settings (
 		id INTEGER PRIMARY KEY,
 		dev_hourly_rate REAL,
 		ci_minute_cost REAL,
 		avg_pipeline_duration REAL,
 		avg_investigation_time REAL,
-		currency TEXT
+		currency TEXT DEFAULT 'USD'
 	);`
 	_, err = DB.Exec(createFinOpsTable)
 	if err != nil {
@@ -212,8 +207,31 @@ func InitDB(ignoredPath string) {
 		log.Fatalf("[FATAL] Failed to create enterprise_config table: %v", err)
 	}
 
+	runSchemaMigrations()
+
 	log.Println("[INFO] Database initialized successfully with Smart Correlation schema.")
 	seedInitialData()
+}
+
+func runSchemaMigrations() {
+	migrations := []string{
+		`ALTER TABLE user_teams ADD COLUMN inherited_from INTEGER DEFAULT NULL`,
+		`ALTER TABLE incidents ADD COLUMN pipeline_run_id TEXT DEFAULT ''`,
+		`ALTER TABLE finops_settings ADD COLUMN currency TEXT DEFAULT 'USD'`,
+		`CREATE TABLE IF NOT EXISTS user_team_inheritance_optouts (
+			user_id INTEGER NOT NULL,
+			team_id INTEGER NOT NULL,
+			ancestor_team_id INTEGER NOT NULL,
+			PRIMARY KEY (user_id, team_id, ancestor_team_id),
+			FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+			FOREIGN KEY(team_id) REFERENCES teams(id) ON DELETE CASCADE
+		)`,
+	}
+	for _, sqlStmt := range migrations {
+		if _, err := DB.Exec(sqlStmt); err != nil {
+			log.Printf("[INFO] Schema migration (may already exist): %v", err)
+		}
+	}
 }
 
 func seedInitialData() {

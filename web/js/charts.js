@@ -14,10 +14,11 @@ const STUDIO_KEY = 'studio-preview';
 let savedCharts = [];
 let activeChartId = null;
 
-const DEFAULT_QCL = `CHART line "Weekly incident volume"
-METRIC incidents
+const DEFAULT_QCL = `CHART line "Weekly resolution efficiency"
+METRIC resolution_rate
 RANGE 12w
-GROUP week`;
+GROUP week
+# METRIC flaky_ratio | finops_cost | active | mttr`;
 
 export function loadChartsView() {
     const editor = document.getElementById('qcl-editor');
