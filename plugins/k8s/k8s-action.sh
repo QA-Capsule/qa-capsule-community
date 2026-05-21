@@ -1,6 +1,13 @@
 #!/bin/bash
-# Reçoit : K8S_NAMESPACE, DEPLOYMENT_NAME
-# Nécessite un fichier de config k8s ou un service account dans le pod
+INCIDENT_NAME="${1:-manual}"
 
-echo "[K8S] Restarting deployment ${DEPLOYMENT_NAME} in namespace ${K8S_NAMESPACE}..."
-kubectl rollout restart deployment/${DEPLOYMENT_NAME} -n ${K8S_NAMESPACE}
+NS="${K8S_NAMESPACE:-default}"
+DEPLOY="${DEPLOYMENT_NAME:-}"
+
+if [ -z "$DEPLOY" ]; then
+  echo "[ERROR] DEPLOYMENT_NAME is not configured."
+  exit 1
+fi
+
+echo "[K8S] Restarting deployment ${DEPLOY} in namespace ${NS} (trigger: ${INCIDENT_NAME})..."
+kubectl rollout restart "deployment/${DEPLOY}" -n "${NS}"

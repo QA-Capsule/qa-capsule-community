@@ -10,7 +10,8 @@ const TOPIC_ICONS = {
     roles: '<svg class="about-topic-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>',
     finops_metrics: '<svg class="about-topic-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>',
     glossary: '<svg class="about-topic-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>',
-    qcl: '<svg class="about-topic-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>'
+    metrics: '<svg class="about-topic-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>',
+    plugins: '<svg class="about-topic-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>'
 };
 
 const ABOUT_TOPICS = {
@@ -30,24 +31,23 @@ const ABOUT_TOPICS = {
             <li><strong>Ingestion plane</strong> — Webhooks accept JUnit XML / JSON payloads; optional <code>X-Run-Id</code> correlates multi-test failures into one pipeline execution group.</li>
             <li><strong>Correlation engine</strong> — SHA-256 fingerprint over test name + error message; spam guard per <code>pipeline_run_id</code>.</li>
             <li><strong>Triage workspace</strong> — Role-aware dashboard with bulk resolve, log export, JUnit regeneration.</li>
-            <li><strong>Analytics &amp; QCL</strong> — Chart Studio evaluates declarative queries; pinned charts hydrate Dashboard and FinOps views.</li>
+            <li><strong>Analytics</strong> — Customizable KPI tiles and charts on the Operations dashboard, scoped to the selected time range.</li>
             <li><strong>FinOps intelligence</strong> — Manager-only cost modeling from configurable baselines (developer rate, CI minute cost, investigation time).</li>
           </ul>
           <div class="about-callout">
             <strong>End-to-end workflow</strong>
             <ol>
-              <li><strong>Admin</strong> creates workspaces, IAM users, and CI/CD gateways (API keys).</li>
+              <li><strong>Platform Admin</strong> creates workspaces, IAM users, and system settings (not day-to-day triage).</li>
               <li><strong>CI pipeline</strong> posts failures to <code>/api/webhook/ingest</code> on red builds.</li>
-              <li><strong>Operator / QA Lead</strong> triages grouped pipeline executions, resolves or bulk-resolves tests.</li>
-              <li><strong>Manager</strong> reviews FinOps KPIs, weekly evolution, CSV exports, and custom QCL charts.</li>
-              <li><strong>Viewer</strong> consumes dashboards read-only; Chart Studio access without FinOps write paths.</li>
+              <li><strong>Lead</strong> triages incidents, resolves tests, runs plugins, and manages gateways.</li>
+              <li><strong>Manager</strong> reviews FinOps KPIs, exports, workspaces, gateways, and analytics layout.</li>
+              <li><strong>Observer</strong> consumes dashboards read-only (no FinOps or write paths).</li>
             </ol>
           </div>
           <h3>Dashboard analytics (built-in)</h3>
           <p>
-            Toggle <em>System analytics &amp; quality</em> on the Operations dashboard to reveal MTTR, MTTF, failure-quality
-            doughnut (stable vs flaky), and a 5-week multi-axis evolution chart (volume + MTTR). Extended stat tiles show
-            resolution rate, active backlog, and flaky ratio updated on each refresh.
+            Toggle <em>System analytics &amp; quality</em> on the Operations dashboard to add KPI counts and charts (donut, evolution).
+            Use <strong>Customize layout</strong> to choose metrics, colors, order, and width — saved per user. Data follows the dashboard time filter and auto-refresh.
           </p>
         </article>`
     },
@@ -61,16 +61,41 @@ const ABOUT_TOPICS = {
         breadcrumb: 'Help Center / FinOps metrics',
         html: FINOPS_METRICS_DOC_HTML
     },
-    qcl: {
-        title: 'Chart language (QCL)',
-        breadcrumb: 'Help Center / QCL',
+    plugins: {
+        title: 'Plugin Engine',
+        breadcrumb: 'Help Center / Plugins',
+        html: `
+        <article class="about-doc">
+          <h2>QA &amp; SRE runbooks</h2>
+          <p class="about-lead">Plugins live under <code>plugins/</code>. Each folder has a JSON manifest and a shell script. Configure secrets in <strong>Plugin Engine</strong>, then use <strong>Execute</strong> or enable <code>status: Active</code> for auto-trigger on keywords.</p>
+          <table class="about-table">
+            <thead><tr><th>Category</th><th>Use case</th></tr></thead>
+            <tbody>
+              <tr><td>Slack / Teams</td><td>Chat alerts with per-project channel routing</td></tr>
+              <tr><td>Jira</td><td>Auto-create bugs from critical failures</td></tr>
+              <tr><td>PagerDuty / Opsgenie / VictorOps</td><td>On-call paging for SRE</td></tr>
+              <tr><td>TestRail / Zephyr / Xray</td><td>Record failed executions in test management tools</td></tr>
+              <tr><td>SendGrid / SMTP</td><td>Email alerts to QA and SRE distribution lists</td></tr>
+              <tr><td>GitHub Actions</td><td>Re-dispatch CI workflows after failures</td></tr>
+              <tr><td>Datadog</td><td>Observability events on the SRE timeline</td></tr>
+              <tr><td>HTTP webhook</td><td>Linear, n8n, or internal APIs</td></tr>
+              <tr><td>QA flaky report</td><td>Notify QA tools when flaky keywords match</td></tr>
+              <tr><td>Kubernetes</td><td>Rollout restart remediation</td></tr>
+            </tbody>
+          </table>
+          <p>Access: <strong>Manager</strong> and <strong>Lead</strong> (codes <code>manager</code>, <code>lead</code>).</p>
+        </article>`
+    },
+    metrics: {
+        title: 'Metrics',
+        breadcrumb: 'Help Center / Metrics',
         html: `
         <article class="about-doc about-doc-wide">
           <h2>QA Chart Language (QCL) v1.0</h2>
           <p class="about-lead">
-            QCL is a <strong>declarative time-series DSL</strong> for quality metrics. Queries compile to Chart.js specs via
-            <code>POST /api/charts/evaluate</code>. Saved definitions persist in <code>saved_charts</code> and can be pinned
-            to Dashboard or FinOps surfaces.
+            QCL is a <strong>declarative time-series DSL</strong> for quality and FinOps metrics. It describes how metrics are
+            aggregated (CHART, METRIC, RANGE, GROUP, PROJECT) and maps to the same tokens used in dashboard analytics and API evaluation
+            (<code>POST /api/charts/evaluate</code>).
           </p>
           <h3>Canonical example</h3>
           ${formulaBlock('CHART line "Weekly composite FinOps exposure"\nMETRIC finops_cost\nRANGE 12w\nGROUP week\nPROJECT QA-CAP-FRONT-PIPELINE')}
@@ -107,12 +132,11 @@ const ABOUT_TOPICS = {
           <h3>Advanced composition patterns</h3>
           <p><strong>Multi-gateway comparison</strong> — omit PROJECT, set GROUP project, use bar chart:</p>
           ${formulaBlock('CHART bar "Incident density by gateway"\nMETRIC incidents\nRANGE 30d\nGROUP project')}
-          <p><strong>Quality vs cost</strong> — pin two charts (flaky_ratio + finops_flaky_cost) to FinOps for executive review.</p>
+          <p><strong>Quality vs cost</strong> — compare <code>flaky_ratio</code> with <code>finops_flaky_cost</code> over the same RANGE for executive review.</p>
           ${formulaBlock('CHART line "Resolution efficiency"\nMETRIC resolution_rate\nRANGE 8w\nGROUP week')}
           <div class="about-callout">
-            <strong>Persistence model</strong> — Charts are private to the authenticated author unless shared via exports.
-            Pin flags (<code>pin_dashboard</code>, <code>pin_finops</code>) control lazy hydration when parent views mount.
-            Comments in QCL start with <code>#</code>.
+            <strong>Dashboard layout</strong> — Use <em>System analytics &amp; quality → Customize layout</em> for visual KPIs and charts;
+            QCL documents the metric vocabulary behind those values. Comments in QCL start with <code>#</code>.
           </div>
         </article>`
     },
@@ -168,7 +192,11 @@ function buildRolesDoc() {
         <tbody>${rows}</tbody>
       </table>
       <div class="about-callout" style="margin-top:20px;">
-        <strong>Note:</strong> <code>admin</code> manages <strong>Workspaces</strong>, <strong>IAM</strong>, and <strong>Settings</strong> only. <code>manager</code> has FinOps, workspaces, Chart Studio, gateways, and plugins. <code>operator</code> and <code>viewer</code> use Chart Studio and the dashboard but not FinOps.
+        <strong>Note:</strong> Role codes: <code>admin</code>, <code>manager</code>, <code>lead</code>, <code>observer</code>.
+        <strong>Platform Admin</strong> — Workspaces, IAM, Settings.
+        <strong>Manager</strong> — FinOps, gateways, plugins, full triage.
+        <strong>Lead</strong> — Operations triage, gateways, plugins.
+        <strong>Observer</strong> — read-only dashboard.
       </div>
     </article>`;
 }

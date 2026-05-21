@@ -4,6 +4,7 @@
  */
 import { fetchWithAuth, parseJwt, parseApiJson, asArray } from './api.js';
 import { notify, showConfirmModal, showPromptModal } from './ui.js';
+import * as analyticsLayout from './analytics-layout.js';
 
 export let allProjects = [];
 let editingProjectId = null;
@@ -93,8 +94,8 @@ export function loadGatewaysData() {
                     <td style="padding: 10px; text-transform: uppercase;">${p.ci_system}</td>
                     <td style="padding: 10px;"><code style="color: #ff7b72; font-family: monospace;">••••••••••••</code></td>
                     <td style="padding: 10px; text-align: right;">
-                        <button class="btn-secondary" style="font-size:10px; padding:4px 8px; color:#58a6ff; border-color:#58a6ff; margin-right:5px;" onclick="window.editProject('${p.id}')">EDIT</button>
-                        <button class="btn-secondary" style="font-size:10px; padding:4px 8px; color:#ff7b72; border-color:#ff7b72;" onclick="window.deleteProject('${p.id}')">DELETE</button>
+                        <button type="button" class="btn btn-secondary btn-sm btn-info" onclick="window.editProject('${p.id}')">EDIT</button>
+                        <button type="button" class="btn btn-secondary btn-sm btn-danger" onclick="window.deleteProject('${p.id}')">DELETE</button>
                     </td>
                 </tr>
             `).join('');
@@ -247,206 +248,70 @@ export function toggleAnalytics() {
     const view = document.getElementById('analytics-view');
     if (view.style.display === 'none') {
         view.style.display = 'block';
-        loadAnalytics(false);
+        analyticsLayout.loadAnalyticsLayoutFromPrefs().then(() => loadAnalytics(false));
     } else {
         view.style.display = 'none';
     }
 }
 
+// Re-export for inline handlers
+if (typeof window !== 'undefined') {
+    window.reloadDashboardAnalytics = window.reloadDashboardAnalytics || function () {
+        const view = document.getElementById('analytics-view');
+        if (view && view.style.display !== 'none') loadAnalytics(false);
+    };
+}
+
 export function loadAnalytics(isExport = false) {
     applyChartThemeDefaults();
     const theme = getChartTheme();
-    return fetchWithAuth(`/api/metrics?_ts=${Date.now()}`)
+    const rangeQ = typeof window.getDashboardRangeQuery === 'function' ? window.getDashboardRangeQuery() : 'range=7d';
+    if (rangeQ === null) {
+        notify('Select both From and To dates before loading analytics.', 'error');
+        return Promise.resolve();
+    }
+    return fetchWithAuth(`/api/metrics?${rangeQ}&_ts=${Date.now()}`)
         .then(res => res.json())
         .then(data => {
-            const total = data.total_incidents ?? 0;
-            const resolved = data.resolved_incidents ?? 0;
-            const flaky = data.flaky_tests ?? 0;
-            const stable = data.stable_failures ?? Math.max(0, total - flaky);
-            const active = Math.max(0, total - resolved);
-            const resRate = total > 0 ? Math.round((resolved / total) * 100) : 0;
-            const flakyRate = total > 0 ? Math.round((flaky / total) * 100) : 0;
-
-            const setDetail = (id, text) => {
-                const el = document.getElementById(id);
-                if (el) el.textContent = text;
-            };
-            setDetail('an-total', String(total));
-            setDetail('an-active', String(active));
-            setDetail('an-resolution', total > 0 ? `${resRate}%` : 'N/A');
-            setDetail('an-flaky-ratio', total > 0 ? `${flakyRate}%` : 'N/A');
-
-            document.getElementById('mttr-value').innerText = data.mttr_minutes + " min";
-            
-            const mttfElement = document.getElementById('mttf-value');
-            if (mttfElement) {
-                mttfElement.innerText = data.mttf_minutes > 0 ? data.mttf_minutes + " min" : "N/A";
-            }
-
-            if (analyticsChart) analyticsChart.destroy();
-            if (evolutionChart) evolutionChart.destroy();
-
-            // 1. Doughnut Chart (High Quality Pie)
-            const ctxFlaky = document.getElementById('flakyChart').getContext('2d');
-            analyticsChart = new Chart(ctxFlaky, {
-                type: 'doughnut',
-                data: {
-                    labels: ['Stable Failures', 'Flaky Tests'],
-                    datasets: [{
-                        data: [data.stable_failures, data.flaky_tests],
-                        backgroundColor: ['#ef4444', '#d97706'],
-                        borderColor: theme.border,
-                        borderWidth: 2,
-                        hoverOffset: 5
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    animation: isExport ? false : { duration: 800, easing: 'easeOutQuart' },
-                    cutout: '75%',
-                    plugins: {
-                        legend: {
-                            position: 'bottom',
-                            labels: { color: theme.legend, usePointStyle: true, padding: 15, font: { size: 12, weight: '500' } }
-                        },
-                        title: {
-                            display: true,
-                            text: `Failure taxonomy — ${stable} stable / ${flaky} flaky`,
-                            color: theme.title,
-                            font: { size: 13, weight: '600' }
-                        },
-                        tooltip: {
-                            callbacks: {
-                                label(ctx) {
-                                    const sum = ctx.dataset.data.reduce((a, b) => a + b, 0);
-                                    const pct = sum ? Math.round((ctx.raw / sum) * 100) : 0;
-                                    return `${ctx.label}: ${ctx.raw} (${pct}%)`;
-                                }
-                            }
-                        }
-                    }
-                }
-            });
-
-            // 2. 5-Week Evolution Combined Chart (Pro Design)
-            if (data.evolution && data.evolution.length > 0) {
-                const ctxEvo = document.getElementById('evolutionChart').getContext('2d');
-                
-                const labels = data.evolution.map(e => e.week_start);
-                const totals = data.evolution.map(e => e.total_failures);
-                const flakies = data.evolution.map(e => e.flaky_count);
-                const mttrs = data.evolution.map(e => Math.round(e.mttr));
-                const resolvedSeries = data.evolution.map(e => Math.max(0, (e.total_failures || 0) - (e.flaky_count || 0)));
-
-                evolutionChart = new Chart(ctxEvo, {
-                    type: 'bar',
-                    data: {
-                        labels: labels,
-                        datasets: [
-                            {
-                                label: 'Total Incidents',
-                                type: 'bar',
-                                data: totals,
-                                backgroundColor: 'rgba(88, 166, 255, 0.6)',
-                                hoverBackgroundColor: '#58a6ff',
-                                borderRadius: 4,
-                                barPercentage: 0.5,
-                                yAxisID: 'y'
-                            },
-                            {
-                                label: 'Flaky Tests',
-                                type: 'bar',
-                                data: flakies,
-                                backgroundColor: 'rgba(210, 153, 34, 0.6)',
-                                hoverBackgroundColor: '#d29922',
-                                borderRadius: 4,
-                                barPercentage: 0.5,
-                                yAxisID: 'y'
-                            },
-                            {
-                                label: 'Stable failures (est.)',
-                                type: 'bar',
-                                data: resolvedSeries,
-                                backgroundColor: 'rgba(100, 116, 139, 0.45)',
-                                borderRadius: 4,
-                                barPercentage: 0.4,
-                                yAxisID: 'y'
-                            },
-                            {
-                                label: 'Avg MTTR (min)',
-                                type: 'line',
-                                data: mttrs,
-                                borderColor: '#059669',
-                                backgroundColor: 'rgba(5, 150, 105, 0.08)',
-                                fill: true,
-                                borderWidth: 3,
-                                tension: 0.4,
-                                pointRadius: isExport ? 4 : 0,
-                                pointHoverRadius: 6,
-                                pointBackgroundColor: '#059669',
-                                yAxisID: 'y1'
-                            }
-                        ]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        animation: isExport ? false : { duration: 1000, easing: 'easeOutQuart' },
-                        interaction: { mode: 'index', intersect: false },
-                        plugins: {
-                            legend: { labels: { color: theme.legend, usePointStyle: true, font: { size: 11 } } },
-                            tooltip: {
-                                callbacks: {
-                                    footer(items) {
-                                        const t = items.find(i => i.datasetIndex === 0);
-                                        const f = items.find(i => i.datasetIndex === 1);
-                                        if (t && f && t.raw != null && f.raw != null) {
-                                            const sum = Number(t.raw) + Number(f.raw);
-                                            if (sum > 0) {
-                                                const fp = Math.round((Number(f.raw) / sum) * 100);
-                                                return `Flaky share: ${fp}%`;
-                                            }
-                                        }
-                                        return '';
-                                    }
-                                }
-                            }
-                        },
-                        scales: {
-                            x: { ticks: { color: theme.tick }, grid: { display: false } },
-                            y: {
-                                type: 'linear', display: true, position: 'left',
-                                title: { display: true, text: 'Incidents Volume', color: theme.title, font: { size: 11 } },
-                                ticks: { color: theme.tick, stepSize: 1 },
-                                grid: { color: theme.grid, borderDash: [4, 4] },
-                                border: { display: false }
-                            },
-                            y1: {
-                                type: 'linear', display: true, position: 'right',
-                                title: { display: true, text: 'MTTR (min)', color: '#059669', font: { size: 11 } },
-                                ticks: { color: '#059669' },
-                                grid: { drawOnChartArea: false },
-                                border: { display: false }
-                            }
-                        },
-                    }
-                });
-            }
+            window.__lastMetricsData = data;
+            analyticsLayout.renderAnalyticsGrid(data, { isExport, theme });
             return data;
         })
-        .catch(err => console.error("Error loading analytics:", err));
+        .catch(err => {
+            console.error('Error loading analytics:', err);
+            return null;
+        });
+}
+
+function hexToRgb(hex) {
+    const h = (hex || '#3b82f6').replace('#', '');
+    if (h.length !== 6) return [59, 130, 246];
+    return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+}
+
+async function loadImageAsDataUrl(url) {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('logo');
+    const blob = await res.blob();
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+    });
 }
 
 export function downloadWeeklyReportCSV() {
     const filterEl = document.getElementById('project-filter');
     const projectFilter = filterEl ? filterEl.value : 'all';
+    const rangeQ = typeof window.getDashboardRangeQuery === 'function' ? window.getDashboardRangeQuery() : 'range=7d';
+    if (rangeQ === null) return notify('Select a valid time range first.', 'error');
 
-    fetchWithAuth(`/api/reports/weekly?project=${encodeURIComponent(projectFilter)}&_ts=${Date.now()}`)
+    fetchWithAuth(`/api/reports/weekly?project=${encodeURIComponent(projectFilter)}&${rangeQ}&_ts=${Date.now()}`)
         .then(res => res.json())
         .then(data => {
             if (!data || data.length === 0) {
-                return notify("No incidents recorded in the last 7 days.", "warning");
+                return notify('No incidents in the selected time range.', 'warning');
             }
 
             let csvContent = "Pipeline Name,Total Alerts,Resolved Alerts,Flaky Tests,Health Score (%)\n";
@@ -473,230 +338,460 @@ export function downloadWeeklyReportCSV() {
         .catch(() => notify("Failed to generate CSV report", "error"));
 }
 
+const PDF_PAGE = { w: 210, h: 297, margin: 14 };
+
+function pdfEnsureSpace(doc, y, need, margin = PDF_PAGE.margin) {
+    if (y + need > PDF_PAGE.h - margin) {
+        doc.addPage();
+        doc.setFillColor(248, 250, 252);
+        doc.rect(0, 0, PDF_PAGE.w, PDF_PAGE.h, 'F');
+        return margin + 4;
+    }
+    return y;
+}
+
+function pdfDrawHeader(doc, { logoData, titleScope, rangeLabel }) {
+    const m = PDF_PAGE.margin;
+    const headerH = 34;
+    doc.setFillColor(248, 250, 252);
+    doc.rect(0, 0, PDF_PAGE.w, headerH, 'F');
+    doc.setFillColor(37, 99, 235);
+    doc.rect(0, 0, 3, headerH, 'F');
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.3);
+    doc.line(0, headerH, PDF_PAGE.w, headerH);
+
+    const textX = logoData ? m + 28 : m;
+    if (logoData) doc.addImage(logoData, 'PNG', m, 7, 22, 22);
+
+    doc.setTextColor(15, 23, 42);
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text('QA Capsule — Flight Recorder', textX, 14);
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+    doc.text(`Executive SRE Observability Report · ${titleScope}`, textX, 20);
+
+    doc.setFontSize(8);
+    doc.setTextColor(100, 116, 139);
+    doc.text(`Period: ${rangeLabel}`, textX, 25);
+    doc.text(`Generated ${new Date().toLocaleString()}`, textX, 29);
+
+    return headerH + 8;
+}
+
+function pdfDrawKpiRow(doc, startY, metricWidgets, metricsData) {
+    if (!metricWidgets.length) return startY;
+    const m = PDF_PAGE.margin;
+    const contentW = PDF_PAGE.w - m * 2;
+    const cols = Math.min(4, metricWidgets.length);
+    const gap = 5;
+    const cardW = (contentW - gap * (cols - 1)) / cols;
+    const cardH = 26;
+    let y = startY;
+
+    metricWidgets.forEach((w, index) => {
+        const col = index % cols;
+        const row = Math.floor(index / cols);
+        const x = m + col * (cardW + gap);
+        const cy = y + row * (cardH + gap);
+        const rgb = hexToRgb(w.color);
+        const label = w.title || analyticsLayout.METRIC_CATALOG[w.metric]?.label || w.metric || 'Metric';
+        const val = analyticsLayout.getMetricDisplayValue(metricsData, w.metric);
+
+        doc.setFillColor(255, 255, 255);
+        doc.setDrawColor(226, 232, 240);
+        doc.setLineWidth(0.25);
+        if (typeof doc.roundedRect === 'function') {
+            doc.roundedRect(x, cy, cardW, cardH, 2, 2, 'FD');
+        } else {
+            doc.rect(x, cy, cardW, cardH, 'FD');
+        }
+        doc.setFillColor(rgb[0], rgb[1], rgb[2]);
+        doc.rect(x, cy, cardW, 1.2, 'F');
+
+        doc.setFontSize(7);
+        doc.setTextColor(100, 116, 139);
+        doc.setFont('helvetica', 'bold');
+        const labelLines = doc.splitTextToSize(label.toUpperCase(), cardW - 8);
+        doc.text(labelLines, x + 4, cy + 8);
+
+        doc.setFontSize(16);
+        doc.setTextColor(rgb[0], rgb[1], rgb[2]);
+        doc.setFont('helvetica', 'bold');
+        doc.text(String(val), x + 4, cy + 19);
+    });
+
+    const rows = Math.ceil(metricWidgets.length / cols);
+    return y + rows * (cardH + gap) + 6;
+}
+
+function pdfDrawSectionTitle(doc, y, title) {
+    const m = PDF_PAGE.margin;
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 41, 59);
+    doc.text(title, m, y);
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.2);
+    doc.line(m, y + 2, PDF_PAGE.w - m, y + 2);
+    return y + 8;
+}
+
+function pdfDrawChartBlock(doc, y, title, img, chartType) {
+    const m = PDF_PAGE.margin;
+    const contentW = PDF_PAGE.w - m * 2;
+    const blockH = chartType === 'evolution' ? 78 : 58;
+    y = pdfEnsureSpace(doc, y, blockH + 14, m);
+
+    y = pdfDrawSectionTitle(doc, y, title);
+
+    doc.setFillColor(255, 255, 255);
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.25);
+    if (typeof doc.roundedRect === 'function') {
+        doc.roundedRect(m, y, contentW, blockH, 2, 2, 'FD');
+    } else {
+        doc.rect(m, y, contentW, blockH, 'FD');
+    }
+
+    const pad = 4;
+    const imgW = contentW - pad * 2;
+    const imgH = blockH - pad * 2;
+    doc.addImage(img, 'PNG', m + pad, y + pad, imgW, imgH);
+    return y + blockH + 10;
+}
+
 export async function downloadWeeklyReportPDF() {
     const filterEl = document.getElementById('project-filter');
     const projectFilter = filterEl ? filterEl.value : 'all';
+    const rangeQ = typeof window.getDashboardRangeQuery === 'function' ? window.getDashboardRangeQuery() : 'range=7d';
+    if (rangeQ === null) return notify('Select a valid time range first.', 'error');
 
     try {
-        const view = document.getElementById('analytics-view');
-        const wasHidden = view.style.display === 'none';
-        
-        // English Comment: Force rendering context to capture active canvas textures
-        if (wasHidden) {
-            view.style.display = 'block';
-            view.style.position = 'absolute';
-            view.style.visibility = 'hidden';
-        }
+        const metricsRes = await fetchWithAuth(`/api/metrics?${rangeQ}&_ts=${Date.now()}`);
+        const metricsData = await metricsRes.json();
+        if (!metricsData) return notify('Could not load metrics for export.', 'error');
 
-        // English Comment: Fetch fresh metrics using synchronous export flag (no chart animations)
-        const metricsData = await loadAnalytics(true);
-        
-        const res = await fetchWithAuth(`/api/reports/weekly?project=${encodeURIComponent(projectFilter)}&_ts=${Date.now()}`);
+        const res = await fetchWithAuth(`/api/reports/weekly?project=${encodeURIComponent(projectFilter)}&${rangeQ}&_ts=${Date.now()}`);
         const tableData = await res.json();
 
         if (!tableData || tableData.length === 0) {
-            if (wasHidden) { view.style.display = 'none'; view.style.position = ''; view.style.visibility = ''; }
-            return notify("No incidents recorded in the last 7 days.", "warning");
+            return notify('No incidents in the selected time range.', 'warning');
         }
+
+        const layout = analyticsLayout.getAnalyticsLayout();
+        const chartImages = await analyticsLayout.renderChartsForPdfExport(metricsData, layout);
+        const rangeLabel = document.getElementById('dashboard-range-summary')?.textContent || rangeQ;
+        const titleScope = projectFilter === 'all' ? 'Global Organization' : `Project: ${projectFilter}`;
+
+        let logoData = null;
+        try { logoData = await loadImageAsDataUrl('/assets/logo.png'); } catch { /* optional */ }
 
         const { jsPDF } = window.jspdf;
-        const doc = new jsPDF();
+        const doc = new jsPDF({ unit: 'mm', format: 'a4' });
 
-        // ==========================================
-        // 1. CORPORATE HEADER BLOCK
-        // ==========================================
-        doc.setFillColor(13, 17, 23);
-        doc.rect(0, 0, 210, 38, 'F');
-        doc.setTextColor(88, 166, 255);
-        doc.setFontSize(22);
-        doc.setFont("helvetica", "bold");
-        doc.text("QA Flight Recorder", 14, 16);
-        
-        doc.setTextColor(201, 209, 217);
-        doc.setFontSize(11);
-        doc.setFont("helvetica", "normal");
-        let titleScope = projectFilter === 'all' ? 'Global Organization' : `Project: ${projectFilter}`;
-        doc.text(`Executive SRE Observability Report • ${titleScope}`, 14, 24);
-        
-        doc.setFontSize(9);
-        doc.setTextColor(139, 148, 158);
-        doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 31);
+        const paintPageBg = () => {
+            doc.setFillColor(248, 250, 252);
+            doc.rect(0, 0, PDF_PAGE.w, PDF_PAGE.h, 'F');
+        };
+        paintPageBg();
 
-        // ==========================================
-        // 2. DESIGNED METRICS KPI CARDS (SNAPSHOT ROW)
-        // ==========================================
-        const kpis = [
-            { label: "MEAN TIME TO RESOLVE", val: `${metricsData.mttr_minutes} min`, color: [63, 185, 80] },
-            { label: "MEAN TIME TO FAILURE", val: metricsData.mttf_minutes > 0 ? `${metricsData.mttf_minutes} min` : "N/A", color: [88, 166, 255] },
-            { label: "STABLE CRITICAL BUGS", val: `${metricsData.stable_failures}`, color: [255, 123, 114] },
-            { label: "FLAKY FLICKERING TESTS", val: `${metricsData.flaky_tests}`, color: [210, 153, 34] }
-        ];
+        let y = pdfDrawHeader(doc, { logoData, titleScope, rangeLabel });
+        y = pdfDrawKpiRow(doc, y, layout.filter(w => w.type === 'metric'), metricsData);
 
-        const cardW = 42;
-        const cardH = 18;
-        const gap = 4;
-        const startX = 14;
-        const startY = 44;
-
-        kpis.forEach((kpi, index) => {
-            let x = startX + index * (cardW + gap);
-            // Draw background card body
-            doc.setFillColor(22, 27, 34);
-            doc.rect(x, startY, cardW, cardH, 'F');
-            // Accent indicator top band
-            doc.setFillColor(kpi.color[0], kpi.color[1], kpi.color[2]);
-            doc.rect(x, startY, cardW, 2, 'F');
-            
-            // Label rendering
-            doc.setFontSize(7);
-            doc.setTextColor(139, 148, 158);
-            doc.setFont("helvetica", "bold");
-            doc.text(kpi.label, x + 3, startY + 6);
-            
-            // Metric digits rendering
-            doc.setFontSize(14);
-            doc.setTextColor(kpi.color[0], kpi.color[1], kpi.color[2]);
-            doc.text(kpi.val, x + 3, startY + 14);
+        layout.filter(w => w.type !== 'metric').forEach(w => {
+            const img = chartImages[`analytics-${w.id}`];
+            if (!img) return;
+            y = pdfDrawChartBlock(doc, y, w.title || 'Chart', img, w.type);
         });
 
-        // ==========================================
-        // 3. PIE CHART LINE (DEDICATED ROW 1)
-        // ==========================================
-        let currentY = 68;
-        if (analyticsChart) {
-            doc.setFontSize(11);
-            doc.setTextColor(36, 41, 47);
-            doc.setFont("helvetica", "bold");
-            doc.text("Failure Quality Distribution", 14, currentY);
-            currentY += 4;
-            
-            doc.setFillColor(13, 17, 23);
-            doc.rect(14, currentY, 182, 48, 'F'); // Bound panel background
-            
-            const pieImg = analyticsChart.toBase64Image();
-            // Center square pie textures inside the wide banner row
-            doc.addImage(pieImg, 'PNG', 84, currentY + 2, 44, 44);
-            currentY += 48;
-        }
-
-        // ==========================================
-        // 4. HISTORICAL EVOLUTION LINE (DEDICATED ROW 2)
-        // ==========================================
-        currentY += 6;
-        if (evolutionChart) {
-            doc.setFontSize(11);
-            doc.setTextColor(36, 41, 47);
-            doc.setFont("helvetica", "bold");
-            doc.text("5-Week Historical Metrics Trends (Alerts vs MTTR)", 14, currentY);
-            currentY += 4;
-            
-            doc.setFillColor(13, 17, 23);
-            doc.rect(14, currentY, 182, 54, 'F');
-            
-            const evoImg = evolutionChart.toBase64Image();
-            doc.addImage(evoImg, 'PNG', 16, currentY + 3, 178, 48);
-            currentY += 54;
-        }
-
-        // ==========================================
-        // 5. DATA GRID SUMMARY TABLE
-        // ==========================================
-        currentY += 8;
-        const tableColumn = ["Pipeline Name", "Total Alerts", "Resolved", "Flaky Tests", "Health Score"];
-        const tableRows = [];
-        tableData.forEach(row => {
-            tableRows.push([row.pipeline, row.total_alerts, row.resolved_alerts, row.flaky_tests, row.health_score + "%"]);
-        });
+        y = pdfEnsureSpace(doc, y, 40);
+        y = pdfDrawSectionTitle(doc, y, 'Pipeline health summary');
 
         doc.autoTable({
-            head: [tableColumn],
-            body: tableRows,
-            startY: currentY,
-            theme: 'grid',
-            headStyles: { fillColor: [22, 27, 34], textColor: [201, 209, 217], lineColor: [48, 54, 61], lineWidth: 0.1 },
-            bodyStyles: { fillColor: [255, 255, 255], textColor: [36, 41, 47], lineColor: [208, 215, 222], lineWidth: 0.1 },
-            alternateRowStyles: { fillColor: [246, 248, 250] },
-            styles: { font: 'helvetica', fontSize: 10, cellPadding: 5 }
+            head: [['Pipeline', 'Total alerts', 'Resolved', 'Flaky tests', 'Health']],
+            body: tableData.map(row => [
+                row.pipeline,
+                row.total_alerts,
+                row.resolved_alerts,
+                row.flaky_tests,
+                `${row.health_score}%`
+            ]),
+            startY: y,
+            margin: { left: PDF_PAGE.margin, right: PDF_PAGE.margin },
+            theme: 'plain',
+            headStyles: {
+                fillColor: [241, 245, 249],
+                textColor: [51, 65, 85],
+                fontStyle: 'bold',
+                fontSize: 9,
+                cellPadding: 4
+            },
+            bodyStyles: {
+                fillColor: [255, 255, 255],
+                textColor: [30, 41, 59],
+                fontSize: 9,
+                cellPadding: 4
+            },
+            alternateRowStyles: { fillColor: [248, 250, 252] },
+            styles: {
+                font: 'helvetica',
+                lineColor: [226, 232, 240],
+                lineWidth: 0.2
+            }
         });
 
-        const dateStr = new Date().toISOString().split('T')[0];
-        let suffix = projectFilter === 'all' ? 'Global' : projectFilter;
-        doc.save(`QA_Capsule_Executive_Report_${suffix}_${dateStr}.pdf`);
-        notify("PDF report generated successfully.", "success");
-
-        // English Comment: Clean up temporary layout parameters
-        if (wasHidden) {
-            view.style.display = 'none';
-            view.style.position = '';
-            view.style.visibility = '';
+        const pageCount = doc.getNumberOfPages();
+        for (let p = 1; p <= pageCount; p++) {
+            doc.setPage(p);
+            doc.setFontSize(7);
+            doc.setTextColor(148, 163, 184);
+            doc.text(
+                `QA Capsule · Confidential · Page ${p} / ${pageCount}`,
+                PDF_PAGE.w / 2,
+                PDF_PAGE.h - 8,
+                { align: 'center' }
+            );
         }
 
+        const dateStr = new Date().toISOString().split('T')[0];
+        const suffix = projectFilter === 'all' ? 'Global' : projectFilter;
+        doc.save(`QA_Capsule_Executive_Report_${suffix}_${dateStr}.pdf`);
+        notify('PDF report generated successfully.', 'success');
     } catch (err) {
-        console.error("PDF Gen Error:", err);
-        notify("Failed to generate PDF report", "error");
+        console.error('PDF Gen Error:', err);
+        notify('Failed to generate PDF report', 'error');
+    } finally {
+        analyticsLayout.refreshMainAnalyticsGrid();
     }
 }
 
-export function loadPlugins() {
-    fetchWithAuth(`/api/plugins?_ts=${Date.now()}`).then(res => res.json()).then(data => {
-        if (!data || data.length === 0) { document.getElementById('plugin-list').innerHTML = "<div style='text-align:center; padding:40px; opacity:0.5;'>No modules detected in the plugins directory.</div>"; return; }
-        const configIcon = `<svg style="width:14px;height:14px;margin-right:5px;vertical-align:middle;stroke:currentColor;fill:none;" viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>`;
-        const runIcon = `<svg style="width:14px;height:14px;margin-right:5px;vertical-align:middle;stroke:currentColor;fill:none;" viewBox="0 0 24 24" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>`;
-        const saveIcon = `<svg style="width:14px;height:14px;margin-right:5px;vertical-align:middle;stroke:currentColor;fill:none;" viewBox="0 0 24 24" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>`;
-        const consoleIcon = `<svg style="width:12px;height:12px;margin-right:5px;vertical-align:middle;stroke:currentColor;fill:none;" viewBox="0 0 24 24" stroke-width="2"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>`;
-        const pluginIconSVG = `<svg style="width:24px;height:24px;stroke:#8b949e;fill:none;" viewBox="0 0 24 24" stroke-width="1.5"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>`;
+export function saveAnalyticsLayout() {
+    const modal = document.getElementById('analytics-layout-modal');
+    if (modal && modal.style.display === 'flex') {
+        return analyticsLayout.saveAnalyticsLayoutFromModal();
+    }
+    return analyticsLayout.saveAnalyticsLayoutToPrefs();
+}
 
-        const groupedPlugins = {};
-        data.forEach(p => { const parts = p.file_path.split(/[/\\]/); const folderName = parts.length > 1 ? parts[0] : 'general'; if (!groupedPlugins[folderName]) groupedPlugins[folderName] = []; groupedPlugins[folderName].push(p); });
+export function resetAnalyticsLayout() {
+    analyticsLayout.resetAnalyticsLayoutDefault();
+    notify('Analytics layout reset to default. Click Save layout to persist.', 'info');
+}
 
-        let html = '';
-        let globalIdx = 0;
+const PLUGIN_FOLDER_LABELS = {
+    pagerduty: 'Paging (PagerDuty)',
+    opsgenie: 'Paging (Opsgenie)',
+    victorops: 'Paging (Splunk On-Call / VictorOps)',
+    github: 'CI/CD (GitHub Actions)',
+    datadog: 'Observability (Datadog)',
+    webhook: 'Integrations (HTTP webhook)',
+    qa: 'QA workflows',
+    testrail: 'Test management (TestRail)',
+    zephyr: 'Test management (Zephyr Scale)',
+    xray: 'Test management (Xray Cloud)',
+    email: 'Email (SendGrid / SMTP)',
+    jira: 'Ticketing (Jira)',
+    slack: 'Chat (Slack)',
+    teams: 'Chat (Microsoft Teams)',
+    k8s: 'Kubernetes remediation'
+};
 
-        for (const [folder, plugins] of Object.entries(groupedPlugins)) {
-            html += `<h3 style="margin: 30px 0 15px 0; padding-bottom: 8px; border-bottom: 1px solid var(--border-main); color: var(--text-main); font-size: 14px; letter-spacing: 1px; text-transform: uppercase; opacity: 0.8;">Category: ${folder}</h3>`;
-            plugins.forEach(p => {
-                const safePath = p.file_path.replace(/\\/g, '/');
-                let envs = '';
-                for (let k in (p.env || {})) { envs += `<div style="margin-bottom: 12px;"><label style="font-size:11px; color:#8b949e; display:block; margin-bottom:5px; text-transform:uppercase; font-weight:bold; letter-spacing:0.5px;">${k}</label><input type="text" id="env-${globalIdx}-${k}" class="login-input" style="padding:10px; margin:0; width:100%; box-sizing:border-box; background:#0d1117;" value="${p.env[k]}"></div>`; }
-                let desc = p.description || "No description provided.";
-                const logoUrl = `/assets/${folder.toLowerCase()}.png`;
+function escapePluginHtml(s) {
+    return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
 
-                html += `
-                <div class="data-card" style="border-left: 4px solid #58a6ff; margin-bottom: 20px; padding: 20px; transition: all 0.2s ease;">
+function pluginFolderName(filePath) {
+    const parts = (filePath || '').split(/[/\\]/);
+    return parts.length > 1 ? parts[0] : 'general';
+}
+
+function pluginSearchHaystack(p, folder, folderLabel) {
+    return [
+        p.name,
+        p.description,
+        p.status,
+        p.version,
+        p.file_path,
+        folder,
+        folderLabel,
+        ...(p.trigger_on || []),
+        ...Object.keys(p.env || {})
+    ].join(' ').toLowerCase();
+}
+
+function pluginMatchesFilters(p, folder, folderLabel, query, category) {
+    if (category && category !== 'all' && folder.toLowerCase() !== category) return false;
+    if (!query) return true;
+    return pluginSearchHaystack(p, folder, folderLabel).includes(query);
+}
+
+function populatePluginCategoryFilter(plugins) {
+    const sel = document.getElementById('plugin-category-filter');
+    if (!sel) return;
+    const folders = [...new Set(plugins.map(p => pluginFolderName(p.file_path).toLowerCase()))].sort();
+    const current = sel.value || 'all';
+    sel.innerHTML = '<option value="all">All categories</option>';
+    folders.forEach(f => {
+        const label = PLUGIN_FOLDER_LABELS[f] || f;
+        sel.innerHTML += `<option value="${escapePluginHtml(f)}">${escapePluginHtml(label)}</option>`;
+    });
+    if ([...sel.options].some(o => o.value === current)) sel.value = current;
+}
+
+function updatePluginSearchMeta(shown, total, query, category) {
+    const meta = document.getElementById('plugin-search-meta');
+    if (!meta) return;
+    if (total === 0) {
+        meta.textContent = 'No modules detected in the plugins directory.';
+        return;
+    }
+    let text = `Showing ${shown} of ${total} plugin${total === 1 ? '' : 's'}`;
+    if (query || (category && category !== 'all')) text += ' (filtered)';
+    meta.textContent = text;
+}
+
+function renderPluginList(plugins, query = '', category = 'all') {
+    const listEl = document.getElementById('plugin-list');
+    if (!listEl) return;
+
+    const q = (query || '').trim().toLowerCase();
+    if (!plugins || plugins.length === 0) {
+        listEl.innerHTML = "<div style='text-align:center; padding:40px; opacity:0.5;'>No modules detected in the plugins directory.</div>";
+        updatePluginSearchMeta(0, 0, q, category);
+        return;
+    }
+
+    const configIcon = `<svg style="width:14px;height:14px;margin-right:5px;vertical-align:middle;stroke:currentColor;fill:none;" viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>`;
+    const runIcon = `<svg style="width:14px;height:14px;margin-right:5px;vertical-align:middle;stroke:currentColor;fill:none;" viewBox="0 0 24 24" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>`;
+    const saveIcon = `<svg style="width:14px;height:14px;margin-right:5px;vertical-align:middle;stroke:currentColor;fill:none;" viewBox="0 0 24 24" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>`;
+    const consoleIcon = `<svg style="width:12px;height:12px;margin-right:5px;vertical-align:middle;stroke:currentColor;fill:none;" viewBox="0 0 24 24" stroke-width="2"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>`;
+    const pluginIconSVG = `<svg style="width:24px;height:24px;stroke:#8b949e;fill:none;" viewBox="0 0 24 24" stroke-width="1.5"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>`;
+
+    const groupedPlugins = {};
+    plugins.forEach(p => {
+        const folder = pluginFolderName(p.file_path);
+        if (!groupedPlugins[folder]) groupedPlugins[folder] = [];
+        groupedPlugins[folder].push(p);
+    });
+
+    let html = '';
+    let globalIdx = 0;
+    let shown = 0;
+
+    const sortedFolders = Object.keys(groupedPlugins).sort((a, b) => {
+        const la = PLUGIN_FOLDER_LABELS[a.toLowerCase()] || a;
+        const lb = PLUGIN_FOLDER_LABELS[b.toLowerCase()] || b;
+        return la.localeCompare(lb);
+    });
+
+    for (const folder of sortedFolders) {
+        const folderLabel = PLUGIN_FOLDER_LABELS[folder.toLowerCase()] || folder;
+        const visible = groupedPlugins[folder].filter(p => pluginMatchesFilters(p, folder, folderLabel, q, category));
+        if (visible.length === 0) continue;
+
+        html += `<h3 class="plugin-category-heading" data-folder="${escapePluginHtml(folder.toLowerCase())}" style="margin: 30px 0 15px 0; padding-bottom: 8px; border-bottom: 1px solid var(--border-main); color: var(--text-main); font-size: 14px; letter-spacing: 1px; text-transform: uppercase; opacity: 0.8;">${escapePluginHtml(folderLabel)} <span style="font-weight:400; opacity:0.65;">(${visible.length})</span></h3>`;
+
+        visible.forEach(p => {
+            shown++;
+            const safePath = p.file_path.replace(/\\/g, '/');
+            const envKeys = Object.keys(p.env || {});
+            let envs = '';
+            envKeys.forEach(k => {
+                envs += `<div style="margin-bottom: 12px;"><label style="font-size:11px; color:#8b949e; display:block; margin-bottom:5px; text-transform:uppercase; font-weight:bold; letter-spacing:0.5px;">${escapePluginHtml(k)}</label><input type="text" id="env-${globalIdx}-${k}" class="login-input" style="padding:10px; margin:0; width:100%; box-sizing:border-box; background:#0d1117;" value="${escapePluginHtml(p.env[k])}"></div>`;
+            });
+            const desc = p.description || 'No description provided.';
+            const logoUrl = `/assets/${folder.toLowerCase()}.png`;
+            const triggers = (p.trigger_on || []).join(', ');
+            const autoBadge = p.status === 'Active'
+                ? '<span style="font-size:10px; color:#3fb950; border:1px solid #3fb950; padding:2px 6px; border-radius:4px; letter-spacing: 0.5px;">AUTO-RUN ON</span>'
+                : '';
+            const envKeysAttr = envKeys.join(',');
+
+            html += `
+                <div class="data-card plugin-card" data-plugin-idx="${globalIdx}" data-folder="${escapePluginHtml(folder.toLowerCase())}" style="border-left: 4px solid #58a6ff; margin-bottom: 20px; padding: 20px; transition: all 0.2s ease;">
                     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap: wrap; gap: 20px;">
                         <div style="display:flex; align-items:center; gap: 15px; flex-grow: 1;">
                             <div style="position:relative; width:50px; height:50px; flex-shrink:0;">
                                 <div style="position:absolute; top:0; left:0; width:100%; height:100%; border-radius:10px; background:#21262d; border:1px solid #30363d; display:flex; align-items:center; justify-content:center; z-index:1;">${pluginIconSVG}</div>
-                                <img src="${logoUrl}" onerror="this.style.display='none'" style="position:absolute; top:0; left:0; width:100%; height:100%; object-fit:contain; border-radius:10px; background:#0d1117; padding:5px; border:1px solid #30363d; box-sizing:border-box; z-index:2;" />
+                                <img src="${logoUrl}" onerror="this.style.display='none'" alt="" style="position:absolute; top:0; left:0; width:100%; height:100%; object-fit:contain; border-radius:10px; background:#0d1117; padding:5px; border:1px solid #30363d; box-sizing:border-box; z-index:2;" />
                             </div>
                             <div>
-                                <h3 style="margin:0 0 5px 0; color:var(--text-main); font-size: 16px; display:flex; align-items:center; gap:10px;">
-                                    ${p.name} <span style="font-size:10px; background:#238636; color:white; padding:3px 8px; border-radius:12px;">v${p.version || '1.0'}</span>
-                                    ${p.status === 'Active' ? '<span style="font-size:10px; color:#3fb950; border:1px solid #3fb950; padding:2px 6px; border-radius:4px; letter-spacing: 0.5px;">AUTO-RUN ON</span>' : ''}
+                                <h3 style="margin:0 0 5px 0; color:var(--text-main); font-size: 16px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                                    ${escapePluginHtml(p.name)} <span style="font-size:10px; background:#238636; color:white; padding:3px 8px; border-radius:12px;">v${escapePluginHtml(p.version || '1.0')}</span>
+                                    ${autoBadge}
                                 </h3>
-                                <p style="font-size:13px; color:#8b949e; margin:0; line-height: 1.4;">${desc}</p>
+                                <p style="font-size:13px; color:#8b949e; margin:0 0 4px; line-height: 1.4;">${escapePluginHtml(desc)}</p>
+                                ${triggers ? `<p style="font-size:11px; color:#6e7681; margin:0;">Triggers: ${escapePluginHtml(triggers)}</p>` : ''}
                             </div>
                         </div>
                         <div style="display:flex; gap:12px; flex-shrink: 0;">
-                            <button class="btn-secondary" style="display:flex; align-items:center; padding: 8px 16px;" onclick="window.togglePluginConfig('config-${globalIdx}')">${configIcon} Configure</button>
-                            <button class="btn-primary" id="btn-run-${globalIdx}" onclick="window.runPlugin('${safePath}', ${globalIdx})" style="background-color:#58a6ff; border-color:#58a6ff; color: #0d1117; font-weight: bold; padding: 8px 16px; display:flex; align-items:center; justify-content:center; min-width: 120px;">${runIcon} Execute</button>
+                            <button type="button" class="btn-secondary" style="display:flex; align-items:center; padding: 8px 16px;" onclick="window.togglePluginConfig('config-${globalIdx}')">${configIcon} Configure</button>
+                            <button type="button" class="btn-primary" id="btn-run-${globalIdx}" onclick="window.runPlugin('${safePath}', ${globalIdx})" style="background-color:#58a6ff; border-color:#58a6ff; color: #0d1117; font-weight: bold; padding: 8px 16px; display:flex; align-items:center; justify-content:center; min-width: 120px;">${runIcon} Execute</button>
                         </div>
                     </div>
                     <div id="config-${globalIdx}" style="display:none; margin-top:20px; background:var(--bg-main); padding:20px; border-radius:8px; border:1px solid var(--border-main);">
                         <h4 style="margin:0 0 15px 0; font-size:13px; text-transform:uppercase; color:#58a6ff; letter-spacing:1px;">Environment Variables</h4>
                         ${envs || '<p style="font-size:13px; color:#8b949e;">No external variables required.</p>'}
-                        ${envs ? `<button class="btn-primary" style="font-size:12px; width:100%; margin-top:15px; padding:10px; display:flex; align-items:center; justify-content:center;" onclick="window.savePluginConfig('${safePath}', ${globalIdx}, '${Object.keys(p.env || {}).join(',')}')">${saveIcon} Save</button>` : ''}
+                        ${envs ? `<button type="button" class="btn-primary" style="font-size:12px; width:100%; margin-top:15px; padding:10px; display:flex; align-items:center; justify-content:center;" onclick="window.savePluginConfig('${safePath}', ${globalIdx}, '${envKeysAttr}')">${saveIcon} Save</button>` : ''}
                     </div>
                     <div id="logs-container-${globalIdx}" style="display:none; margin-top:20px;">
                         <div style="font-size:12px; color:#8b949e; margin-bottom:8px; text-transform:uppercase; font-weight:bold; display:flex; align-items:center;">${consoleIcon} STDOUT Console</div>
                         <pre id="logs-${globalIdx}" style="background:#0d1117; color:#00ff00; padding:15px; border-radius:8px; border:1px solid #30363d; font-family:monospace; font-size:13px; overflow-x:auto; white-space:pre-wrap; margin:0; max-height:400px; overflow-y:auto;"></pre>
                     </div>
                 </div>`;
-                globalIdx++;
-            });
-        }
-        document.getElementById('plugin-list').innerHTML = html;
-    }).catch(() => notify("Network error", "error"));
+            globalIdx++;
+        });
+    }
+
+    if (!html) {
+        html = `<div style="text-align:center; padding:48px 24px; opacity:0.65;">
+            <p style="margin:0 0 8px; font-size:15px;">No plugins match your search.</p>
+            <p style="margin:0; font-size:13px;">Try another keyword or reset filters.</p>
+        </div>`;
+    }
+
+    listEl.innerHTML = html;
+    updatePluginSearchMeta(shown, plugins.length, q, category);
+}
+
+let pluginFilterDebounce = null;
+
+export function filterPlugins() {
+    if (!window.__pluginsCache) return;
+    clearTimeout(pluginFilterDebounce);
+    pluginFilterDebounce = setTimeout(() => {
+        const query = document.getElementById('plugin-search')?.value || '';
+        const category = document.getElementById('plugin-category-filter')?.value || 'all';
+        renderPluginList(window.__pluginsCache, query, category);
+    }, 120);
+}
+
+export function resetPluginFilters() {
+    const search = document.getElementById('plugin-search');
+    const cat = document.getElementById('plugin-category-filter');
+    if (search) search.value = '';
+    if (cat) cat.value = 'all';
+    filterPlugins();
+}
+
+export function loadPlugins() {
+    const meta = document.getElementById('plugin-search-meta');
+    if (meta) meta.textContent = 'Loading modules…';
+
+    fetchWithAuth(`/api/plugins?_ts=${Date.now()}`).then(res => res.json()).then(data => {
+        window.__pluginsCache = data || [];
+        populatePluginCategoryFilter(window.__pluginsCache);
+        const query = document.getElementById('plugin-search')?.value || '';
+        const category = document.getElementById('plugin-category-filter')?.value || 'all';
+        renderPluginList(window.__pluginsCache, query, category);
+    }).catch(() => {
+        notify('Network error', 'error');
+        if (meta) meta.textContent = 'Failed to load plugins.';
+    });
 }
 
 export function togglePluginConfig(id) { const el = document.getElementById(id); el.style.display = el.style.display === 'none' ? 'block' : 'none'; }

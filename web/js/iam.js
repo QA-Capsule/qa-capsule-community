@@ -481,10 +481,12 @@ export function renderUserTable(users) {
                 <td><strong>${u.fullname || 'N/A'}</strong> ${isMe ? '<small>(YOU)</small>' : ''}<br><small style="opacity:0.6;">${u.username}</small></td>
                 <td><small>${roleLabel(u.role)}</small><br><small style="opacity:0.5;"><code>${u.role}</code></small></td>
                 <td style="text-align:right;">
-                    <button class="btn-secondary" style="font-size:10px; border-color:#58a6ff; color:#58a6ff;" onclick="window.openUserTeamsModal('${u.username}')">TEAMS</button>
-                    <button class="btn-secondary" style="font-size:10px;" onclick="window.adminResetPassword('${u.username}')" ${disabledState}>RESET PWD</button>
-                    <button class="btn-secondary" style="font-size:10px; color:${u.is_active ? 'var(--log-fatal)' : 'var(--log-pass)'}" onclick="window.toggleUserStatus('${u.username}', ${u.is_active})" ${disabledState}>${u.is_active ? 'Disable' : 'Enable'}</button>
-                    <button class="btn-primary" style="color:var(--log-fatal); border-color:var(--log-fatal); font-size:10px;" onclick="window.deleteUser('${u.username}')" ${disabledState}>DEL</button>
+                    <div class="btn-action-group">
+                    <button type="button" class="btn btn-secondary btn-sm btn-info" onclick="window.openUserTeamsModal('${u.username}')">TEAMS</button>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="window.adminResetPassword('${u.username}')" ${disabledState}>RESET PWD</button>
+                    <button type="button" class="btn btn-secondary btn-sm ${u.is_active ? 'btn-danger' : 'btn-success'}" onclick="window.toggleUserStatus('${u.username}', ${u.is_active})" ${disabledState}>${u.is_active ? 'Disable' : 'Enable'}</button>
+                    <button type="button" class="btn btn-primary btn-danger btn-sm" onclick="window.deleteUser('${u.username}')" ${disabledState}>DEL</button>
+                    </div>
                 </td></tr>`;
     }).join('');
 }

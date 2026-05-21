@@ -1,23 +1,41 @@
 package core
 
-// Global role identifiers (stored in users.role).
+// Global role identifiers (stored in users.role). UI: Platform Admin, Manager, Lead, Observer.
 const (
 	RoleAdmin    = "admin"
 	RoleManager  = "manager"
-	RoleOperator = "operator"
-	RoleViewer   = "viewer"
+	RoleLead     = "lead"
+	RoleObserver = "observer"
 )
 
-// RoleLevel returns a numeric rank for hierarchy comparisons (excludes cross-role admin vs manager split).
-func RoleLevel(role string) int {
+// Legacy codes migrated on startup (operator → lead, viewer → observer).
+const (
+	RoleOperatorLegacy = "operator"
+	RoleViewerLegacy   = "viewer"
+)
+
+// NormalizeRole maps deprecated role codes to current ones.
+func NormalizeRole(role string) string {
 	switch role {
+	case RoleOperatorLegacy:
+		return RoleLead
+	case RoleViewerLegacy:
+		return RoleObserver
+	default:
+		return role
+	}
+}
+
+// RoleLevel returns a numeric rank for hierarchy comparisons.
+func RoleLevel(role string) int {
+	switch NormalizeRole(role) {
 	case RoleAdmin:
 		return 4
 	case RoleManager:
 		return 3
-	case RoleOperator:
+	case RoleLead:
 		return 2
-	case RoleViewer:
+	case RoleObserver:
 		return 1
 	default:
 		return 0
@@ -29,57 +47,72 @@ func HasMinRole(userRole, minRole string) bool {
 	return RoleLevel(userRole) >= RoleLevel(minRole)
 }
 
-// IsValidRole reports whether role is one of the supported global roles.
+// IsValidRole reports whether role is one of the supported global roles (legacy codes accepted).
 func IsValidRole(role string) bool {
-	switch role {
-	case RoleAdmin, RoleManager, RoleOperator, RoleViewer:
+	switch NormalizeRole(role) {
+	case RoleAdmin, RoleManager, RoleLead, RoleObserver:
 		return true
 	default:
 		return false
 	}
 }
 
-// IsManager is true only for the QA Manager / SRE Lead role (not admin).
+// IsCanonicalRole is true only for current stored codes (no legacy operator/viewer).
+func IsCanonicalRole(role string) bool {
+	switch role {
+	case RoleAdmin, RoleManager, RoleLead, RoleObserver:
+		return true
+	default:
+		return false
+	}
+}
+
 func IsManager(role string) bool {
-	return role == RoleManager
+	return NormalizeRole(role) == RoleManager
 }
 
-// IsAdmin is true only for the System Admin role.
 func IsAdmin(role string) bool {
-	return role == RoleAdmin
+	return NormalizeRole(role) == RoleAdmin
 }
 
-// CanAccessFinOps — exclusive to Manager (admin handles infrastructure only).
+func IsLead(role string) bool {
+	return NormalizeRole(role) == RoleLead
+}
+
+func IsObserver(role string) bool {
+	return NormalizeRole(role) == RoleObserver
+}
+
 func CanAccessFinOps(role string) bool {
 	return IsManager(role)
 }
 
-// CanManageTeams — workspace hierarchy (Admin or Manager).
 func CanManageTeams(role string) bool {
 	return IsAdmin(role) || IsManager(role)
 }
 
-// CanManageIAM — global users and roles (Admin only).
 func CanManageIAM(role string) bool {
 	return IsAdmin(role)
 }
 
-// CanManageProjects — CI gateways & routing (Manager or Operator, not Admin).
 func CanManageProjects(role string) bool {
-	return IsManager(role) || role == RoleOperator
+	return IsManager(role) || IsLead(role)
 }
 
-// CanAccessPlugins — plugin engine (Manager or Operator, not Admin).
 func CanAccessPlugins(role string) bool {
-	return IsManager(role) || role == RoleOperator
+	return IsManager(role) || IsLead(role)
 }
 
-// CanResolveIncidents — Operator and above (not viewer).
 func CanResolveIncidents(role string) bool {
-	return HasMinRole(role, RoleOperator)
+	return HasMinRole(role, RoleLead)
 }
 
-// CanAccessChartStudio — custom metrics charts (Manager, QA Lead, QA/Dev — not Admin).
+func CanDeleteIncidents(role string) bool {
+	r := NormalizeRole(role)
+	return r == RoleManager || r == RoleLead
+}
+
 func CanAccessChartStudio(role string) bool {
-	return IsManager(role) || role == RoleOperator || role == RoleViewer
+	r := NormalizeRole(role)
+	return r == RoleManager || r == RoleLead || r == RoleObserver
 }

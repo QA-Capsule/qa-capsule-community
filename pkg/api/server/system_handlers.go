@@ -56,7 +56,7 @@ func registerSystemRoutes(config *core.Config) {
 	}))
 
 	// Update Plugin JSON configurations
-	http.HandleFunc("/api/plugins/config", jwtAuthMiddleware(config, core.RoleOperator, func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/api/plugins/config", jwtAuthMiddleware(config, core.RoleLead, func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			FilePath string            `json:"file_path"`
 			Env      map[string]string `json:"env"`

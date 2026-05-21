@@ -16,9 +16,10 @@ import (
 
 // UserPreferences holds per-user UI and dashboard defaults.
 type UserPreferences struct {
-	Theme               string `json:"theme"`
-	DefaultStatusFilter string `json:"default_status_filter"`
-	AnalyticsExpanded   bool   `json:"analytics_expanded"`
+	Theme               string          `json:"theme"`
+	DefaultStatusFilter string          `json:"default_status_filter"`
+	AnalyticsExpanded   bool            `json:"analytics_expanded"`
+	AnalyticsLayout     json.RawMessage `json:"analytics_layout,omitempty"`
 }
 
 func defaultUserPreferences() UserPreferences {
@@ -79,6 +80,11 @@ func mergePreferences(current UserPreferences, patch map[string]interface{}) Use
 	}
 	if v, ok := patch["analytics_expanded"].(bool); ok {
 		current.AnalyticsExpanded = v
+	}
+	if v, ok := patch["analytics_layout"]; ok {
+		if b, err := json.Marshal(v); err == nil {
+			current.AnalyticsLayout = b
+		}
 	}
 	return current
 }

@@ -3,6 +3,7 @@ package server
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"math"
 	"net/http"
 	"strconv"
@@ -28,29 +29,32 @@ func registerIncidentRoutes(config *core.Config) {
 
 		if r.Method == http.MethodGet {
 			projectFilter := r.URL.Query().Get("project")
+			tw := incidentTimeWindowFromRequest(r)
 			var query string
 			var args []interface{}
 
 			if claims.Role == "admin" || claims.Role == "manager" {
+				query = `SELECT id, project_name, name, status, error_message, console_logs, error_logs, is_resolved, resolved_by, created_at, resolved_at, pipeline_run_id 
+					FROM incidents WHERE created_at >= ? AND created_at <= ?`
+				args = []interface{}{tw.From, tw.To}
 				if projectFilter != "" && projectFilter != "all" {
-					query = "SELECT id, project_name, name, status, error_message, console_logs, error_logs, is_resolved, resolved_by, created_at, resolved_at, pipeline_run_id FROM incidents WHERE project_name = ? ORDER BY created_at DESC LIMIT 200"
-					args = []interface{}{projectFilter}
-				} else {
-					query = "SELECT id, project_name, name, status, error_message, console_logs, error_logs, is_resolved, resolved_by, created_at, resolved_at, pipeline_run_id FROM incidents ORDER BY created_at DESC LIMIT 200"
+					query += " AND project_name = ?"
+					args = append(args, projectFilter)
 				}
+				query += " ORDER BY created_at DESC LIMIT 500"
 			} else {
 				query = `SELECT DISTINCT i.id, i.project_name, i.name, i.status, i.error_message, i.console_logs, i.error_logs, i.is_resolved, i.resolved_by, i.created_at, i.resolved_at, i.pipeline_run_id 
 						 FROM incidents i
 						 JOIN projects p ON i.project_name = p.name
 						 JOIN user_teams ut ON p.team_id = ut.team_id
 						 JOIN users u ON u.id = ut.user_id
-						 WHERE u.username = ?`
-				args = []interface{}{claims.Username}
+						 WHERE u.username = ? AND i.created_at >= ? AND i.created_at <= ?`
+				args = []interface{}{claims.Username, tw.From, tw.To}
 				if projectFilter != "" && projectFilter != "all" {
 					query += " AND i.project_name = ?"
 					args = append(args, projectFilter)
 				}
-				query += " ORDER BY i.created_at DESC LIMIT 200"
+				query += " ORDER BY i.created_at DESC LIMIT 500"
 			}
 
 			rows, err := core.DB.Query(query, args...)
@@ -78,7 +82,7 @@ func registerIncidentRoutes(config *core.Config) {
 
 		} else if r.Method == http.MethodPut {
 			if !core.CanResolveIncidents(claims.Role) {
-				http.Error(w, "Only operators and above can resolve incidents.", http.StatusForbidden)
+				http.Error(w, "Lead or Manager role required to resolve incidents.", http.StatusForbidden)
 				return
 			}
 
@@ -136,8 +140,8 @@ func registerIncidentRoutes(config *core.Config) {
 			w.WriteHeader(http.StatusOK)
 
 		} else if r.Method == http.MethodDelete {
-			if claims.Role != "admin" {
-				http.Error(w, "Only administrators can delete records.", http.StatusForbidden)
+			if !core.CanDeleteIncidents(claims.Role) {
+				http.Error(w, "Lead or Manager role required to delete records.", http.StatusForbidden)
 				return
 			}
 
@@ -198,6 +202,7 @@ func registerIncidentRoutes(config *core.Config) {
 		}
 
 		projectFilter := r.URL.Query().Get("project")
+		tw := incidentTimeWindowFromRequest(r)
 		var query string
 		var args []interface{}
 
@@ -209,11 +214,11 @@ func registerIncidentRoutes(config *core.Config) {
 					SUM(case when is_resolved = 1 then 1 else 0 end) as total_resolved,
 					SUM(case when name LIKE '[FLAKY]%' then 1 else 0 end) as flaky_count
 				FROM incidents 
-				WHERE created_at >= datetime('now', '-7 days') AND project_name = ?
+				WHERE created_at >= ? AND created_at <= ? AND project_name = ?
 				GROUP BY project_name
 				ORDER BY total_failures DESC
 			`
-			args = []interface{}{projectFilter}
+			args = []interface{}{tw.From, tw.To, projectFilter}
 		} else {
 			query = `
 				SELECT 
@@ -222,10 +227,11 @@ func registerIncidentRoutes(config *core.Config) {
 					SUM(case when is_resolved = 1 then 1 else 0 end) as total_resolved,
 					SUM(case when name LIKE '[FLAKY]%' then 1 else 0 end) as flaky_count
 				FROM incidents 
-				WHERE created_at >= datetime('now', '-7 days')
+				WHERE created_at >= ? AND created_at <= ?
 				GROUP BY project_name
 				ORDER BY total_failures DESC
 			`
+			args = []interface{}{tw.From, tw.To}
 		}
 
 		rows, err := core.DB.Query(query, args...)
@@ -268,10 +274,16 @@ func registerIncidentRoutes(config *core.Config) {
 		metricsClaims := &Claims{}
 		jwt.ParseWithClaims(tokenString, metricsClaims, func(t *jwt.Token) (interface{}, error) { return jwtKey, nil })
 
+		tw := incidentTimeWindowFromRequest(r)
+		fromT, _ := time.Parse("2006-01-02 15:04:05", tw.From)
+		toT, _ := time.Parse("2006-01-02 15:04:05", tw.To)
+		bucketExpr := evolutionBucketExpr(fromT, toT)
+		bucketLabel := evolutionBucketLabel(fromT, toT)
+
 		var total, resolved, flaky int
-		core.DB.QueryRow("SELECT COUNT(*) FROM incidents").Scan(&total)
-		core.DB.QueryRow("SELECT COUNT(*) FROM incidents WHERE is_resolved = 1").Scan(&resolved)
-		core.DB.QueryRow("SELECT COUNT(*) FROM incidents WHERE name LIKE '[FLAKY]%'").Scan(&flaky)
+		core.DB.QueryRow("SELECT COUNT(*) FROM incidents WHERE created_at >= ? AND created_at <= ?", tw.From, tw.To).Scan(&total)
+		core.DB.QueryRow("SELECT COUNT(*) FROM incidents WHERE is_resolved = 1 AND created_at >= ? AND created_at <= ?", tw.From, tw.To).Scan(&resolved)
+		core.DB.QueryRow("SELECT COUNT(*) FROM incidents WHERE name LIKE '[FLAKY]%' AND created_at >= ? AND created_at <= ?", tw.From, tw.To).Scan(&flaky)
 
 		// 1. CALCULATE MTTR
 		var mttrMinutes sql.NullFloat64
@@ -281,8 +293,9 @@ func registerIncidentRoutes(config *core.Config) {
 			WHERE is_resolved = 1 
 			  AND resolved_at IS NOT NULL 
 			  AND created_at IS NOT NULL
+			  AND created_at >= ? AND created_at <= ?
 			  AND ((julianday(resolved_at) - julianday(created_at)) * 24 * 60) >= 1.0
-		`).Scan(&mttrMinutes)
+		`, tw.From, tw.To).Scan(&mttrMinutes)
 
 		mttrValue := 0.0
 		if mttrMinutes.Valid {
@@ -303,7 +316,8 @@ func registerIncidentRoutes(config *core.Config) {
 					ELSE 0 
 				END
 			FROM incidents
-		`).Scan(&mttfMinutes)
+			WHERE created_at >= ? AND created_at <= ?
+		`, tw.From, tw.To).Scan(&mttfMinutes)
 
 		mttfDisplay := int(math.Round(mttfMinutes.Float64))
 
@@ -316,17 +330,18 @@ func registerIncidentRoutes(config *core.Config) {
 		}
 
 		var evolution []WeekEvolution
-		rowsEvo, errEvo := core.DB.Query(`
+		evoSQL := fmt.Sprintf(`
 			SELECT 
-				date(created_at, 'weekday 0', '-6 days') as week_start,
+				%s as week_start,
 				COUNT(*) as total_failures,
-				SUM(CASE WHEN name LIKE '[FLAKY]%' THEN 1 ELSE 0 END) as flaky_count,
+				SUM(CASE WHEN name LIKE '[FLAKY]%%' THEN 1 ELSE 0 END) as flaky_count,
 				AVG(CASE WHEN is_resolved = 1 AND resolved_at IS NOT NULL THEN (julianday(resolved_at) - julianday(created_at)) * 24 * 60 ELSE 0 END) as mttr
 			FROM incidents
-			WHERE created_at >= datetime('now', '-35 days')
+			WHERE created_at >= ? AND created_at <= ?
 			GROUP BY week_start
 			ORDER BY week_start ASC
-		`)
+		`, bucketExpr)
+		rowsEvo, errEvo := core.DB.Query(evoSQL, tw.From, tw.To)
 
 		if errEvo == nil {
 			defer rowsEvo.Close()
@@ -363,6 +378,9 @@ func registerIncidentRoutes(config *core.Config) {
 			"mttr_minutes":       mttrDisplay,
 			"mttf_minutes":       mttfDisplay,
 			"evolution":          evolution,
+			"evolution_bucket":   bucketLabel,
+			"time_from":          tw.From,
+			"time_to":            tw.To,
 		}
 
 		if core.CanAccessFinOps(metricsClaims.Role) {

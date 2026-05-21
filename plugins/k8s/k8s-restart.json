@@ -1,11 +1,16 @@
 {
-  "description": "kubectl rollout restart deployment",
+  "command": "k8s-action.sh",
+  "description": "Rollout restart for a Kubernetes deployment (requires kubectl and cluster credentials on the host).",
   "env": {
-    "DEPLOY_NAME": "my-app",
-    "NAMESPACE": "production"
+    "DEPLOYMENT_NAME": "my-app",
+    "K8S_NAMESPACE": "default"
   },
-  "execute": "kubectl rollout restart deployment/${DEPLOY_NAME} -n ${NAMESPACE}",
-  "name": "K8s Pod Restarter",
-  "status": "",
-  "version": "1.0.0"
+  "name": "K8s Deployment Restart",
+  "status": "Active",
+  "trigger_on": [
+    "CRITICAL",
+    "OOM",
+    "CrashLoopBackOff"
+  ],
+  "version": "1.0.1"
 }

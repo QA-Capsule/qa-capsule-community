@@ -1,0 +1,18 @@
+{
+  "name": "Zephyr Scale — Fail test execution",
+  "version": "1.0.0",
+  "description": "Creates a failed test execution in Zephyr Scale (SmartBear) for the linked test case key.",
+  "status": "Active",
+  "command": "zephyr-action.sh",
+  "trigger_on": [
+    "CRITICAL",
+    "FAILED",
+    "FLAKY"
+  ],
+  "env": {
+    "ZEPHYR_API_TOKEN": "",
+    "ZEPHYR_PROJECT_KEY": "",
+    "ZEPHYR_TEST_CASE_KEY": "",
+    "ZEPHYR_API_URL": "https://api.zephyrscale.smartbear.com/v2"
+  }
+}

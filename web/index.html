@@ -89,89 +89,8 @@
         .sidebar-logo { width: 36px; height: auto; border-radius: 6px; object-fit: contain; }
 
         /* Help Center layout: see style.css (#view-about, .about-shell) */
-        .chart-studio-layout {
-            display: grid; grid-template-columns: 260px 1fr; gap: 20px; min-height: 72vh;
-        }
-        .chart-studio-sidebar {
-            background: #0d1117; border: 1px solid var(--border-main); border-radius: 12px;
-            display: flex; flex-direction: column; overflow: hidden;
-        }
-        .chart-studio-sidebar-head {
-            padding: 16px; border-bottom: 1px solid var(--border-main);
-        }
-        .chart-studio-sidebar-head h3 { margin: 0 0 10px 0; font-size: 13px; text-transform: uppercase; color: #8b949e; letter-spacing: 1px; }
-        .chart-library-search { margin: 0 !important; font-size: 12px !important; }
-        .chart-library-list { flex: 1; overflow-y: auto; padding: 8px; }
-        .chart-library-item {
-            width: 100%; text-align: left; padding: 12px 14px; margin-bottom: 6px;
-            border-radius: 8px; border: 1px solid transparent; background: transparent;
-            color: #c9d1d9; cursor: pointer; transition: 0.15s;
-        }
-        .chart-library-item:hover { background: #161b22; border-color: #30363d; }
-        .chart-library-item.active { background: rgba(88, 166, 255, 0.12); border-color: rgba(88, 166, 255, 0.45); }
-        .chart-library-item-title { display: block; font-weight: 600; font-size: 13px; margin-bottom: 4px; }
-        .chart-library-item-meta { display: flex; flex-wrap: wrap; gap: 4px; }
-        .chart-pin-badge {
-            font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px;
-            padding: 2px 6px; border-radius: 4px; background: rgba(88, 166, 255, 0.2); color: #58a6ff;
-        }
-        .chart-pin-badge.finops { background: rgba(210, 153, 34, 0.2); color: #d29922; }
-        .chart-library-empty { padding: 24px 16px; text-align: center; font-size: 12px; opacity: 0.6; line-height: 1.5; }
-        .chart-studio-main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
-        .chart-editor-panel, .chart-preview-panel {
-            background: var(--bg-surface); border: 1px solid var(--border-main); border-radius: 12px; padding: 20px;
-        }
-        .chart-panel-head {
-            display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;
-            gap: 12px; margin-bottom: 16px;
-        }
-        .chart-panel-head h3 { margin: 0; font-size: 15px; color: #c9d1d9; }
-        .chart-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-        .chart-toolbar .btn-secondary, .chart-toolbar .btn-primary { font-size: 12px; padding: 8px 14px; }
-        .qcl-editor {
-            font-family: 'Consolas', 'Monaco', 'Courier New', monospace; font-size: 13px; line-height: 1.5;
-            min-height: 160px; resize: vertical; background: #0d1117 !important; tab-size: 4;
-        }
-        .chart-save-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
-        .chart-save-meta label { font-size: 11px; color: #8b949e; display: block; margin-bottom: 4px; }
-        .chart-snippet-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
-        .chart-snippet-btn {
-            font-size: 11px; padding: 4px 10px; border-radius: 6px; border: 1px solid #30363d;
-            background: #161b22; color: #8b949e; cursor: pointer;
-        }
-        .chart-snippet-btn:hover { border-color: #58a6ff; color: #58a6ff; }
-        .chart-preview-canvas-wrap { height: 340px; position: relative; background: #0d1117; border-radius: 8px; padding: 12px; }
-        .chart-preview-status { font-size: 11px; color: #8b949e; margin-top: 8px; }
-        .qcl-reference-toggle { font-size: 12px; color: #58a6ff; background: none; border: none; cursor: pointer; padding: 0; }
-        .qcl-ref-lead { font-size: 12px; opacity: 0.85; margin: 0 0 10px 0; }
-        .qcl-ref-example {
-            background: #0d1117; padding: 12px; border-radius: 6px; font-size: 12px;
-            overflow: auto; margin: 0 0 12px 0; border: 1px solid #30363d;
-        }
-        .qcl-ref-metrics { list-style: none; padding: 0; margin: 0; font-size: 12px; }
-        .qcl-ref-metrics li { padding: 6px 0; border-bottom: 1px solid #21262d; display: flex; gap: 10px; }
-        .qcl-ref-metrics code { color: #58a6ff; min-width: 110px; }
-        .pinned-charts-section { margin: 24px 0; }
         .loading-placeholder {
             text-align: center; padding: 24px; color: #8b949e; font-size: 13px; opacity: 0.7;
-        }
-        .pinned-charts-section h3 {
-            margin: 0 0 16px 0; font-size: 14px; text-transform: uppercase;
-            letter-spacing: 1px; color: #8b949e;
-        }
-        .pinned-charts-grid {
-            display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 20px;
-        }
-        .pinned-chart-card {
-            background: #161b22; border: 1px solid #30363d; border-radius: 10px; overflow: hidden;
-        }
-        .pinned-chart-header { padding: 14px 16px 8px; border-bottom: 1px solid #30363d; }
-        .pinned-chart-header h4 { margin: 0; font-size: 14px; color: #c9d1d9; }
-        .pinned-chart-header p { margin: 4px 0 0; font-size: 11px; opacity: 0.65; }
-        .pinned-chart-canvas-wrap { height: 260px; padding: 12px; }
-            @media (max-width: 1100px) {
-            .chart-studio-layout { grid-template-columns: 1fr; }
-            .chart-save-meta { grid-template-columns: 1fr; }
         }
         .about-doc h2 { margin-top: 0; color: #58a6ff; }
         .about-lead { font-size: 15px; line-height: 1.6; opacity: 0.9; }
@@ -192,6 +111,81 @@
 
 <body>
     <div id="notification-container" style="position: fixed; top: 20px; right: 20px; z-index: 100000; display: flex; flex-direction: column; gap: 10px;"></div>
+
+    <div id="analytics-layout-modal" class="analytics-layout-modal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="analytics-modal-title">
+        <div class="analytics-layout-modal-backdrop" onclick="closeAnalyticsLayoutModal(true)"></div>
+        <div class="analytics-layout-modal-panel">
+            <header class="analytics-layout-modal-header">
+                <div>
+                    <h2 id="analytics-modal-title">Customize analytics layout</h2>
+                    <p>Drag widgets to reorder. Add widgets below, then click <strong>Save layout</strong> to apply.</p>
+                </div>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="closeAnalyticsLayoutModal(true)" aria-label="Close">✕</button>
+            </header>
+            <div class="analytics-layout-modal-body">
+                <div id="analytics-customize-bar" class="analytics-customize-bar">
+                    <label>Type
+                        <select id="aw-type" class="login-input" onchange="syncAnalyticsWidgetForm()">
+                            <option value="metric">Count / KPI</option>
+                            <option value="doughnut">Donut chart</option>
+                            <option value="evolution">Evolution chart</option>
+                        </select>
+                    </label>
+                    <label>Title <input type="text" id="aw-title" class="login-input" placeholder="Widget title"></label>
+                    <label id="aw-metric-wrap">Metric
+                        <select id="aw-metric" class="login-input">
+                            <option value="total_incidents">Total incidents</option>
+                            <option value="active_backlog">Active backlog</option>
+                            <option value="resolved_incidents">Resolved</option>
+                            <option value="flaky_tests">Flaky tests</option>
+                            <option value="stable_failures">Stable failures</option>
+                            <option value="resolution_rate">Resolution rate</option>
+                            <option value="flaky_ratio">Flaky ratio</option>
+                            <option value="mttr_minutes">MTTR</option>
+                            <option value="mttf_minutes">MTTF</option>
+                        </select>
+                    </label>
+                    <label>Palette
+                        <select id="aw-color-preset" class="login-input" onchange="applyAnalyticsColorPreset(1)">
+                            <option value="">Pick color 1…</option>
+                            <option value="#2563eb">Blue</option>
+                            <option value="#059669">Emerald</option>
+                            <option value="#d97706">Amber</option>
+                            <option value="#dc2626">Red</option>
+                            <option value="#7c3aed">Violet</option>
+                            <option value="#0891b2">Cyan</option>
+                        </select>
+                    </label>
+                    <label>Color <input type="color" id="aw-color" value="#2563eb"></label>
+                    <label>Palette 2
+                        <select id="aw-color2-preset" class="login-input" onchange="applyAnalyticsColorPreset(2)">
+                            <option value="">Pick color 2…</option>
+                            <option value="#d97706">Amber</option>
+                            <option value="#dc2626">Red</option>
+                            <option value="#2563eb">Blue</option>
+                            <option value="#059669">Emerald</option>
+                        </select>
+                    </label>
+                    <label>Color 2 <input type="color" id="aw-color2" value="#d97706"></label>
+                    <label>Width
+                        <select id="aw-span" class="login-input">
+                            <option value="1">1 column</option>
+                            <option value="2">2 columns</option>
+                            <option value="3">3 columns</option>
+                            <option value="4">Full width</option>
+                        </select>
+                    </label>
+                    <button type="button" class="btn btn-primary btn-sm" onclick="addAnalyticsWidget()">+ Add widget</button>
+                </div>
+                <div id="analytics-grid-modal" class="analytics-widget-grid analytics-widget-grid-edit"></div>
+            </div>
+            <footer class="analytics-layout-modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="resetAnalyticsLayout()">Reset default</button>
+                <button type="button" class="btn btn-secondary" onclick="closeAnalyticsLayoutModal(true)">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveAnalyticsLayoutFromModal()">Save layout</button>
+            </footer>
+        </div>
+    </div>
 
     <div id="custom-modal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.8); z-index:99999; align-items:center; justify-content:center; backdrop-filter: blur(5px);">
         <div id="custom-modal-box" style="background:var(--bg-surface); border:2px solid var(--border-main); padding:30px; width:400px; box-shadow: 10px 10px 0px rgba(0,0,0,0.5);">
@@ -322,15 +316,6 @@
                     <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
                 </svg><span class="nav-text">FinOps Intelligence</span>
             </div>
-            <div class="nav-section-label role-chart-studio" style="margin-top: 10px;">CHART STUDIO</div>
-            <div class="nav-item role-chart-studio" onclick="switchView('charts', this)" data-tooltip="Chart Studio">
-                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="18" y1="20" x2="18" y2="10"></line>
-                    <line x1="12" y1="20" x2="12" y2="4"></line>
-                    <line x1="6" y1="20" x2="6" y2="14"></line>
-                </svg><span class="nav-text">Chart Studio</span>
-            </div>
-
             <div class="nav-section-label role-non-admin" style="margin-top: 10px;">HELP CENTER</div>
             <div class="nav-item role-non-admin" onclick="switchView('about', this)" data-tooltip="Help Center">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -340,13 +325,13 @@
                 </svg><span class="nav-text">Help Center</span>
             </div>
 
-            <div class="nav-section-label role-operator" style="margin-top: 10px;">INFRASTRUCTURE</div>
-            <div class="nav-item role-operator" onclick="switchView('ingestion', this)" data-tooltip="CI/CD Gateways">
+            <div class="nav-section-label role-lead" style="margin-top: 10px;">INFRASTRUCTURE</div>
+            <div class="nav-item role-lead" onclick="switchView('ingestion', this)" data-tooltip="CI/CD Gateways">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
                 </svg><span class="nav-text">CI/CD Gateways</span>
             </div>
-            <div class="nav-item role-operator" onclick="switchView('plugins', this)" data-tooltip="Plugin Engine">
+            <div class="nav-item role-lead" onclick="switchView('plugins', this)" data-tooltip="Plugin Engine">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
                 </svg><span class="nav-text">Plugin Engine</span>
@@ -391,6 +376,62 @@
         <main class="main-content">
 
             <section id="view-dashboard" class="view-section active ops-dashboard">
+                <div class="dashboard-time-bar" role="region" aria-label="Time range filter">
+                    <div class="dashboard-time-head">
+                        <div class="dashboard-time-title">
+                            <svg class="dashboard-time-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <polyline points="12 6 12 12 16 14"></polyline>
+                            </svg>
+                            <span>Time range</span>
+                        </div>
+                        <span id="dashboard-range-summary" class="dashboard-range-badge">Last 5 minutes</span>
+                    </div>
+                    <div class="dashboard-time-quick" id="dashboard-range-quick">
+                        <button type="button" class="range-chip active" data-range="5m" onclick="setDashboardRangePreset('5m')">5m</button>
+                        <button type="button" class="range-chip" data-range="15m" onclick="setDashboardRangePreset('15m')">15m</button>
+                        <button type="button" class="range-chip" data-range="1h" onclick="setDashboardRangePreset('1h')">1h</button>
+                        <button type="button" class="range-chip" data-range="24h" onclick="setDashboardRangePreset('24h')">24h</button>
+                        <button type="button" class="range-chip" data-range="7d" onclick="setDashboardRangePreset('7d')">7d</button>
+                        <button type="button" class="range-chip" data-range="today" onclick="setDashboardRangePreset('today')">Today</button>
+                    </div>
+                    <div class="dashboard-time-more">
+                        <label class="sr-only" for="dashboard-range-preset">More ranges</label>
+                        <select id="dashboard-range-preset" class="login-input dashboard-control dashboard-range-select" onchange="onDashboardRangeChange()">
+                            <option value="5m" selected>Last 5 minutes</option>
+                            <option value="15m">Last 15 minutes</option>
+                            <option value="30m">Last 30 minutes</option>
+                            <option value="1h">Last 1 hour</option>
+                            <option value="6h">Last 6 hours</option>
+                            <option value="24h">Last 24 hours</option>
+                            <option value="7d">Last 7 days</option>
+                            <option value="30d">Last 30 days</option>
+                            <option value="today">Today</option>
+                            <option value="yesterday">Yesterday</option>
+                            <option value="all">All time (1 year)</option>
+                            <option value="custom">Absolute time range…</option>
+                        </select>
+                    </div>
+                    <div id="dashboard-custom-range" class="dashboard-custom-panel" style="display: none;">
+                        <div class="dashboard-custom-field">
+                            <span class="dashboard-custom-label">Start</span>
+                            <div class="dashboard-datetime-row">
+                                <input type="date" id="dashboard-range-from-date" class="login-input dashboard-date-input" aria-label="Start date" onchange="onDashboardCustomRangeInput()">
+                                <input type="time" id="dashboard-range-from-time" class="login-input dashboard-time-input" aria-label="Start time" onchange="onDashboardCustomRangeInput()">
+                            </div>
+                        </div>
+                        <span class="dashboard-range-arrow" aria-hidden="true">→</span>
+                        <div class="dashboard-custom-field">
+                            <span class="dashboard-custom-label">End</span>
+                            <div class="dashboard-datetime-row">
+                                <input type="date" id="dashboard-range-to-date" class="login-input dashboard-date-input" aria-label="End date" onchange="onDashboardCustomRangeInput()">
+                                <input type="time" id="dashboard-range-to-time" class="login-input dashboard-time-input" aria-label="End time" onchange="onDashboardCustomRangeInput()">
+                            </div>
+                            <button type="button" class="range-now-link" onclick="setDashboardRangeEndToNow()">Now</button>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="ops-page-head">
                     <div>
                         <h1>Telemetry Stream</h1>
@@ -421,8 +462,8 @@
                             </div>
                         </div>
 
-                        <button type="button" class="dashboard-toolbar-btn" onclick="fetchIncidents()">↻ Refresh</button>
-                        <button type="button" class="dashboard-toolbar-btn btn-accent" onclick="toggleAnalytics()">
+                        <button type="button" class="btn btn-secondary" onclick="fetchIncidents(true)">↻ Refresh</button>
+                        <button type="button" class="btn btn-secondary btn-accent" onclick="toggleAnalytics()">
                             <svg style="width:14px;height:14px;stroke:currentColor;fill:none;flex-shrink:0;" viewBox="0 0 24 24" stroke-width="2">
                                 <line x1="18" y1="20" x2="18" y2="10"></line>
                                 <line x1="12" y1="20" x2="12" y2="4"></line>
@@ -431,8 +472,8 @@
                             Analytics
                         </button>
 
-                        <div class="dashboard-btn-group role-hide-viewer">
-                            <button type="button" class="dashboard-toolbar-btn btn-success" onclick="downloadWeeklyReportCSV()" title="Download CSV Report">
+                        <div class="dashboard-btn-group role-hide-observer">
+                            <button type="button" class="btn btn-secondary btn-success" onclick="downloadWeeklyReportCSV()" title="Download CSV Report">
                                 <svg style="width:14px;height:14px;stroke:currentColor;fill:none;flex-shrink:0;" viewBox="0 0 24 24" stroke-width="2">
                                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
                                     <polyline points="14 2 14 8 20 8"></polyline>
@@ -442,7 +483,7 @@
                                 </svg>
                                 CSV
                             </button>
-                            <button type="button" class="dashboard-toolbar-btn btn-danger" onclick="downloadWeeklyReportPDF()" title="Download PDF Report">
+                            <button type="button" class="btn btn-secondary btn-danger" onclick="downloadWeeklyReportPDF()" title="Download PDF Report">
                                 <svg style="width:14px;height:14px;stroke:currentColor;fill:none;flex-shrink:0;" viewBox="0 0 24 24" stroke-width="2">
                                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
                                     <polyline points="14 2 14 8 20 8"></polyline>
@@ -477,54 +518,31 @@
                     </div>
                 </div>
 
-                <div id="dashboard-pinned-wrap" class="pinned-charts-section" style="display:none;">
-                    <h3>Custom charts</h3>
-                    <div id="dashboard-pinned-charts" class="pinned-charts-grid"></div>
+                <div id="analytics-view" class="ops-analytics-panel" style="display:none;">
+                    <div class="analytics-panel-head">
+                        <div>
+                            <h3>System analytics &amp; quality</h3>
+                            <p class="ops-chart-caption" style="margin:4px 0 0;">
+                                Metrics and charts follow the dashboard time range above. Customize layout, colors, and order — saved to your profile.
+                            </p>
+                        </div>
+                        <div class="analytics-panel-actions">
+                            <span id="dashboard-auto-refresh-hint" class="analytics-refresh-hint" title="Dashboard auto-refresh interval"></span>
+                            <button type="button" id="analytics-customize-toggle" class="btn btn-secondary btn-sm" onclick="toggleAnalyticsCustomize()">Customize layout</button>
+                        </div>
+                    </div>
+                    <div id="analytics-grid" class="analytics-widget-grid"></div>
                 </div>
 
-                <div id="analytics-view" class="ops-analytics-panel">
-                    <h3>System analytics &amp; quality</h3>
-                    <p class="ops-chart-caption">
-                        Operational telemetry derived from <code>/api/metrics</code>: resolution latency (MTTR), inter-failure
-                        cadence (MTTF), failure taxonomy (stable vs flaky), and multi-week volume/MTTR co-movement.
-                    </p>
-                    <div id="ops-analytics-detail" class="ops-analytics-detail-grid">
-                        <div class="ops-analytics-detail-tile"><h5>Total incidents</h5><div class="detail-value" id="an-total">—</div><small>All ingested failure records</small></div>
-                        <div class="ops-analytics-detail-tile"><h5>Active backlog</h5><div class="detail-value kpi-danger" id="an-active">—</div><small>Unresolved (is_resolved = 0)</small></div>
-                        <div class="ops-analytics-detail-tile"><h5>Resolution rate</h5><div class="detail-value kpi-info" id="an-resolution">—</div><small>N<sub>r</sub> / N × 100</small></div>
-                        <div class="ops-analytics-detail-tile"><h5>Flaky ratio</h5><div class="detail-value kpi-warn" id="an-flaky-ratio">—</div><small>N<sub>f</sub> / N × 100</small></div>
-                    </div>
-                    <div class="ops-analytics-grid">
-                        <div class="ops-stat-card">
-                            <h4>MTTR</h4>
-                            <div class="stat-value" id="mttr-value" style="color: var(--log-pass);">-- min</div>
-                            <small style="color: var(--text-muted);">Mean time to resolution</small>
-                        </div>
-                        <div class="ops-stat-card">
-                            <h4>MTTF</h4>
-                            <div class="stat-value" id="mttf-value" style="color: var(--log-info);">-- min</div>
-                            <small style="color: var(--text-muted);">Mean time to failure</small>
-                        </div>
-                        <div class="ops-stat-card ops-donut-card">
-                            <div class="ops-donut-wrap">
-                                <canvas id="flakyChart"></canvas>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="ops-chart-wide">
-                        <h4 style="margin: 0 0 8px; font-size: 13px; font-weight: 600; color: var(--text-main);">5-week evolution — incident volume, flaky density &amp; MTTR</h4>
-                        <p class="ops-chart-caption" style="margin-bottom: 14px;">
-                            Dual-axis composite: bar stacks for total and flaky counts (left Y), MTTR trend line (right Y).
-                            Rising volume with flat MTTR often indicates capacity saturation; rising MTTR with flat volume signals triage complexity.
-                        </p>
-                        <div style="height: 300px; width: 100%;">
-                            <canvas id="evolutionChart"></canvas>
-                        </div>
+                <div class="incident-log-toolbar">
+                    <h3>Incident History Log</h3>
+                    <div class="incident-log-toolbar-actions">
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="expandAllIncidentLogs()">Expand all logs</button>
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="collapseAllIncidentLogs()">Collapse all logs</button>
                     </div>
                 </div>
-                
-                <h3 style="margin-top: 30px; padding-bottom: 10px; border-bottom: 1px solid var(--border-main);">Incident History Log</h3>
                 <div id="incident-list" class="loading-placeholder">Loading telemetry…</div>
+                <button type="button" id="scroll-top-btn" class="scroll-top-btn" onclick="scrollDashboardToTop()" title="Back to top" aria-label="Back to top">↑</button>
             </section>
 
 
@@ -532,8 +550,21 @@
                 <div class="header-bar">
                     <div>
                         <h1 style="margin: 0; font-size: 24px;">Auto-Remediation Engine</h1>
-                        <p style="margin: 5px 0 0 0; opacity: 0.6; font-size: 14px;">Manage custom Runbooks and integration plugins.</p>
+                        <p style="margin: 5px 0 0 0; opacity: 0.6; font-size: 14px;">QA &amp; SRE runbooks: paging, ticketing, CI retries, observability events, and custom webhooks.</p>
                     </div>
+                </div>
+                <div class="plugin-toolbar data-card">
+                    <div class="plugin-toolbar-row">
+                        <div class="plugin-search-wrap">
+                            <svg class="plugin-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                            <input type="search" id="plugin-search" class="login-input plugin-search-input" placeholder="Search plugins (name, category, triggers, env vars…)" autocomplete="off" oninput="window.filterPlugins()">
+                        </div>
+                        <select id="plugin-category-filter" class="login-input plugin-category-select" onchange="window.filterPlugins()">
+                            <option value="all">All categories</option>
+                        </select>
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="window.resetPluginFilters()" title="Clear search">Clear</button>
+                    </div>
+                    <p id="plugin-search-meta" class="plugin-search-meta">Loading modules…</p>
                 </div>
                 <div id="plugin-list">Loading modules...</div>
             </section>
@@ -611,12 +642,12 @@
                         <input type="text" id="new-user-fullname" class="login-input" placeholder="Full Name">
                         <input type="text" id="new-user-name" class="login-input" placeholder="user@domain.com">
                         <select id="new-user-role" class="login-input" style="width: 220px;">
-                            <option value="viewer">QA / Developer (Viewer)</option>
-                            <option value="operator">QA Lead (Operator)</option>
-                            <option value="manager">QA Manager / SRE (Manager)</option>
-                            <option value="admin">System Admin</option>
+                            <option value="observer">Observer</option>
+                            <option value="lead">Lead</option>
+                            <option value="manager">Manager</option>
+                            <option value="admin">Platform Admin</option>
                         </select>
-                        <button class="btn-primary" style="white-space: nowrap;" onclick="createUser()">Deploy Identity</button>
+                        <button type="button" class="btn btn-primary" style="white-space: nowrap;" onclick="createUser()">Deploy Identity</button>
                     </div>
                 </div>
                 <div class="data-card" style="margin-top: 20px;">
@@ -627,10 +658,10 @@
                         </div>
                         <select id="role-filter" class="login-input" style="margin:0; width:200px" onchange="filterUsers()">
                             <option value="all">All Roles</option>
-                            <option value="admin">System Admin</option>
+                            <option value="admin">Platform Admin</option>
                             <option value="manager">Manager</option>
-                            <option value="operator">QA Lead</option>
-                            <option value="viewer">QA / Dev</option>
+                            <option value="lead">Lead</option>
+                            <option value="observer">Observer</option>
                         </select>
                     </div>
                     <table style="width:100%; border-collapse:collapse; text-align: left;">
@@ -799,10 +830,6 @@
                     </div>
                 </div>
 
-                <div id="finops-pinned-wrap" class="pinned-charts-section role-manager-only" style="display:none;">
-                    <h3>Saved custom charts</h3>
-                    <div id="finops-pinned-charts" class="pinned-charts-grid"></div>
-                </div>
 
                 <div class="finops-bento-wide">
                     <div class="data-card">
@@ -844,92 +871,11 @@
                 </div>
             </section>
 
-            <section id="view-charts" class="view-section">
-                <div class="header-bar">
-                    <div>
-                        <h1 style="margin: 0; font-size: 24px;">Chart Studio</h1>
-                        <p style="margin: 5px 0 0 0; opacity: 0.6; font-size: 14px;">Build, save, and pin custom metrics to Dashboard and FinOps using QCL.</p>
-                    </div>
-                    <div class="chart-toolbar">
-                        <button type="button" class="btn-secondary" onclick="newChartDraft()">+ New chart</button>
-                    </div>
-                </div>
-
-                <div class="chart-studio-layout">
-                    <aside class="chart-studio-sidebar">
-                        <div class="chart-studio-sidebar-head">
-                            <h3>Saved charts</h3>
-                            <input type="text" id="chart-library-search" class="login-input chart-library-search"
-                                placeholder="Search…" oninput="filterChartLibrary()">
-                        </div>
-                        <div id="chart-library-list" class="chart-library-list"></div>
-                    </aside>
-
-                    <div class="chart-studio-main">
-                        <div class="chart-editor-panel">
-                            <div class="chart-panel-head">
-                                <h3 id="chart-editor-title">New chart</h3>
-                                <div class="chart-toolbar">
-                                    <button type="button" class="btn-secondary" onclick="runChartQuery()">▶ Run</button>
-                                    <button type="button" class="btn-primary" onclick="saveCurrentChart()">Save</button>
-                                    <button type="button" class="btn-secondary" style="border-color:#ff7b72;color:#ff7b72;" onclick="deleteCurrentChart()">Delete</button>
-                                </div>
-                            </div>
-                            <div class="chart-save-meta">
-                                <div>
-                                    <label for="chart-save-name">Chart name</label>
-                                    <input type="text" id="chart-save-name" class="login-input" placeholder="e.g. Weekly flaky waste">
-                                </div>
-                                <div>
-                                    <label for="chart-save-desc">Description (optional)</label>
-                                    <input type="text" id="chart-save-desc" class="login-input" placeholder="Short note for your team">
-                                </div>
-                            </div>
-                            <div class="chart-pin-options">
-                                <label class="chart-pin-option">
-                                    <input type="checkbox" id="pin-dashboard">
-                                    <span>Pin to Dashboard</span>
-                                </label>
-                                <label class="chart-pin-option role-manager-only">
-                                    <input type="checkbox" id="pin-finops">
-                                    <span>Pin to FinOps</span>
-                                </label>
-                            </div>
-                            <div class="chart-snippet-row">
-                                <button type="button" class="chart-snippet-btn" onclick="insertQclSnippet('CHART line &quot;Weekly incident volume&quot;\nMETRIC incidents\nRANGE 12w\nGROUP week')">Incidents</button>
-                                <button type="button" class="chart-snippet-btn" onclick="insertQclSnippet('CHART line &quot;Resolution efficiency&quot;\nMETRIC resolution_rate\nRANGE 12w\nGROUP week')">Resolution %</button>
-                                <button type="button" class="chart-snippet-btn" onclick="insertQclSnippet('CHART line &quot;Flaky ratio trend&quot;\nMETRIC flaky_ratio\nRANGE 12w\nGROUP week')">Flaky ratio</button>
-                                <button type="button" class="chart-snippet-btn" onclick="insertQclSnippet('CHART bar &quot;Active backlog by gateway&quot;\nMETRIC active\nRANGE 30d\nGROUP project')">Active backlog</button>
-                                <button type="button" class="chart-snippet-btn role-manager-only" onclick="insertQclSnippet('CHART bar &quot;FinOps loaded cost&quot;\nMETRIC finops_cost\nRANGE 12w\nGROUP week')">FinOps cost</button>
-                                <button type="button" class="chart-snippet-btn role-manager-only" onclick="insertQclSnippet('CHART line &quot;Investigation spend&quot;\nMETRIC invest_cost\nRANGE 12w\nGROUP week')">Invest cost</button>
-                                <button type="button" class="chart-snippet-btn" onclick="insertQclSnippet('CHART line &quot;MTTR trend&quot;\nMETRIC mttr\nRANGE 8w\nGROUP week')">MTTR</button>
-                                <button type="button" class="chart-snippet-btn" onclick="insertQclSnippet('CHART doughnut &quot;Failure taxonomy&quot;\nMETRIC stable\nRANGE 30d\nGROUP week')">Stable vs flaky</button>
-                            </div>
-                            <textarea id="qcl-editor" class="login-input qcl-editor" spellcheck="false" placeholder="CHART line ..."></textarea>
-                            <div style="margin-top: 12px;">
-                                <button type="button" class="qcl-reference-toggle" id="qcl-reference-toggle" onclick="toggleQclReference()">Show reference</button>
-                                <div id="qcl-reference-body" style="display:none; margin-top: 10px;"></div>
-                            </div>
-                        </div>
-
-                        <div class="chart-preview-panel">
-                            <div class="chart-panel-head">
-                                <h3>Live preview</h3>
-                                <span id="chart-preview-status" class="chart-preview-status"></span>
-                            </div>
-                            <div class="chart-preview-canvas-wrap">
-                                <canvas id="chart-studio-canvas"></canvas>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
             <section id="view-about" class="view-section">
                 <div class="header-bar">
                     <div>
                         <h1 style="margin: 0; font-size: 24px;">Help Center</h1>
-                        <p style="margin: 5px 0 0 0; opacity: 0.6; font-size: 14px;">Product documentation, roles, FinOps theory, and QCL reference — available to all users.</p>
+                        <p style="margin: 5px 0 0 0; opacity: 0.6; font-size: 14px;">Product documentation, roles, FinOps theory, and Metrics (QCL) reference — available to all users.</p>
                     </div>
                 </div>
                 <div class="about-shell">

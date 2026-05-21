@@ -69,7 +69,7 @@ func InitDB(ignoredPath string) {
 		username TEXT UNIQUE NOT NULL,
 		fullname TEXT,
 		password_hash TEXT NOT NULL,
-		role TEXT DEFAULT 'viewer',
+		role TEXT DEFAULT 'observer',
 		is_active INTEGER DEFAULT 1,
 		require_password_change INTEGER DEFAULT 1
 	);`
@@ -232,6 +232,16 @@ func runSchemaMigrations() {
 			log.Printf("[INFO] Schema migration (may already exist): %v", err)
 		}
 	}
+	migrateGlobalRoleCodes()
+}
+
+func migrateGlobalRoleCodes() {
+	if _, err := DB.Exec(`UPDATE users SET role = 'lead' WHERE role = 'operator'`); err != nil {
+		log.Printf("[INFO] Role migration (operator→lead): %v", err)
+	}
+	if _, err := DB.Exec(`UPDATE users SET role = 'observer' WHERE role = 'viewer'`); err != nil {
+		log.Printf("[INFO] Role migration (viewer→observer): %v", err)
+	}
 }
 
 func seedInitialData() {
@@ -251,7 +261,7 @@ func seedInitialData() {
 	if userCount == 0 {
 		hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("admin"), bcrypt.DefaultCost)
 		_, err := DB.Exec(`INSERT INTO users (username, fullname, password_hash, role, is_active, require_password_change) 
-			VALUES ('admin', 'System Administrator', ?, 'admin', 1, 1)`, string(hashedPassword))
+			VALUES ('admin', 'Platform Administrator', ?, 'admin', 1, 1)`, string(hashedPassword))
 		if err != nil {
 			log.Printf("[WARNING] Could not seed admin user: %v", err)
 		} else {

@@ -1,0 +1,14 @@
+{
+  "name": "Splunk On-Call (VictorOps) Alert",
+  "version": "1.0.0",
+  "description": "Posts a CRITICAL alert to your Splunk On-Call / VictorOps routing URL integration.",
+  "status": "Active",
+  "command": "victorops-action.sh",
+  "trigger_on": [
+    "CRITICAL",
+    "FATAL"
+  ],
+  "env": {
+    "VICTOROPS_ROUTING_URL": ""
+  }
+}

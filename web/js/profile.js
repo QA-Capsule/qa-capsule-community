@@ -36,9 +36,14 @@ export function applyPreferences(prefs) {
         window.setStatusFilter(userPreferences.default_status_filter);
     }
 
+    if (typeof window.loadAnalyticsLayoutFromPrefs === 'function') {
+        window.loadAnalyticsLayoutFromPrefs();
+    }
+
     const analytics = document.getElementById('analytics-view');
     if (analytics && userPreferences.analytics_expanded) {
         analytics.style.display = 'block';
+        if (typeof window.loadAnalytics === 'function') window.loadAnalytics(false);
     }
 }
 

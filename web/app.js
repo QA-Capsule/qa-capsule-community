@@ -11,9 +11,8 @@ import * as settings from './js/settings.js';
 import * as profile from './js/profile.js';
 import * as finops from './js/finops.js';
 import * as about from './js/about.js';
-import * as charts from './js/charts.js';
-import { mountPinnedCharts } from './js/chart-widgets.js';
-import { applyRoleVisibility, canAccessFinOps, canAccessChartStudio, canAccessPlugins, canResolveIncidents, hasMinRole, roleLabel, canManageTeams, canManageIAM, isAdmin, canAccessView, accessDeniedMessage, defaultViewForRole } from './js/roles.js';
+import * as analyticsLayout from './js/analytics-layout.js';
+import { applyRoleVisibility, canAccessFinOps, canAccessPlugins, canResolveIncidents, canDeleteIncidents, hasMinRole, roleLabel, canManageTeams, canManageIAM, isAdmin, canAccessView, accessDeniedMessage, defaultViewForRole } from './js/roles.js';
 import { setupAutocomplete } from './js/autocomplete.js';
 
 // EXPORT GLOBALLY FOR HTML INLINE HANDLERS
@@ -35,7 +34,7 @@ for (const [key, value] of Object.entries(finops)) {
 for (const [key, value] of Object.entries(about)) {
     if (typeof value === 'function') window[key] = value;
 }
-for (const [key, value] of Object.entries(charts)) {
+for (const [key, value] of Object.entries(analyticsLayout)) {
     if (typeof value === 'function') window[key] = value;
 }
 
@@ -242,23 +241,32 @@ window.resolveSelected = async function () {
 };
 
 window.deleteSelected = async function () {
-    if (window.selectedIncidents.size === 0) return notify("Select at least one alert.", "error");
-    if (parseJwt(localStorage.getItem('sre-jwt')).role !== 'admin') return notify("Only admins can delete alerts.", "error");
+    if (window.selectedIncidents.size === 0) return notify('Select at least one alert.', 'error');
+    const role = parseJwt(localStorage.getItem('sre-jwt')).role;
+    if (!canDeleteIncidents(role)) return notify('Manager or Lead role required to delete alerts.', 'error');
 
-    showConfirmModal("Delete Selected?", `Permanently delete ${window.selectedIncidents.size} alert(s)?`, "danger", async function () {
+    showConfirmModal('Delete Selected?', `Permanently delete ${window.selectedIncidents.size} alert(s)?`, 'danger', async function () {
         window.pausePollingUntil = Date.now() + 15000;
         const ids = Array.from(window.selectedIncidents).map(id => parseInt(id, 10)).filter(id => !isNaN(id));
         window.currentIncidents = window.currentIncidents.filter(inc => !ids.includes(parseInt(inc.id, 10)));
         window.selectedIncidents.clear();
         window.renderIncidentsList();
-        notify("Suppression en cours...", "success");
+        notify('Deleting alerts…', 'success');
 
         try {
-            const promises = ids.map(id => window.fetchWithAuth(`/api/incidents?id=${id}&ids=${id}`, { method: 'DELETE' }));
-            await Promise.all(promises);
-            setTimeout(() => { window.pausePollingUntil = 0; window.fetchIncidents(true); window.fetchMetricsOnly(); }, 1200);
+            const res = await window.fetchWithAuth(`/api/incidents?ids=${ids.join(',')}`, { method: 'DELETE' });
+            if (!res.ok) {
+                const err = await res.text();
+                notify(err || 'Delete failed', 'error');
+                window.pausePollingUntil = 0;
+                window.fetchIncidents(true);
+                return;
+            }
+            setTimeout(() => { window.pausePollingUntil = 0; window.fetchIncidents(true); window.fetchMetricsOnly(); }, 800);
         } catch (e) {
-            window.pausePollingUntil = 0; window.fetchIncidents(true);
+            window.pausePollingUntil = 0;
+            window.fetchIncidents(true);
+            notify('Delete failed', 'error');
         }
     });
 };
@@ -284,13 +292,16 @@ window.resolveGroup = async function (groupId, event) {
 
 window.deleteGroup = async function (groupId, event) {
     if (event) { event.preventDefault(); event.stopPropagation(); }
+    const role = parseJwt(localStorage.getItem('sre-jwt')).role;
+    if (!canDeleteIncidents(role)) return notify('Manager or Lead role required to delete alerts.', 'error');
+
     const dropdown = document.getElementById(`action-dropdown-${groupId}`);
     if (dropdown) dropdown.style.display = 'none';
 
     const group = window.groupedIncidents[groupId];
     if (!group) return;
 
-    showConfirmModal("Delete Pipeline Execution?", `Permanently delete this pipeline execution?`, "danger", async function () {
+    showConfirmModal('Delete Pipeline Execution?', 'Permanently delete this pipeline execution?', 'danger', async function () {
         window.pausePollingUntil = Date.now() + 15000;
         const ids = group.incidents.map(i => parseInt(i.id, 10)).filter(id => !isNaN(id));
 
@@ -301,14 +312,21 @@ window.deleteGroup = async function (groupId, event) {
         notify("Suppression du pipeline en cours...", "success");
 
         try {
-            const promises = ids.map(id => window.fetchWithAuth(`/api/incidents?id=${id}&ids=${id}`, { method: 'DELETE' }));
-            await Promise.all(promises);
-            setTimeout(() => { window.pausePollingUntil = 0; window.fetchIncidents(true); window.fetchMetricsOnly(); }, 1200);
+            const res = await window.fetchWithAuth(`/api/incidents?ids=${ids.join(',')}`, { method: 'DELETE' });
+            if (!res.ok) {
+                notify('Delete failed', 'error');
+                window.pausePollingUntil = 0;
+                window.fetchIncidents(true);
+                return;
+            }
+            setTimeout(() => { window.pausePollingUntil = 0; window.fetchIncidents(true); window.fetchMetricsOnly(); }, 800);
         } catch (e) {
-            window.pausePollingUntil = 0; window.fetchIncidents(true);
+            window.pausePollingUntil = 0;
+            window.fetchIncidents(true);
+            notify('Delete failed', 'error');
         }
     });
-}
+};
 
 window.toggleActionDropdown = function (id, event) {
     if (event) { event.preventDefault(); event.stopPropagation(); }
@@ -372,8 +390,23 @@ window.toggleSubAlerts = function (groupId, event) {
     else { container.style.display = 'none'; icon.style.transform = 'rotate(0deg)'; }
 }
 
+window.__logsExpandAll = null;
+
+window.expandAllIncidentLogs = function () {
+    window.__logsExpandAll = true;
+    window.pausePollingUntil = Date.now() + 15000;
+    window.renderIncidentsList();
+};
+
+window.collapseAllIncidentLogs = function () {
+    window.__logsExpandAll = false;
+    window.pausePollingUntil = Date.now() + 15000;
+    window.renderIncidentsList();
+};
+
 window.toggleIncidentLog = function (id, event) {
     if (event) { event.preventDefault(); event.stopPropagation(); }
+    window.__logsExpandAll = null;
     window.pausePollingUntil = Date.now() + 15000;
     const logContent = document.getElementById(`log-content-${id}`);
     const logIcon = document.getElementById(`log-icon-${id}`);
@@ -436,20 +469,235 @@ window.fetchMetricsOnly = function () {
             }
         })
         .catch(err => console.error("FetchMetrics error:", err));
-
-    refreshDashboardPinnedCharts();
 };
 
-window.refreshDashboardPinnedCharts = function () {
-    mountPinnedCharts('dashboard', 'dashboard-pinned-charts', 'dashboard-pinned-wrap');
+const DASHBOARD_RANGE_LABELS = {
+    '5m': 'Last 5 minutes',
+    '15m': 'Last 15 minutes',
+    '30m': 'Last 30 minutes',
+    '1h': 'Last 1 hour',
+    '6h': 'Last 6 hours',
+    '24h': 'Last 24 hours',
+    '7d': 'Last 7 days',
+    '30d': 'Last 30 days',
+    today: 'Today',
+    yesterday: 'Yesterday',
+    all: 'All time (1 year)',
+    custom: 'Custom range'
+};
+
+let dashboardRangeDebounceTimer = null;
+let dashboardRefreshTimer = null;
+
+const DASHBOARD_REFRESH_MS = {
+    '5m': 15000,
+    '15m': 30000,
+    '30m': 45000,
+    '1h': 60000,
+    '6h': 120000,
+    '12h': 180000,
+    '24h': 180000,
+    'today': 120000,
+    'yesterday': 300000,
+    '7d': 300000,
+    '30d': 600000,
+    'all': 600000,
+    'custom': 120000
+};
+
+function dashboardRefreshIntervalMs() {
+    const preset = document.getElementById('dashboard-range-preset')?.value || '5m';
+    return DASHBOARD_REFRESH_MS[preset] || 60000;
+}
+
+function updateDashboardRefreshHint() {
+    const el = document.getElementById('dashboard-auto-refresh-hint');
+    if (!el) return;
+    const sec = Math.round(dashboardRefreshIntervalMs() / 1000);
+    el.textContent = `Auto ↻ ${sec}s`;
+}
+
+window.stopDashboardAutoRefresh = function () {
+    if (dashboardRefreshTimer) clearInterval(dashboardRefreshTimer);
+    dashboardRefreshTimer = null;
+};
+
+window.startDashboardAutoRefresh = function () {
+    window.stopDashboardAutoRefresh();
+    updateDashboardRefreshHint();
+    dashboardRefreshTimer = setInterval(() => {
+        const dash = document.getElementById('view-dashboard');
+        if (!dash || !dash.classList.contains('active')) return;
+        if (Date.now() < window.pausePollingUntil) return;
+        window.runDashboardRangeFilter();
+    }, dashboardRefreshIntervalMs());
+};
+
+window.restartDashboardAutoRefresh = function () {
+    window.startDashboardAutoRefresh();
+};
+
+function formatDateInput(d) {
+    const p = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+function formatTimeInput(d) {
+    const p = (n) => String(n).padStart(2, '0');
+    return `${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+function setSplitDatetime(dateId, timeId, d) {
+    const dateEl = document.getElementById(dateId);
+    const timeEl = document.getElementById(timeId);
+    if (dateEl) dateEl.value = formatDateInput(d);
+    if (timeEl) timeEl.value = formatTimeInput(d);
+}
+
+function getCombinedCustomDatetime(dateId, timeId) {
+    const date = document.getElementById(dateId)?.value;
+    const time = document.getElementById(timeId)?.value || '00:00';
+    if (!date) return null;
+    return formatDatetimeForApi(`${date}T${time}`);
+}
+
+/** Sends naive local timestamps to match SQLite created_at (no UTC shift). */
+function formatDatetimeForApi(value) {
+    if (!value || !String(value).includes('T')) return null;
+    const [date, time] = String(value).split('T');
+    const [hh = '00', mm = '00', ss = '00'] = (time || '').split(':');
+    return `${date} ${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+}
+
+function formatRangeSummary(fromVal, toVal) {
+    try {
+        const f = new Date(fromVal);
+        const t = new Date(toVal);
+        if (isNaN(f.getTime()) || isNaN(t.getTime())) return 'Custom range';
+        return `${f.toLocaleString()} → ${t.toLocaleString()}`;
+    } catch {
+        return 'Custom range';
+    }
+}
+
+window.getDashboardRangeQuery = function () {
+    const preset = document.getElementById('dashboard-range-preset')?.value || '5m';
+    if (preset === 'custom') {
+        const from = getCombinedCustomDatetime('dashboard-range-from-date', 'dashboard-range-from-time');
+        const to = getCombinedCustomDatetime('dashboard-range-to-date', 'dashboard-range-to-time');
+        if (!from || !to) return null;
+        return `range=custom&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
+    }
+    return `range=${encodeURIComponent(preset)}`;
+};
+
+function syncDashboardRangeChips(preset) {
+    document.querySelectorAll('#dashboard-range-quick .range-chip').forEach(chip => {
+        chip.classList.toggle('active', chip.dataset.range === preset);
+    });
+}
+
+function fillCustomRangeDefaults() {
+    const to = new Date();
+    const from = new Date(to);
+    from.setHours(0, 0, 0, 0);
+    setSplitDatetime('dashboard-range-from-date', 'dashboard-range-from-time', from);
+    setSplitDatetime('dashboard-range-to-date', 'dashboard-range-to-time', to);
+}
+
+window.setDashboardRangePreset = function (preset) {
+    const sel = document.getElementById('dashboard-range-preset');
+    if (sel) sel.value = preset;
+    window.onDashboardRangeChange();
+};
+
+window.setDashboardRangeEndToNow = function () {
+    const to = new Date();
+    setSplitDatetime('dashboard-range-to-date', 'dashboard-range-to-time', to);
+    window.onDashboardCustomRangeInput();
+};
+
+window.onDashboardCustomRangeInput = function () {
+    clearTimeout(dashboardRangeDebounceTimer);
+    dashboardRangeDebounceTimer = setTimeout(() => window.runDashboardRangeFilter(), 350);
+};
+
+window.runDashboardRangeFilter = function () {
+    const preset = document.getElementById('dashboard-range-preset')?.value || '5m';
+    if (preset === 'custom') {
+        const fromRaw = `${document.getElementById('dashboard-range-from-date')?.value || ''}T${document.getElementById('dashboard-range-from-time')?.value || ''}`;
+        const toRaw = `${document.getElementById('dashboard-range-to-date')?.value || ''}T${document.getElementById('dashboard-range-to-time')?.value || ''}`;
+        if (!fromRaw.includes('T') || !toRaw.includes('T') || fromRaw === 'T' || toRaw === 'T') return;
+        const from = new Date(fromRaw);
+        const to = new Date(toRaw);
+        if (isNaN(from.getTime()) || isNaN(to.getTime())) return;
+        if (from > to) {
+            notify('"Start" must be before "End".', 'error');
+            return;
+        }
+        const summary = document.getElementById('dashboard-range-summary');
+        if (summary) summary.textContent = formatRangeSummary(fromRaw, toRaw);
+    }
+    const rangeQ = window.getDashboardRangeQuery();
+    if (rangeQ === null) return;
+    window.fetchIncidents(true);
+    window.reloadDashboardAnalytics();
+    if (typeof window.restartDashboardAutoRefresh === 'function') window.restartDashboardAutoRefresh();
+    const finopsView = document.getElementById('view-finops');
+    if (finopsView && finopsView.classList.contains('active') && window.loadFinOpsView) {
+        window.loadFinOpsView();
+    }
+};
+
+window.onDashboardRangeChange = function () {
+    const preset = document.getElementById('dashboard-range-preset')?.value || '5m';
+    const customEl = document.getElementById('dashboard-custom-range');
+    const summary = document.getElementById('dashboard-range-summary');
+
+    syncDashboardRangeChips(preset);
+
+    if (preset === 'custom') {
+        if (customEl) customEl.style.display = 'grid';
+        fillCustomRangeDefaults();
+        if (summary) summary.textContent = formatRangeSummary(
+            `${document.getElementById('dashboard-range-from-date')?.value}T${document.getElementById('dashboard-range-from-time')?.value}`,
+            `${document.getElementById('dashboard-range-to-date')?.value}T${document.getElementById('dashboard-range-to-time')?.value}`
+        );
+        window.runDashboardRangeFilter();
+        return;
+    }
+
+    if (customEl) customEl.style.display = 'none';
+    if (summary) summary.textContent = DASHBOARD_RANGE_LABELS[preset] || preset;
+    window.runDashboardRangeFilter();
+};
+
+window.reloadDashboardAnalytics = function () {
+    const view = document.getElementById('analytics-view');
+    if (view && view.style.display !== 'none' && typeof window.loadAnalytics === 'function') {
+        window.loadAnalytics(false);
+    }
+};
+
+window.initDashboardTimeRange = function () {
+    const sel = document.getElementById('dashboard-range-preset');
+    if (sel) sel.value = '5m';
+    fillCustomRangeDefaults();
+    syncDashboardRangeChips('5m');
+    const summary = document.getElementById('dashboard-range-summary');
+    if (summary) summary.textContent = DASHBOARD_RANGE_LABELS['5m'];
+    const customEl = document.getElementById('dashboard-custom-range');
+    if (customEl) customEl.style.display = 'none';
 };
 
 window.fetchIncidents = function (forceRender = false, opts = {}) {
     if (!opts.skipPauseCheck && !forceRender && Date.now() < window.pausePollingUntil) return;
     const filterEl = document.getElementById('project-filter');
     const projectFilter = filterEl ? filterEl.value : 'all';
+    const rangeQ = window.getDashboardRangeQuery();
+    if (rangeQ === null) return Promise.resolve();
 
-    return fetchWithAuth(`/api/incidents?project=${encodeURIComponent(projectFilter)}&_ts=${Date.now()}&_bust=${Math.random()}`, {
+    return fetchWithAuth(`/api/incidents?project=${encodeURIComponent(projectFilter)}&${rangeQ}&_ts=${Date.now()}&_bust=${Math.random()}`, {
         headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache', 'Expires': '0' }
     })
         .then(res => parseApiJson(res))
@@ -470,7 +718,6 @@ window.fetchIncidents = function (forceRender = false, opts = {}) {
             const newSig = safeData.map(i => `${i.id}:${normalizeIsResolved(i)}`).join('|');
 
             if (forceRender || oldSig !== newSig) { window.currentIncidents = safeData; window.renderIncidentsList(); }
-            window.fetchMetricsOnly();
             return safeData;
         })
         .catch(() => {
@@ -488,14 +735,20 @@ window.renderIncidentsList = function () {
     const openGroups = new Set();
     document.querySelectorAll('[id^="sub-alerts-"]').forEach(el => { if (el.style.display === 'block') openGroups.add(el.id.replace('sub-alerts-', '')); });
 
-    const openLogs = new Set();
-    document.querySelectorAll('[id^="log-content-"]').forEach(el => { if (el.style.display === 'block') openLogs.add(el.id.replace('log-content-', '')); });
-
     let filteredData = window.currentIncidents || [];
     if (window.statusFilter === 'active') filteredData = filteredData.filter(inc => !normalizeIsResolved(inc));
     else if (window.statusFilter === 'resolved') filteredData = filteredData.filter(inc => normalizeIsResolved(inc));
 
     if (searchQuery) filteredData = filteredData.filter(inc => (inc.name && inc.name.toLowerCase().includes(searchQuery)) || (inc.project_name && inc.project_name.toLowerCase().includes(searchQuery)) || (inc.error_message && inc.error_message.toLowerCase().includes(searchQuery)));
+
+    const openLogs = new Set();
+    if (window.__logsExpandAll === true) {
+        filteredData.forEach(inc => openLogs.add(String(inc.id)));
+    } else if (window.__logsExpandAll !== false) {
+        document.querySelectorAll('[id^="log-content-"]').forEach(el => {
+            if (el.style.display === 'block') openLogs.add(el.id.replace('log-content-', ''));
+        });
+    }
 
     if (filteredData.length === 0) {
         const total = (window.currentIncidents || []).length;
@@ -554,7 +807,7 @@ window.renderIncidentsList = function () {
 
     const userRole = parseJwt(localStorage.getItem('sre-jwt')).role;
     const canResolve = canResolveIncidents(userRole);
-    const isAdmin = userRole === 'admin';
+    const canDelete = canDeleteIncidents(userRole);
 
     const iconCheck = `<svg style="width:12px;height:12px;margin-right:4px;vertical-align:middle;stroke:currentColor;fill:none;" viewBox="0 0 24 24" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
     const iconAlert = `<svg style="width:12px;height:12px;margin-right:4px;vertical-align:middle;stroke:currentColor;fill:none;" viewBox="0 0 24 24" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>`;
@@ -574,8 +827,8 @@ window.renderIncidentsList = function () {
             <label for="select-all-cb" id="bulk-count-label" class="bulk-action-label">${window.selectedIncidents.size} Test(s) Selected</label>
         </div>
         <div style="display: flex; gap: 10px; margin-left: auto;">
-            ${canResolve ? `<button class="btn-primary" style="font-size: 12px; padding: 6px 12px; border-color: var(--log-pass); background: rgba(5, 150, 105, 0.1); color: var(--log-pass);" onclick="resolveSelected()">${iconCheck} Resolve</button>` : ''}
-            ${isAdmin ? `<button class="btn-secondary" style="font-size: 12px; padding: 6px 12px; color: var(--log-fatal); border-color: var(--log-fatal);" onclick="deleteSelected()">${iconTrash} Delete</button>` : ''}
+            ${canResolve ? `<button type="button" class="btn btn-secondary btn-success btn-sm" onclick="resolveSelected()">${iconCheck} Resolve</button>` : ''}
+            ${canDelete ? `<button type="button" class="btn btn-secondary btn-danger btn-sm" onclick="deleteSelected()">${iconTrash} Delete</button>` : ''}
         </div>
     </div>`;
 
@@ -631,10 +884,10 @@ window.renderIncidentsList = function () {
 
         const actionDropdown = `
             <div class="action-dropdown-container">
-                <button type="button" class="btn-secondary" style="font-size: 11px; padding: 5px 10px; display: flex; align-items: center;" onclick="toggleActionDropdown('${group.id}', event)">${iconGear} Actions</button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="toggleActionDropdown('${group.id}', event)">${iconGear} Actions</button>
                 <div id="action-dropdown-${group.id}" class="action-dropdown-menu">
                     ${(!group.is_resolved && canResolve) ? `<a href="#" class="action-resolve" onclick="resolveGroup('${group.id}', event)">${iconCheck} Resolve Execution</a>` : ''}
-                    ${isAdmin ? `<a href="#" class="action-delete" onclick="deleteGroup('${group.id}', event)">${iconTrash} Delete Execution</a>` : ''}
+                    ${canDelete ? `<a href="#" class="action-delete" onclick="deleteGroup('${group.id}', event)">${iconTrash} Delete Execution</a>` : ''}
                     <a href="#" class="action-export-err" onclick="downloadGroupLog('${group.id}', 'error', event)">${iconAlert} Export Errors</a>
                     <a href="#" class="action-export-full" onclick="downloadGroupLog('${group.id}', 'full', event)">${iconFile} Export Full Logs</a>
                     <a href="#" class="action-export-xml" onclick="downloadGroupLog('${group.id}', 'xml', event)">${iconCode} Generate JUnit XML</a>
@@ -658,7 +911,7 @@ window.renderIncidentsList = function () {
                 <div class="pipeline-exec-toolbar">
                     ${resolvedBadge}
                     ${actionDropdown}
-                    <button type="button" class="btn-secondary" style="padding: 6px 12px; display: flex; align-items: center; gap: 6px;" onclick="toggleSubAlerts('${group.id}', event)">
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="toggleSubAlerts('${group.id}', event)">
                         ${group.incidents.length} Alert(s) <span id="toggle-icon-${group.id}" style="display: inline-block;">${iconChevron}</span>
                     </button>
                 </div>
@@ -675,6 +928,22 @@ window.renderIncidentsList = function () {
         const icon = document.getElementById(`toggle-icon-${groupId}`);
         if (el) { el.style.display = 'block'; if (icon) icon.style.transform = 'rotate(180deg)'; }
     });
+};
+
+window.initDashboardScrollHelpers = function () {
+    const main = document.querySelector('.main-content');
+    const btn = document.getElementById('scroll-top-btn');
+    if (!main || !btn || main.dataset.scrollBound) return;
+    main.dataset.scrollBound = '1';
+    main.addEventListener('scroll', () => {
+        btn.classList.toggle('visible', main.scrollTop > 280);
+    }, { passive: true });
+    btn.addEventListener('click', () => main.scrollTo({ top: 0, behavior: 'smooth' }));
+};
+
+window.scrollDashboardToTop = function () {
+    const main = document.querySelector('.main-content');
+    if (main) main.scrollTo({ top: 0, behavior: 'smooth' });
 };
 
 window.connectWebSocket = function () {
@@ -779,9 +1048,13 @@ window.checkAuth = function () {
         if (payload.role === 'admin') window.loadUsers();
 
         if (document.getElementById('view-dashboard').classList.contains('active')) {
+            window.initDashboardTimeRange();
             window.loadDashboardFilters();
             window.pausePollingUntil = 0;
+            if (window.loadAnalyticsLayoutFromPrefs) window.loadAnalyticsLayoutFromPrefs();
             window.fetchIncidents(true);
+            if (window.startDashboardAutoRefresh) window.startDashboardAutoRefresh();
+            window.initDashboardScrollHelpers();
         }
         if (document.getElementById('view-organizations').classList.contains('active') && canManageTeams(payload.role)) {
             window.loadOrganizations();
@@ -792,14 +1065,11 @@ window.checkAuth = function () {
         if (document.getElementById('view-settings').classList.contains('active') && window.loadConfig) {
             window.loadConfig();
         }
-        if (document.getElementById('view-plugins').classList.contains('active') && hasMinRole(payload.role, 'operator')) {
+        if (document.getElementById('view-plugins').classList.contains('active') && hasMinRole(payload.role, 'lead')) {
             if (window.loadPlugins) window.loadPlugins();
         }
-        if (document.getElementById('view-ingestion').classList.contains('active') && hasMinRole(payload.role, 'operator')) {
+        if (document.getElementById('view-ingestion').classList.contains('active') && hasMinRole(payload.role, 'lead')) {
             if (window.loadGatewaysData) window.loadGatewaysData();
-        }
-        if (document.getElementById('view-charts').classList.contains('active') && window.loadChartsView) {
-            window.loadChartsView();
         }
         window.connectWebSocket();
     });
@@ -837,7 +1107,17 @@ window.switchView = function (id, el) {
     }
     if (el) el.classList.add('active');
 
-    if (id === 'dashboard') { window.loadDashboardFilters(); window.pausePollingUntil = 0; window.fetchIncidents(true); window.fetchMetricsOnly(); }
+    if (id === 'dashboard') {
+        window.initDashboardTimeRange();
+        window.loadDashboardFilters();
+        window.pausePollingUntil = 0;
+        if (window.loadAnalyticsLayoutFromPrefs) window.loadAnalyticsLayoutFromPrefs();
+        window.fetchIncidents(true);
+        if (window.startDashboardAutoRefresh) window.startDashboardAutoRefresh();
+        window.initDashboardScrollHelpers();
+    } else if (typeof window.stopDashboardAutoRefresh === 'function') {
+        window.stopDashboardAutoRefresh();
+    }
     if (id === 'organizations' && payload && canManageTeams(payload.role)) {
         if (window.loadOrganizations) window.loadOrganizations();
     }
@@ -848,14 +1128,11 @@ window.switchView = function (id, el) {
     if (id === 'settings' && payload && canManageIAM(payload.role)) {
         if (window.loadConfig) window.loadConfig();
     }
-    if (id === 'ingestion' && payload && hasMinRole(payload.role, 'operator')) {
+    if (id === 'ingestion' && payload && hasMinRole(payload.role, 'lead')) {
         if (window.loadGatewaysData) window.loadGatewaysData();
     }
     if (id === 'finops' && payload && canAccessFinOps(payload.role)) {
         if (window.loadFinOpsView) window.loadFinOpsView();
-    }
-    if (id === 'charts' && payload && canAccessChartStudio(payload.role)) {
-        if (window.loadChartsView) window.loadChartsView();
     }
     if (id === 'about') {
         if (window.loadAboutView) window.loadAboutView();

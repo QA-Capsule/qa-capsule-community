@@ -84,6 +84,11 @@ func registerAuthRoutes(config *core.Config) {
 			return
 		}
 
+		if nr := core.NormalizeRole(role); nr != role {
+			role = nr
+			_, _ = core.DB.Exec("UPDATE users SET role = ? WHERE username = ?", role, creds.Username)
+		}
+
 		expirationTime := time.Now().Add(24 * time.Hour)
 		claims := &Claims{
 			Username:              creds.Username,
@@ -142,7 +147,7 @@ func registerAuthRoutes(config *core.Config) {
 				var active int
 				var u, fn, ro string
 				rows.Scan(&u, &fn, &ro, &active)
-				users = append(users, map[string]interface{}{"username": u, "fullname": fn, "role": ro, "is_active": active == 1})
+				users = append(users, map[string]interface{}{"username": u, "fullname": fn, "role": core.NormalizeRole(ro), "is_active": active == 1})
 			}
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(users)
@@ -164,13 +169,13 @@ func registerAuthRoutes(config *core.Config) {
 			tempPwd := generateRandomPassword()
 			hashed, _ := bcrypt.GenerateFromPassword([]byte(tempPwd), 14)
 
-			if !core.IsValidRole(newUser.Role) {
-				http.Error(w, "Invalid role. Allowed: admin, manager, operator, viewer", http.StatusBadRequest)
+			if !core.IsCanonicalRole(newUser.Role) {
+				http.Error(w, "Invalid role. "+core.AllowedRolesMessage(), http.StatusBadRequest)
 				return
 			}
 
 			_, err := core.DB.Exec(`INSERT INTO users (username, fullname, password_hash, role, is_active, require_password_change) VALUES (?, ?, ?, ?, 1, 1)`,
-				newUser.Username, newUser.Fullname, string(hashed), newUser.Role)
+				newUser.Username, newUser.Fullname, string(hashed), core.NormalizeRole(newUser.Role))
 
 			if err == nil {
 				// Send temporary credentials via email

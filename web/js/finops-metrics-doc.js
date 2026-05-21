@@ -80,7 +80,7 @@ export const FINOPS_METRICS_DOC_HTML = `
   ${formulaBlock('Impact_total = (M_total × C_ci) + (N × C_invest)')}
   ${formulaBlock('Impact_total = N × (T_pipe × C_ci + C_invest)')}
   <p>
-    Per-incident fully loaded cost (used in Chart Studio FinOps metrics):
+    Per-incident fully loaded cost (used in QCL FinOps metrics):
   </p>
   ${formulaBlock('C_incident = (T_pipe × C_ci) + C_invest')}
 
@@ -140,8 +140,8 @@ export const FINOPS_METRICS_DOC_HTML = `
     Use this for chargeback conversations with service owners.
   </p>
 
-  <h3>11. Chart Studio (QCL) FinOps metrics</h3>
-  <p>When composing QCL queries, these <code>METRIC</code> tokens map directly to the formulas above:</p>
+  <h3>11. Metrics (QCL) — FinOps tokens</h3>
+  <p>When composing QCL queries (see Help Center → Metrics), these <code>METRIC</code> tokens map directly to the formulas above:</p>
   <table class="about-table">
     <thead><tr><th>METRIC</th><th>Aggregation</th></tr></thead>
     <tbody>

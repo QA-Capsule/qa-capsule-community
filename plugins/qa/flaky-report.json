@@ -1,0 +1,15 @@
+{
+  "name": "QA Flaky Summary Webhook",
+  "version": "1.0.0",
+  "description": "Sends a lightweight flaky/regression summary to your QA channel or test-management webhook.",
+  "status": "Active",
+  "command": "flaky-report-action.sh",
+  "trigger_on": [
+    "FLAKY",
+    "flaky",
+    "unstable"
+  ],
+  "env": {
+    "QA_WEBHOOK_URL": ""
+  }
+}

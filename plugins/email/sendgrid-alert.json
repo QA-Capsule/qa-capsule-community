@@ -1,0 +1,17 @@
+{
+  "name": "Email — SendGrid",
+  "version": "1.0.0",
+  "description": "Sends an HTML alert email via SendGrid v3 Mail Send API.",
+  "status": "Active",
+  "command": "sendgrid-action.sh",
+  "trigger_on": [
+    "CRITICAL",
+    "FATAL",
+    "Timeout"
+  ],
+  "env": {
+    "SENDGRID_API_KEY": "",
+    "SENDGRID_FROM": "qa-capsule@yourcompany.com",
+    "SENDGRID_TO": ""
+  }
+}

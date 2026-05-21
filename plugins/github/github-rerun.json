@@ -1,0 +1,19 @@
+{
+  "name": "GitHub Actions — Re-run workflow",
+  "version": "1.0.0",
+  "description": "Dispatches a GitHub Actions workflow (e.g. re-run failed E2E suite) after a critical failure.",
+  "status": "Active",
+  "command": "github-action.sh",
+  "trigger_on": [
+    "CRITICAL",
+    "Timeout",
+    "FLAKY"
+  ],
+  "env": {
+    "GITHUB_TOKEN": "",
+    "GITHUB_OWNER": "",
+    "GITHUB_REPO": "",
+    "GITHUB_WORKFLOW_ID": "",
+    "GITHUB_REF": "main"
+  }
+}

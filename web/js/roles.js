@@ -1,144 +1,86 @@
 /**
-
  * Global RBAC — mirrors pkg/core/rbac.go
-
  */
+export const ROLE_LEVEL = { observer: 1, lead: 2, manager: 3, admin: 4 };
 
-export const ROLE_LEVEL = { viewer: 1, operator: 2, manager: 3, admin: 4 };
+const LEGACY_ROLE_MAP = { operator: 'lead', viewer: 'observer' };
 
-
+export function normalizeRole(role) {
+    return LEGACY_ROLE_MAP[role] || role;
+}
 
 export const ROLE_LABELS = {
-
-    admin: 'System Admin',
-
-    manager: 'QA Manager / DevOps / SRE Lead',
-
-    operator: 'QA Lead',
-
-    viewer: 'QA / Developer'
-
+    admin: 'Platform Admin',
+    manager: 'Manager',
+    lead: 'Lead',
+    observer: 'Observer'
 };
-
-
 
 export const ROLE_DESCRIPTIONS = {
-
-    admin: 'Workspaces hierarchy, global IAM (users & roles), and system settings.',
-
-    manager: 'Full QA/DevOps lead: FinOps, workspaces, chart studio, CI gateways, plugins, incident triage.',
-
-    operator: 'Resolve alerts, Chart Studio, CI gateways, plugins, and project webhooks.',
-
-    viewer: 'Read-only incidents and logs, plus Chart Studio for custom metrics.'
-
+    admin: 'Workspaces hierarchy, global IAM, license, and system settings. Does not use Operations or FinOps.',
+    manager: 'FinOps, workspaces, CI gateways, plugins, and full incident triage.',
+    lead: 'Resolve and delete alerts, CI gateways, plugins, and webhook routing.',
+    observer: 'Read-only Operations dashboard, analytics layout, and Help Center.'
 };
 
-
+export const ROLE_SELECT_OPTIONS = [
+    { value: 'observer', label: 'Observer' },
+    { value: 'lead', label: 'Lead' },
+    { value: 'manager', label: 'Manager' },
+    { value: 'admin', label: 'Platform Admin' }
+];
 
 export function roleLevel(role) {
-
-    return ROLE_LEVEL[role] || 0;
-
+    return ROLE_LEVEL[normalizeRole(role)] || 0;
 }
-
-
 
 export function hasMinRole(userRole, minRole) {
-
     return roleLevel(userRole) >= roleLevel(minRole);
-
 }
-
-
 
 export function roleLabel(role) {
-
-    return ROLE_LABELS[role] || role;
-
+    return ROLE_LABELS[normalizeRole(role)] || role;
 }
-
-
 
 export function isAdmin(role) {
-
-    return role === 'admin';
-
+    return normalizeRole(role) === 'admin';
 }
-
-
-
-/** FinOps — Manager only. */
 
 export function canAccessFinOps(role) {
-
-    return role === 'manager';
-
+    return normalizeRole(role) === 'manager';
 }
-
-
-
-/** Workspaces — Admin or Manager. */
 
 export function canManageTeams(role) {
-
-    return role === 'admin' || role === 'manager';
-
+    const r = normalizeRole(role);
+    return r === 'admin' || r === 'manager';
 }
-
-
-
-/** IAM / global roles — Admin only. */
 
 export function canManageIAM(role) {
-
-    return role === 'admin';
-
+    return normalizeRole(role) === 'admin';
 }
-
-
 
 export function canManageProjects(role) {
-
-    return role === 'manager' || role === 'operator';
-
+    const r = normalizeRole(role);
+    return r === 'manager' || r === 'lead';
 }
-
-
 
 export function canAccessPlugins(role) {
-
-    return role === 'manager' || role === 'operator';
-
+    const r = normalizeRole(role);
+    return r === 'manager' || r === 'lead';
 }
-
-
 
 export function canResolveIncidents(role) {
-
-    return hasMinRole(role, 'operator') && role !== 'admin';
-
+    return hasMinRole(role, 'lead') && normalizeRole(role) !== 'admin';
 }
 
-
-
-export function canAccessChartStudio(role) {
-
-    return role === 'manager' || role === 'operator' || role === 'viewer';
-
+export function canDeleteIncidents(role) {
+    const r = normalizeRole(role);
+    return r === 'manager' || r === 'lead';
 }
-
-
-
-/** Operational app areas (dashboard, finops, etc.) — not Admin. */
 
 export function canAccessOperations(role) {
-
-    return role !== 'admin';
-
+    return normalizeRole(role) !== 'admin';
 }
-
-
 
 function setRoleElVisible(el, visible) {
     if (!el) return;
@@ -146,18 +88,18 @@ function setRoleElVisible(el, visible) {
     el.style.display = visible ? (isNav ? 'flex' : '') : 'none';
 }
 
-/** Elements tagged role-non-admin only (not also manager/operator/workspace/chart). */
 function isPureNonAdminEl(el) {
     return el.classList.contains('role-non-admin')
         && !el.classList.contains('role-manager-only')
-        && !el.classList.contains('role-operator')
-        && !el.classList.contains('role-workspace')
-        && !el.classList.contains('role-chart-studio');
+        && !el.classList.contains('role-lead')
+        && !el.classList.contains('role-workspace');
 }
 
 export function applyRoleVisibility(role) {
+    const r = normalizeRole(role);
+
     document.querySelectorAll('.role-admin, .admin-only').forEach(el => {
-        setRoleElVisible(el, role === 'admin');
+        setRoleElVisible(el, r === 'admin');
     });
 
     document.querySelectorAll('.role-workspace').forEach(el => {
@@ -165,34 +107,29 @@ export function applyRoleVisibility(role) {
     });
 
     document.querySelectorAll('.role-manager-only, .role-manager').forEach(el => {
-        setRoleElVisible(el, role === 'manager');
+        setRoleElVisible(el, r === 'manager');
     });
 
-    document.querySelectorAll('.role-operator').forEach(el => {
-        setRoleElVisible(el, role === 'operator' || role === 'manager');
-    });
-
-    document.querySelectorAll('.role-chart-studio').forEach(el => {
-        setRoleElVisible(el, canAccessChartStudio(role));
+    document.querySelectorAll('.role-lead, .role-operator').forEach(el => {
+        setRoleElVisible(el, r === 'lead' || r === 'manager');
     });
 
     document.querySelectorAll('.role-non-admin').forEach(el => {
         if (!isPureNonAdminEl(el)) return;
-        setRoleElVisible(el, role !== 'admin');
+        setRoleElVisible(el, r !== 'admin');
     });
 
-    document.querySelectorAll('.role-viewer-only').forEach(el => {
-        setRoleElVisible(el, role === 'viewer');
+    document.querySelectorAll('.role-observer-only, .role-viewer-only').forEach(el => {
+        setRoleElVisible(el, r === 'observer');
     });
 
-    document.querySelectorAll('.role-hide-viewer').forEach(el => {
-        setRoleElVisible(el, role !== 'viewer');
+    document.querySelectorAll('.role-hide-observer, .role-hide-viewer').forEach(el => {
+        setRoleElVisible(el, r !== 'observer');
     });
 }
 
-/** Views a role may open via switchView (used after login). */
 export function defaultViewForRole(role) {
-    if (role === 'admin') return 'organizations';
+    if (normalizeRole(role) === 'admin') return 'organizations';
     return 'dashboard';
 }
 
@@ -203,8 +140,6 @@ export function canAccessView(role, viewId) {
         case 'about':
         case 'profile':
             return true;
-        case 'charts':
-            return canAccessChartStudio(role);
         case 'finops':
             return canAccessFinOps(role);
         case 'organizations':
@@ -224,7 +159,6 @@ export function canAccessView(role, viewId) {
 export function accessDeniedMessage(viewId) {
     const labels = {
         dashboard: 'Dashboard',
-        charts: 'Chart Studio',
         finops: 'FinOps Intelligence',
         organizations: 'Workspaces',
         management: 'IAM Access',
@@ -235,5 +169,3 @@ export function accessDeniedMessage(viewId) {
     const name = labels[viewId] || viewId;
     return `You do not have access to ${name}.`;
 }
-
-

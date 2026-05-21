@@ -1,0 +1,19 @@
+{
+  "name": "TestRail — Record failed result",
+  "version": "1.0.0",
+  "description": "Adds a failed test result to a TestRail run (API v2). Set run/case per project or in plugin config.",
+  "status": "Active",
+  "command": "testrail-action.sh",
+  "trigger_on": [
+    "CRITICAL",
+    "FAILED",
+    "Timeout"
+  ],
+  "env": {
+    "TESTRAIL_URL": "",
+    "TESTRAIL_USER": "",
+    "TESTRAIL_API_KEY": "",
+    "TESTRAIL_RUN_ID": "",
+    "TESTRAIL_CASE_ID": ""
+  }
+}

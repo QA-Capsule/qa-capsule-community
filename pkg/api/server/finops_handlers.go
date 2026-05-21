@@ -51,7 +51,8 @@ func periodToDays(period string) int {
 }
 
 func loadFinOpsBaseline() (devRate, ciCost, avgDuration, avgInvestigation float64) {
-	core.DB.QueryRow("SELECT dev_hourly_rate, ci_minute_cost, avg_pipeline_duration, avg_investigation_time FROM finops_settings WHERE id = 1").
+	devRate, ciCost, avgDuration, avgInvestigation = 50, 0.008, 15, 30
+	_ = core.DB.QueryRow("SELECT dev_hourly_rate, ci_minute_cost, avg_pipeline_duration, avg_investigation_time FROM finops_settings WHERE id = 1").
 		Scan(&devRate, &ciCost, &avgDuration, &avgInvestigation)
 	return
 }
@@ -69,29 +70,32 @@ func handleFinOpsEvolution(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	weeks := 12
-	if wStr := r.URL.Query().Get("weeks"); wStr != "" {
-		if n, err := strconv.Atoi(wStr); err == nil && n > 0 && n <= 52 {
-			weeks = n
-		}
+	tw := incidentTimeWindowFromRequest(r)
+	fromT, _ := time.Parse("2006-01-02 15:04:05", tw.From)
+	toT, _ := time.Parse("2006-01-02 15:04:05", tw.To)
+	if fromT.IsZero() || toT.IsZero() {
+		fromT = time.Now().UTC().Add(-90 * 24 * time.Hour)
+		toT = time.Now().UTC()
 	}
+	bucketExpr := evolutionBucketExpr(fromT, toT)
+	bucketLabel := evolutionBucketLabel(fromT, toT)
 
 	devRate, ciCost, avgDuration, avgInvestigation := loadFinOpsBaseline()
 	costPerInc := finopsCostPerIncident(devRate, avgInvestigation, ciCost, avgDuration)
 
 	rows, err := core.DB.Query(fmt.Sprintf(`
 		SELECT 
-			date(created_at, 'weekday 0', '-6 days') as week_start,
+			%s as week_start,
 			COUNT(*) as total_incidents,
 			SUM(CASE WHEN name LIKE '[FLAKY]%%' THEN 1 ELSE 0 END) as flaky_count,
 			SUM(CASE WHEN is_resolved = 1 THEN 1 ELSE 0 END) as resolved_count,
 			AVG(CASE WHEN is_resolved = 1 AND resolved_at IS NOT NULL 
 				THEN (julianday(resolved_at) - julianday(created_at)) * 24 * 60 ELSE NULL END) as avg_mttr
 		FROM incidents
-		WHERE created_at >= datetime('now', '-%d days')
+		WHERE created_at >= ? AND created_at <= ?
 		GROUP BY week_start
 		ORDER BY week_start ASC
-	`, weeks*7))
+	`, bucketExpr), tw.From, tw.To)
 	if err != nil {
 		http.Error(w, "Failed to load evolution", http.StatusInternalServerError)
 		return
@@ -125,8 +129,10 @@ func handleFinOpsEvolution(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"weeks":  weeks,
-		"series": series,
+		"series":          series,
+		"evolution_bucket": bucketLabel,
+		"time_from":       tw.From,
+		"time_to":         tw.To,
 		"baseline": map[string]float64{
 			"dev_hourly_rate":        devRate,
 			"ci_minute_cost":         ciCost,

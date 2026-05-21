@@ -1,0 +1,19 @@
+{
+  "name": "Email — SMTP",
+  "version": "1.0.0",
+  "description": "Sends a plain-text alert via SMTP (TLS). Works with corporate relay or providers like Office365 / Gmail SMTP.",
+  "status": "Active",
+  "command": "smtp-action.sh",
+  "trigger_on": [
+    "CRITICAL",
+    "FATAL"
+  ],
+  "env": {
+    "SMTP_HOST": "",
+    "SMTP_PORT": "587",
+    "SMTP_USER": "",
+    "SMTP_PASS": "",
+    "SMTP_FROM": "",
+    "SMTP_TO": ""
+  }
+}

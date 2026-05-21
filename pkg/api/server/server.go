@@ -91,7 +91,7 @@ func normalizeAuthRequirement(requirement any) string {
 }
 
 // jwtAuthMiddleware intercepts requests to verify identity and RBAC permissions.
-// requirement is the minimum role (viewer < operator < manager < admin), "" for any authenticated user,
+// requirement is the minimum role (observer < lead < manager < admin), "" for any authenticated user,
 // or legacy bool: false = any user, true = admin only.
 func jwtAuthMiddleware(config *core.Config, requirement any, next http.HandlerFunc) http.HandlerFunc {
 	minRole := normalizeAuthRequirement(requirement)
