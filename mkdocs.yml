@@ -84,6 +84,7 @@ nav:
   - Plugin Engine:
       - Native Integrations Overview: plugins/overview.md
       - Configuration Guide (QA Capsule + Provider): plugins/configuration-guide.md
+      - Visual Workflow Builder: plugins/visual-workflow.md
       - Integrations Catalog: plugins/integrations-catalog.md
       - Jira Integration: plugins/jira.md
       - Slack Integration: plugins/slack.md

@@ -174,6 +174,7 @@ func Start(initialConfig core.Config) {
 	registerPreferencesRoutes(config)
 	registerTeamRoutes(config)
 	registerProjectRoutes(config)
+	registerWorkflowRoutes(config)
 	registerWebhookRoutes(config)
 	registerIncidentRoutes(config)
 	registerArtifactRoutes(config)

@@ -246,6 +246,7 @@ func runSchemaMigrations() {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_test_metrics_fp ON test_execution_metrics(project_name, fingerprint, created_at)`,
 		`ALTER TABLE projects ADD COLUMN sre_routing_json TEXT DEFAULT '[]'`,
+		`ALTER TABLE projects ADD COLUMN sre_workflow_json TEXT DEFAULT ''`,
 		`CREATE TABLE IF NOT EXISTS user_team_inheritance_optouts (
 			user_id INTEGER NOT NULL,
 			team_id INTEGER NOT NULL,

@@ -13,6 +13,7 @@ import * as finops from './js/finops.js';
 import * as about from './js/about.js';
 import * as analyticsLayout from './js/analytics-layout.js';
 import { applyRoleVisibility, canAccessFinOps, canAccessPlugins, canResolveIncidents, canDeleteIncidents, hasMinRole, roleLabel, canManageTeams, canManageIAM, isAdmin, canAccessView, accessDeniedMessage, defaultViewForRole, canManagePluginAutoRun } from './js/roles.js';
+import * as workflowEditor from './js/workflow-editor.js';
 import { setupAutocomplete } from './js/autocomplete.js';
 
 // EXPORT GLOBALLY FOR HTML INLINE HANDLERS
@@ -35,6 +36,9 @@ for (const [key, value] of Object.entries(about)) {
     if (typeof value === 'function') window[key] = value;
 }
 for (const [key, value] of Object.entries(analyticsLayout)) {
+    if (typeof value === 'function') window[key] = value;
+}
+for (const [key, value] of Object.entries(workflowEditor)) {
     if (typeof value === 'function') window[key] = value;
 }
 

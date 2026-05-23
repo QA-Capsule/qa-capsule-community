@@ -79,8 +79,39 @@ export function selectCI(ciName, element) {
     }
 }
 
+function workflowTableBadge(project) {
+    if (project.workflow_enabled) {
+        return '<span class="wf-table-badge active" title="DAG drives remediation">Active</span>';
+    }
+    if (project.has_workflow) {
+        return '<span class="wf-table-badge draft" title="Saved draft — legacy AUTO-RUN">Draft</span>';
+    }
+    return '<span class="wf-table-badge legacy" title="Legacy AUTO-RUN">Legacy</span>';
+}
+
+let workflowTableClickBound = false;
+
+function bindWorkflowTableClicks() {
+    const tbody = document.getElementById('projects-table-body');
+    if (!tbody || workflowTableClickBound) return;
+    workflowTableClickBound = true;
+    tbody.addEventListener('click', (e) => {
+        const btn = e.target.closest('.btn-open-workflow');
+        if (!btn) return;
+        e.preventDefault();
+        const projectId = btn.getAttribute('data-project-id');
+        const projectName = btn.getAttribute('data-project-name') || projectId;
+        if (typeof window.openWorkflowEditor === 'function') {
+            window.openWorkflowEditor(projectId, projectName);
+        } else {
+            notify('Workflow editor not loaded. Hard-refresh the page (Ctrl+F5).', 'error');
+        }
+    });
+}
+
 export function loadGatewaysData() {
     bindSRERoutingControls();
+    bindWorkflowTableClicks();
     const tbody = document.getElementById('projects-table-body');
     fetchWithAuth(`/api/my-projects?_ts=${Date.now()}`)
         .then(res => parseApiJson(res))
@@ -88,11 +119,11 @@ export function loadGatewaysData() {
             allProjects = ok ? asArray(data) : [];
             if (!tbody) return;
             if (!ok) {
-                tbody.innerHTML = '<tr><td colspan="4"><span class="load-error-msg">Unable to load gateways.</span></td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5"><span class="load-error-msg">Unable to load gateways.</span></td></tr>';
                 return;
             }
             if (allProjects.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:20px; opacity:0.5;">No pipelines provisioned yet.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px; opacity:0.5;">No pipelines provisioned yet.</td></tr>';
                 return;
             }
             tbody.innerHTML = allProjects.map(p => `
@@ -100,7 +131,9 @@ export function loadGatewaysData() {
                     <td style="padding: 10px;"><strong>${p.name}</strong></td>
                     <td style="padding: 10px; text-transform: uppercase;">${p.ci_system}</td>
                     <td style="padding: 10px;"><code style="color: #ff7b72; font-family: monospace;">••••••••••••</code></td>
+                    <td style="padding: 10px;">${workflowTableBadge(p)}</td>
                     <td style="padding: 10px; text-align: right;">
+                        <button type="button" class="btn btn-secondary btn-sm btn-open-workflow" style="margin-right:6px;" data-project-id="${escapePluginHtml(p.id)}" data-project-name="${escapePluginHtml(p.name)}" title="Visual remediation DAG">WORKFLOW</button>
                         <button type="button" class="btn btn-secondary btn-sm btn-info" onclick="window.editProject('${p.id}')">EDIT</button>
                         <button type="button" class="btn btn-secondary btn-sm btn-danger" onclick="window.deleteProject('${p.id}')">DELETE</button>
                     </td>
@@ -108,7 +141,7 @@ export function loadGatewaysData() {
             `).join('');
         })
         .catch(() => {
-            if (tbody) tbody.innerHTML = '<tr><td colspan="4"><span class="load-error-msg">Unable to load gateways.</span></td></tr>';
+            if (tbody) tbody.innerHTML = '<tr><td colspan="5"><span class="load-error-msg">Unable to load gateways.</span></td></tr>';
         });
 
     loadActivePluginsForRouting();
@@ -790,6 +823,7 @@ function bindSRERoutingControls() {
 
 function initSRERoutingUI() {
     bindSRERoutingControls();
+    bindWorkflowTableClicks();
 }
 
 if (document.readyState === 'loading') {

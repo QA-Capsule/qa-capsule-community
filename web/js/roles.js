@@ -64,6 +64,10 @@ export function canManageProjects(role) {
     return r === 'manager' || r === 'lead';
 }
 
+export function canManageWorkflow(role) {
+    return hasMinRole(role, 'lead');
+}
+
 export function canAccessPlugins(role) {
     const r = normalizeRole(role);
     return r === 'manager' || r === 'lead';
