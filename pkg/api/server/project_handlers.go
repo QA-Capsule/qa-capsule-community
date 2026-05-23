@@ -113,6 +113,10 @@ func registerProjectRoutes(config *core.Config) {
 				http.Error(w, "Team ID is required", http.StatusBadRequest)
 				return
 			}
+			if err := core.ValidateSRERoutingEntries(newProject.SRERouting); err != nil {
+				writeJSONError(w, err.Error(), http.StatusBadRequest)
+				return
+			}
 			slack, jira, teams := core.SyncLegacyRoutingColumns(newProject.SRERouting)
 			if slack == "" {
 				slack = newProject.Routing.SlackChannel
@@ -155,6 +159,10 @@ func registerProjectRoutes(config *core.Config) {
 			}
 			if err := json.NewDecoder(r.Body).Decode(&updateProject); err != nil {
 				http.Error(w, "Invalid request", http.StatusBadRequest)
+				return
+			}
+			if err := core.ValidateSRERoutingEntries(updateProject.SRERouting); err != nil {
+				writeJSONError(w, err.Error(), http.StatusBadRequest)
 				return
 			}
 			slack, jira, teams := core.SyncLegacyRoutingColumns(updateProject.SRERouting)

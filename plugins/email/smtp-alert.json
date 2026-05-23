@@ -11,6 +11,7 @@
   "description": "Sends a plain-text alert via SMTP (TLS). Works with corporate relay or providers like Office365 / Gmail SMTP.",
   "integration": "smtp",
   "name": "Email — SMTP",
+  "routing_enabled": false,
   "status": "Active",
   "trigger_on": [
     "CRITICAL",

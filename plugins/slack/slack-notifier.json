@@ -1,11 +1,12 @@
 {
-  "auto_run": false,
+  "auto_run": true,
   "config": {
     "SLACK_WEBHOOK_URL": ""
   },
   "description": "Dynamically alerts the responsible team on their Slack channel (configured in the project).",
   "integration": "slack",
   "name": "Smart Slack Routing",
+  "routing_enabled": true,
   "status": "Active",
   "trigger_on": [
     "CRITICAL",

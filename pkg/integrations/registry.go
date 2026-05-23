@@ -60,17 +60,19 @@ func LoadRegistry(pluginsDir string) (*Registry, error) {
 			status = "Active"
 		}
 		autoRun := parseAutoRun(raw, status)
+		routingEnabled := parseRoutingEnabled(raw, autoRun)
 		m := &Manifest{
-			ID:          strings.TrimSuffix(filepath.Base(rel), ".json"),
-			FilePath:    rel,
-			Integration: intType,
-			Name:        stringField(raw, "name", intType),
-			Version:     stringField(raw, "version", "1.0"),
-			Description: stringField(raw, "description", ""),
-			Status:      status,
-			AutoRun:     autoRun,
-			TriggerOn:   stringSliceField(raw, "trigger_on"),
-			Config:      mergeConfig(raw),
+			ID:             strings.TrimSuffix(filepath.Base(rel), ".json"),
+			FilePath:       rel,
+			Integration:    intType,
+			Name:           stringField(raw, "name", intType),
+			Version:        stringField(raw, "version", "1.0"),
+			Description:    stringField(raw, "description", ""),
+			Status:         status,
+			AutoRun:        autoRun,
+			RoutingEnabled: routingEnabled,
+			TriggerOn:      stringSliceField(raw, "trigger_on"),
+			Config:         mergeConfig(raw),
 		}
 		reg.byID[m.ID] = m
 		reg.byPath[rel] = m
@@ -90,6 +92,14 @@ func parseAutoRun(raw map[string]interface{}, status string) bool {
 	}
 	// Legacy: status Active implied auto-run unless explicitly set false
 	return strings.EqualFold(status, "active")
+}
+
+func parseRoutingEnabled(raw map[string]interface{}, autoRun bool) bool {
+	if v, ok := raw["routing_enabled"].(bool); ok {
+		return v
+	}
+	// Legacy installs: auto_run integrations stay eligible for CI/CD gateway routing
+	return autoRun
 }
 
 func stringField(m map[string]interface{}, key, def string) string {
@@ -128,7 +138,7 @@ func (r *Registry) GetByPath(path string) (*Manifest, bool) {
 	return m, ok
 }
 
-func (r *Registry) UpdateConfig(filePath string, cfg map[string]string) error {
+func (r *Registry) UpdateConfig(filePath string, cfg map[string]string, enableRouting bool) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	m, ok := r.byPath[filePath]
@@ -138,6 +148,21 @@ func (r *Registry) UpdateConfig(filePath string, cfg map[string]string) error {
 	for k, v := range cfg {
 		m.Config[k] = v
 	}
+	if enableRouting {
+		m.RoutingEnabled = true
+	}
+	full := filepath.Join(r.dir, filePath)
+	return writeManifestFile(full, m)
+}
+
+func (r *Registry) UpdateRoutingEnabled(filePath string, enabled bool) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	m, ok := r.byPath[filePath]
+	if !ok {
+		return fmt.Errorf("integration not found: %s", filePath)
+	}
+	m.RoutingEnabled = enabled
 	full := filepath.Join(r.dir, filePath)
 	return writeManifestFile(full, m)
 }
@@ -150,8 +175,11 @@ func (r *Registry) UpdateAutoRun(filePath string, autoRun bool) error {
 		return fmt.Errorf("integration not found: %s", filePath)
 	}
 	m.AutoRun = autoRun
-	if autoRun && !strings.EqualFold(m.Status, "active") {
-		m.Status = "Active"
+	if autoRun {
+		m.RoutingEnabled = true
+		if !strings.EqualFold(m.Status, "active") {
+			m.Status = "Active"
+		}
 	}
 	full := filepath.Join(r.dir, filePath)
 	return writeManifestFile(full, m)
@@ -159,14 +187,15 @@ func (r *Registry) UpdateAutoRun(filePath string, autoRun bool) error {
 
 func writeManifestFile(full string, m *Manifest) error {
 	raw := map[string]interface{}{
-		"integration": m.Integration,
-		"name":        m.Name,
-		"version":     m.Version,
-		"description": m.Description,
-		"status":      m.Status,
-		"auto_run":    m.AutoRun,
-		"trigger_on":  m.TriggerOn,
-		"config":      m.Config,
+		"integration":     m.Integration,
+		"name":            m.Name,
+		"version":         m.Version,
+		"description":     m.Description,
+		"status":          m.Status,
+		"auto_run":        m.AutoRun,
+		"routing_enabled": m.RoutingEnabled,
+		"trigger_on":      m.TriggerOn,
+		"config":          m.Config,
 	}
 	data, err := json.MarshalIndent(raw, "", "  ")
 	if err != nil {
@@ -175,9 +204,12 @@ func writeManifestFile(full string, m *Manifest) error {
 	return os.WriteFile(full, data, 0o600)
 }
 
-// IsActiveForRouting is true when the manager has left the integration enabled for gateway routing.
-func IsActiveForRouting(status string) bool {
-	return strings.EqualFold(strings.TrimSpace(status), "active")
+// IsActiveForRouting is true when the integration is enabled for CI/CD gateway routing.
+func IsActiveForRouting(status string, routingEnabled, autoRun bool) bool {
+	if !strings.EqualFold(strings.TrimSpace(status), "active") {
+		return false
+	}
+	return routingEnabled || autoRun
 }
 
 // ToAPIList returns manifests for the Plugin Engine UI (no command field).
@@ -192,9 +224,10 @@ func (r *Registry) ToAPIList() []map[string]interface{} {
 			"name":           m.Name,
 			"version":        m.Version,
 			"description":    m.Description,
-			"status":         m.Status,
-			"auto_run":       m.AutoRun,
-			"trigger_on":     m.TriggerOn,
+			"status":           m.Status,
+			"auto_run":         m.AutoRun,
+			"routing_enabled":  m.RoutingEnabled,
+			"trigger_on":       m.TriggerOn,
 			"routing_fields": RoutingFieldsForIntegration(m.Integration),
 			"env":            m.Config,
 			"config":         m.Config,

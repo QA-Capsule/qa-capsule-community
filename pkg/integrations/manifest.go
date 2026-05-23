@@ -14,9 +14,10 @@ type Manifest struct {
 	Name        string            `json:"name"`
 	Version     string            `json:"version"`
 	Description string            `json:"description"`
-	Status      string            `json:"status"`
-	AutoRun     bool              `json:"auto_run"`
-	TriggerOn   []string          `json:"trigger_on"`
+	Status          string            `json:"status"`
+	AutoRun         bool              `json:"auto_run"`
+	RoutingEnabled  bool              `json:"routing_enabled"`
+	TriggerOn       []string          `json:"trigger_on"`
 	Config      map[string]string `json:"config"`
 }
 

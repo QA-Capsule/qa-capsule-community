@@ -1,11 +1,12 @@
 {
-  "auto_run": false,
+  "auto_run": true,
   "config": {
     "VICTOROPS_ROUTING_URL": ""
   },
   "description": "Posts a CRITICAL alert to your Splunk On-Call / VictorOps routing URL integration.",
   "integration": "victorops",
   "name": "Splunk On-Call (VictorOps) Alert",
+  "routing_enabled": true,
   "status": "Active",
   "trigger_on": [
     "CRITICAL",

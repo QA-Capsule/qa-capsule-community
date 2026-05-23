@@ -10,8 +10,13 @@ import (
 
 var remediationEngine *integrations.Engine
 
-// InitRemediationEngine loads integrations once at startup (immutable until restart).
+// InitRemediationEngine loads integrations once at startup.
 func InitRemediationEngine(pluginsDir string) error {
+	return ReloadRemediationRegistry(pluginsDir)
+}
+
+// ReloadRemediationRegistry re-reads plugin manifests from disk (picks up routing_enabled / config changes).
+func ReloadRemediationRegistry(pluginsDir string) error {
 	reg, err := integrations.LoadRegistry(pluginsDir)
 	if err != nil {
 		return err
