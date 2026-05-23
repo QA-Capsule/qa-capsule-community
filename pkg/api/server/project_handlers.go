@@ -32,11 +32,11 @@ func registerProjectRoutes(config *core.Config) {
 
 		if claims.Role == "admin" || claims.Role == "manager" {
 			rows, err = core.DB.Query(`
-				SELECT id, name, ci_system, repo_path, team_id, api_key, slack_channel, jira_project_key, teams_webhook, sre_routing_json 
+				SELECT id, name, ci_system, repo_path, team_id, api_key, slack_channel, jira_project_key, teams_webhook, sre_routing_json, sre_workflow_json 
 				FROM projects`)
 		} else {
 			query := `
-				SELECT p.id, p.name, p.ci_system, p.repo_path, p.team_id, p.api_key, p.slack_channel, p.jira_project_key, p.teams_webhook, p.sre_routing_json
+				SELECT p.id, p.name, p.ci_system, p.repo_path, p.team_id, p.api_key, p.slack_channel, p.jira_project_key, p.teams_webhook, p.sre_routing_json, p.sre_workflow_json
 				FROM projects p
 				JOIN user_teams ut ON p.team_id = ut.team_id
 				JOIN users u ON u.id = ut.user_id
@@ -55,16 +55,17 @@ func registerProjectRoutes(config *core.Config) {
 		var projects []map[string]interface{}
 		for rows.Next() {
 			var id, name, ciSystem, apiKey string
-			var repoPath, slackChan, jiraKey, teamsHook, sreRouting sql.NullString
+			var repoPath, slackChan, jiraKey, teamsHook, sreRouting, sreWorkflow sql.NullString
 			var teamId sql.NullInt64
 
-			err := rows.Scan(&id, &name, &ciSystem, &repoPath, &teamId, &apiKey, &slackChan, &jiraKey, &teamsHook, &sreRouting)
+			err := rows.Scan(&id, &name, &ciSystem, &repoPath, &teamId, &apiKey, &slackChan, &jiraKey, &teamsHook, &sreRouting, &sreWorkflow)
 			if err != nil {
 				log.Println("[SCAN ERROR] Projects:", err)
 				continue
 			}
 
 			entries := core.ParseSRERoutingJSON(sreRouting.String)
+			wf := core.WorkflowSummaryFromJSON(sreWorkflow.String)
 			projects = append(projects, map[string]interface{}{
 				"id":        id,
 				"name":      name,
@@ -76,6 +77,8 @@ func registerProjectRoutes(config *core.Config) {
 				"jira_project_key": jiraKey.String,
 				"teams_webhook":    teamsHook.String,
 				"sre_routing":      entries,
+				"has_workflow":     wf.HasWorkflow,
+				"workflow_enabled": wf.Enabled,
 				"routing": map[string]string{
 					"slack_channel":    slackChan.String,
 					"jira_project_key": jiraKey.String,

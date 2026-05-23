@@ -8,6 +8,82 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&display=swap">
     <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/drawflow@0.0.59/dist/drawflow.min.css">
+    <style>
+        #workflow-editor-modal {
+            display: none; position: fixed; inset: 0; z-index: 9999;
+            background: rgba(1, 4, 9, 0.85); align-items: stretch; justify-content: center;
+        }
+        .workflow-editor-shell {
+            display: flex; flex-direction: column; width: min(1200px, 96vw); height: min(820px, 92vh);
+            margin: auto; background: #0d1117; border: 1px solid #30363d; border-radius: 10px; overflow: hidden;
+        }
+        .workflow-editor-toolbar {
+            display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid #30363d;
+            background: #161b22;
+        }
+        .workflow-editor-body { display: flex; flex: 1; min-height: 0; height: 100%; }
+        .workflow-canvas-wrap {
+            flex: 1; min-width: 0; min-height: 420px; position: relative;
+            display: flex; flex-direction: column;
+        }
+        #drawflow {
+            flex: 1; width: 100%; height: 100%; min-height: 420px;
+            position: relative; background: #010409;
+        }
+        #drawflow .drawflow {
+            width: 100% !important; height: 100% !important; min-height: 420px;
+            background-color: #010409;
+            background-image: radial-gradient(#21262d 1px, transparent 1px);
+            background-size: 18px 18px;
+        }
+        #drawflow .drawflow-node {
+            background: #161b22 !important; border: 1px solid #58a6ff !important;
+            border-radius: 8px !important; color: #c9d1d9 !important; min-width: 160px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+        }
+        #drawflow .drawflow-node.selected { border-color: #3fb950 !important; }
+        #drawflow .drawflow_content_node { width: 100%; }
+        #drawflow .connection .main-path { stroke: #58a6ff; stroke-width: 2px; }
+        #drawflow .drawflow-delete { background: #da3633; color: #fff; border: none; }
+        #workflow-canvas-empty {
+            display: none; position: absolute; inset: 0; align-items: center; justify-content: center;
+            pointer-events: none; color: #8b949e; font-size: 13px; text-align: center; padding: 24px;
+        }
+        #workflow-canvas-empty.visible { display: flex; }
+        #workflow-help-panel {
+            width: 280px; border-left: 1px solid #30363d; background: #161b22; padding: 14px;
+            font-size: 12px; line-height: 1.5; color: #8b949e; overflow-y: auto; display: none;
+        }
+        #workflow-help-panel.open { display: block; }
+        #workflow-readonly-badge {
+            display: none; font-size: 11px; color: #d29922; border: 1px solid #9e6a03;
+            padding: 4px 8px; border-radius: 4px;
+        }
+        .wf-node { padding: 8px; min-width: 140px; }
+        .wf-title { font-weight: 600; font-size: 12px; color: #58a6ff; }
+        .wf-desc { font-size: 10px; color: #8b949e; margin-top: 4px; }
+        .workflow-status-pill {
+            font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
+            padding: 4px 10px; border-radius: 999px; border: 1px solid #30363d; color: #8b949e;
+        }
+        .workflow-status-pill.state-active { color: #3fb950; border-color: #238636; background: rgba(63, 185, 80, 0.12); }
+        .workflow-status-pill.state-draft { color: #d29922; border-color: #9e6a03; background: rgba(210, 153, 34, 0.12); }
+        .workflow-status-pill.state-legacy { color: #8b949e; border-color: #30363d; }
+        .wf-enable-wrap {
+            display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: #c9d1d9;
+            padding: 4px 10px; border: 1px solid #30363d; border-radius: 6px; background: #0d1117;
+            cursor: pointer; user-select: none;
+        }
+        .wf-enable-wrap input { width: auto !important; margin: 0; accent-color: #58a6ff; }
+        .wf-table-badge {
+            display: inline-block; font-size: 10px; font-weight: 600; text-transform: uppercase;
+            padding: 3px 8px; border-radius: 4px; letter-spacing: 0.03em;
+        }
+        .wf-table-badge.active { color: #3fb950; background: rgba(63, 185, 80, 0.15); }
+        .wf-table-badge.draft { color: #d29922; background: rgba(210, 153, 34, 0.15); }
+        .wf-table-badge.legacy { color: #6e7681; background: rgba(110, 118, 129, 0.15); }
+    </style>
     <style>
         /* Form Inputs */
         input, select, textarea {
@@ -733,7 +809,8 @@
                             <h4 style="margin: 0 0 8px 0; font-size: 13px; color: #58a6ff; text-transform: uppercase; border-top: 1px solid #30363d; padding-top: 20px;">SRE Routing Configuration (Optional)</h4>
                             <p style="font-size: 11px; color: #8b949e; margin: 0 0 12px; line-height: 1.45;">Add routing only for integrations <strong>enabled for gateways</strong> by your Manager (Configure &amp; Save, or <strong>Enable for gateways</strong> in Plugin Engine). AUTO-RUN is separate and controls automatic webhook triggers.</p>
                             <div id="ci-sre-routing-list" style="display: flex; flex-direction: column; gap: 14px; margin-bottom: 12px;"></div>
-                            <button type="button" id="ci-add-routing-btn" class="btn-secondary" style="width: 100%; margin-bottom: 20px; font-size: 12px;">+ Add configuration</button>
+                            <button type="button" id="ci-add-routing-btn" class="btn-secondary" style="width: 100%; margin-bottom: 10px; font-size: 12px;">+ Add configuration</button>
+                            <p style="font-size: 11px; color: #6e7681; margin: 0 0 16px; line-height: 1.45;">Use <strong>WORKFLOW</strong> in the pipeline table to draw a visual DAG. Toggle <strong>Enable workflow</strong> in the editor to switch between legacy AUTO-RUN and the DAG.</p>
 
                             <div style="margin-top: 15px; background: #0d1117; padding: 15px; border-radius: 6px; border: 1px dashed #30363d;">
                                 <label style="font-size: 0.8rem; color: #58a6ff; font-weight: bold;">Generated Webhook URL (Read-Only)</label>
@@ -762,6 +839,7 @@
                                         <th style="padding: 15px 10px; color: #c9d1d9;">Project Identifier</th>
                                         <th style="padding: 15px 10px; color: #c9d1d9;">CI System</th>
                                         <th style="padding: 15px 10px; color: #c9d1d9;">Secret Key Prefix</th>
+                                        <th style="padding: 15px 10px; color: #c9d1d9;">Workflow</th>
                                         <th style="padding: 15px 10px; text-align: right; color: #c9d1d9;">Manage</th>
                                     </tr>
                                 </thead>
@@ -969,6 +1047,48 @@
         </div>
     </div>
 
+    <div id="workflow-editor-modal" role="dialog" aria-modal="true" aria-labelledby="workflow-editor-title">
+        <div class="workflow-editor-shell">
+            <div class="workflow-editor-toolbar">
+                <h2 id="workflow-editor-title" style="margin:0;font-size:16px;flex:1;color:#c9d1d9;">Visual Workflow</h2>
+                <span id="workflow-status-pill" class="workflow-status-pill state-legacy" title="Remediation mode">Legacy</span>
+                <label id="workflow-enable-wrap" class="wf-enable-wrap wf-edit-only" for="workflow-enabled-toggle">
+                    <input type="checkbox" id="workflow-enabled-toggle" checked>
+                    <span>Enable workflow</span>
+                </label>
+                <span id="workflow-readonly-badge">Read-only (Observer)</span>
+                <button type="button" class="btn-secondary" onclick="toggleWorkflowHelp()" title="Help">?</button>
+                <button type="button" class="btn-secondary wf-edit-only" onclick="addWorkflowNode('trigger')">+ Trigger</button>
+                <button type="button" class="btn-secondary wf-edit-only" onclick="addWorkflowNode('condition')">+ Condition</button>
+                <button type="button" class="btn-secondary wf-edit-only" onclick="addWorkflowNode('action')">+ Action</button>
+                <button type="button" class="btn-secondary wf-edit-only" onclick="clearWorkflow()">Reset</button>
+                <button type="button" class="btn-primary wf-edit-only" onclick="saveWorkflow()">Save</button>
+                <button type="button" class="btn-secondary" onclick="closeWorkflowEditor()">Close</button>
+            </div>
+            <div class="workflow-editor-body">
+                <div class="workflow-canvas-wrap">
+                    <div id="drawflow"></div>
+                    <div id="workflow-canvas-empty">
+                        <div>
+                            <p style="margin:0 0 8px;color:#c9d1d9;">Canvas vide</p>
+                            <p style="margin:0;">Cliquez <strong>+ Trigger</strong> pour commencer, ou chargez un exemple.</p>
+                        </div>
+                    </div>
+                </div>
+                <aside id="workflow-help-panel" class="open">
+                    <h3 style="margin:0 0 10px;color:#58a6ff;font-size:13px;">Help Center</h3>
+                    <p><strong>Trigger</strong> — Entry point when a CI alert is ingested into QA Capsule.</p>
+                    <p><strong>Condition</strong> — Branches on tags (e.g. <code>[FLAKY]</code>), status, or text match. Connect the <em>true</em> (top) or <em>false</em> (bottom) output.</p>
+                    <p><strong>Action</strong> — Runs a native integration from the Plugin Engine registry (Slack, Jira, …). Configure gateway routing values first.</p>
+                    <p style="margin-top:12px;border-top:1px solid #30363d;padding-top:10px;">Example: Trigger → Condition [FLAKY] → true → Slack; false → Jira.</p>
+                    <p><strong>Enable workflow</strong> — When checked and saved, the DAG drives remediation. When unchecked, the graph is stored as a <em>draft</em> and legacy AUTO-RUN + <code>trigger_on</code> rules still apply.</p>
+                    <p><strong>Reset</strong> deletes the DAG entirely and restores legacy mode.</p>
+                </aside>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/drawflow@0.0.59/dist/drawflow.min.js"></script>
     <script type="module" src="app.js"></script>
 </body>
 </html>

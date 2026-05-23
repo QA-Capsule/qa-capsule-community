@@ -121,3 +121,8 @@ func CanAccessChartStudio(role string) bool {
 	r := NormalizeRole(role)
 	return r == RoleManager || r == RoleLead || r == RoleObserver
 }
+
+// CanManageWorkflow allows creating/editing visual remediation DAGs (Lead+).
+func CanManageWorkflow(role string) bool {
+	return HasMinRole(role, RoleLead)
+}

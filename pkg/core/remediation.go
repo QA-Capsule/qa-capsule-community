@@ -33,13 +33,30 @@ func requireEngine() (*integrations.Engine, error) {
 }
 
 // EvaluateAlertRules runs native Go integrations when triggers match (no shell).
+// When a visual workflow DAG is enabled for the project, it takes precedence over legacy linear auto-trigger.
 // allowedPluginPaths limits auto-run to plugins configured on the project gateway (nil = all auto_run plugins).
-func EvaluateAlertRules(config Config, alert UnifiedAlert, projectContext map[string]string, allowedPluginPaths map[string]bool) {
+func EvaluateAlertRules(config Config, projectName string, alert UnifiedAlert, projectContext map[string]string, allowedPluginPaths map[string]bool) {
 	engine, err := requireEngine()
 	if err != nil {
 		return
 	}
 	routing := mapToRouting(projectContext)
+	inc := integrations.IncidentContext{
+		Name:        alert.Name,
+		Error:       alert.Error,
+		ConsoleLogs: alert.ConsoleLogs,
+		Status:      alert.Status,
+		Action:      "AUTO_EVENT:" + alert.Name,
+	}
+	if doc := LoadProjectWorkflow(projectName); integrations.IsWorkflowActive(doc) {
+		wctx := integrations.WorkflowContext{
+			Incident: inc,
+			Tags:     integrations.DeriveTags(alert.Name),
+			Allowed:  allowedPluginPaths,
+		}
+		go integrations.NewWorkflowEngine(engine).Execute(context.Background(), doc, wctx, routing)
+		return
+	}
 	engine.EvaluateAlertRules(alert.Name, alert.Error, alert.ConsoleLogs, alert.Status, routing, allowedPluginPaths)
 }
 
