@@ -8,6 +8,85 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&display=swap">
     <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/drawflow@0.0.59/dist/drawflow.min.css">
+    <style>
+        #workflow-editor-modal {
+            display: none; position: fixed; inset: 0; z-index: 9999;
+            background: rgba(1, 4, 9, 0.85); align-items: stretch; justify-content: center;
+        }
+        .workflow-editor-shell {
+            display: flex; flex-direction: column; width: min(1200px, 96vw); height: min(820px, 92vh);
+            margin: auto; background: #0d1117; border: 1px solid #30363d; border-radius: 10px; overflow: hidden;
+        }
+        .workflow-editor-toolbar {
+            display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 12px 16px; border-bottom: 1px solid #30363d;
+            background: #161b22;
+        }
+        .workflow-editor-body { display: flex; flex: 1; min-height: 0; height: 100%; }
+        .workflow-canvas-wrap {
+            flex: 1; min-width: 0; min-height: 420px; position: relative;
+            display: flex; flex-direction: column;
+        }
+        #drawflow {
+            flex: 1; width: 100%; height: 100%; min-height: 420px;
+            position: relative; background: #010409;
+        }
+        #drawflow .drawflow {
+            width: 100% !important; height: 100% !important; min-height: 420px;
+            background-color: #010409;
+            background-image: radial-gradient(#21262d 1px, transparent 1px);
+            background-size: 18px 18px;
+        }
+        #drawflow .drawflow-node {
+            background: #161b22 !important; border: 1px solid #58a6ff !important;
+            border-radius: 8px !important; color: #c9d1d9 !important; min-width: 180px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+        }
+        #drawflow .drawflow-node:has(.wf-trigger) { border-color: #3fb950 !important; }
+        #drawflow .drawflow-node:has(.wf-condition) { border-color: #d29922 !important; }
+        #drawflow .drawflow-node:has(.wf-action) { border-color: #58a6ff !important; }
+        #drawflow .drawflow-node.selected { border-color: #3fb950 !important; }
+        #drawflow .drawflow_content_node { width: 100%; }
+        #drawflow .connection .main-path { stroke: #58a6ff; stroke-width: 2px; }
+        #drawflow .drawflow-delete { background: #da3633; color: #fff; border: none; }
+        #workflow-canvas-empty {
+            display: none; position: absolute; inset: 0; align-items: center; justify-content: center;
+            pointer-events: none; color: #8b949e; font-size: 13px; text-align: center; padding: 24px;
+        }
+        #workflow-canvas-empty.visible { display: flex; }
+        #workflow-help-panel {
+            width: 280px; border-left: 1px solid #30363d; background: #161b22; padding: 14px;
+            font-size: 12px; line-height: 1.5; color: #8b949e; overflow-y: auto; display: none;
+        }
+        #workflow-help-panel.open { display: block; }
+        #workflow-readonly-badge {
+            display: none; font-size: 11px; color: #d29922; border: 1px solid #9e6a03;
+            padding: 4px 8px; border-radius: 4px;
+        }
+        .wf-node { padding: 8px; min-width: 140px; }
+        .wf-title { font-weight: 600; font-size: 12px; color: #58a6ff; }
+        .wf-desc { font-size: 10px; color: #8b949e; margin-top: 4px; }
+        .workflow-status-pill {
+            font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
+            padding: 4px 10px; border-radius: 999px; border: 1px solid #30363d; color: #8b949e;
+        }
+        .workflow-status-pill.state-active { color: #3fb950; border-color: #238636; background: rgba(63, 185, 80, 0.12); }
+        .workflow-status-pill.state-draft { color: #d29922; border-color: #9e6a03; background: rgba(210, 153, 34, 0.12); }
+        .workflow-status-pill.state-legacy { color: #8b949e; border-color: #30363d; }
+        .wf-enable-wrap {
+            display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: #c9d1d9;
+            padding: 4px 10px; border: 1px solid #30363d; border-radius: 6px; background: #0d1117;
+            cursor: pointer; user-select: none;
+        }
+        .wf-enable-wrap input { width: auto !important; margin: 0; accent-color: #58a6ff; }
+        .wf-table-badge {
+            display: inline-block; font-size: 10px; font-weight: 600; text-transform: uppercase;
+            padding: 3px 8px; border-radius: 4px; letter-spacing: 0.03em;
+        }
+        .wf-table-badge.active { color: #3fb950; background: rgba(63, 185, 80, 0.15); }
+        .wf-table-badge.draft { color: #d29922; background: rgba(210, 153, 34, 0.15); }
+        .wf-table-badge.legacy { color: #6e7681; background: rgba(110, 118, 129, 0.15); }
+    </style>
     <style>
         /* Form Inputs */
         input, select, textarea {
@@ -310,12 +389,39 @@
                     <line x1="9" y1="21" x2="9" y2="9"></line>
                 </svg><span class="nav-text">Dashboard</span>
             </div>
+            <div class="nav-section-label role-manager-only" style="margin-top: 10px;">EXECUTIVE</div>
+            <div class="nav-item role-manager-only" onclick="switchView('dora', this)" data-tooltip="DORA Dashboard">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="20" x2="18" y2="10"></line>
+                    <line x1="12" y1="20" x2="12" y2="4"></line>
+                    <line x1="6" y1="20" x2="6" y2="14"></line>
+                </svg><span class="nav-text">DORA Dashboard</span>
+            </div>
             <div class="nav-section-label role-manager-only" style="margin-top: 10px;">FINOPS</div>
             <div class="nav-item role-manager-only" onclick="switchView('finops', this)" data-tooltip="FinOps Intelligence">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="12" y1="1" x2="12" y2="23"></line>
                     <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
                 </svg><span class="nav-text">FinOps Intelligence</span>
+            </div>
+            <div class="nav-section-label role-non-admin" style="margin-top: 10px;">INTELLIGENCE</div>
+            <div class="nav-item role-non-admin" onclick="switchView('rca', this)" data-tooltip="RCA &amp; AI Insights">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2a7 7 0 0 1 7 7c0 3-2 5-2 5H7s-2-2-2-5a7 7 0 0 1 7-7z"></path>
+                    <path d="M9 18h6"></path><path d="M10 22h4"></path>
+                </svg><span class="nav-text">RCA &amp; AI Insights</span>
+            </div>
+            <div class="nav-item role-non-admin" onclick="switchView('quarantine', this)" data-tooltip="Quality / Quarantine">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
+                </svg><span class="nav-text">Quarantine</span>
+            </div>
+            <div class="nav-item role-lead" onclick="switchView('runbooks', this)" data-tooltip="Runbooks">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                </svg><span class="nav-text">Runbooks</span>
             </div>
             <div class="nav-section-label role-non-admin" style="margin-top: 10px;">HELP CENTER</div>
             <div class="nav-item role-non-admin" onclick="switchView('about', this)" data-tooltip="Help Center">
@@ -731,9 +837,10 @@
                             </div>
 
                             <h4 style="margin: 0 0 8px 0; font-size: 13px; color: #58a6ff; text-transform: uppercase; border-top: 1px solid #30363d; padding-top: 20px;">SRE Routing Configuration (Optional)</h4>
-                            <p style="font-size: 11px; color: #8b949e; margin: 0 0 12px; line-height: 1.45;">Add routing only for integrations <strong>activated</strong> by your Manager in Plugin Engine. Auto-run triggers apply to plugins listed here.</p>
+                            <p style="font-size: 11px; color: #8b949e; margin: 0 0 12px; line-height: 1.45;">Add routing only for integrations <strong>enabled for gateways</strong> by your Manager (Configure &amp; Save, or <strong>Enable for gateways</strong> in Plugin Engine). AUTO-RUN is separate and controls automatic webhook triggers.</p>
                             <div id="ci-sre-routing-list" style="display: flex; flex-direction: column; gap: 14px; margin-bottom: 12px;"></div>
-                            <button type="button" id="ci-add-routing-btn" class="btn-secondary" style="width: 100%; margin-bottom: 20px; font-size: 12px;" onclick="window.addSRERoutingRow && window.addSRERoutingRow()">+ Add configuration</button>
+                            <button type="button" id="ci-add-routing-btn" class="btn-secondary" style="width: 100%; margin-bottom: 10px; font-size: 12px;">+ Add configuration</button>
+                            <p style="font-size: 11px; color: #6e7681; margin: 0 0 16px; line-height: 1.45;">Use <strong>WORKFLOW</strong> in the pipeline table to draw a visual DAG. Toggle <strong>Enable workflow</strong> in the editor to switch between legacy AUTO-RUN and the DAG.</p>
 
                             <div style="margin-top: 15px; background: #0d1117; padding: 15px; border-radius: 6px; border: 1px dashed #30363d;">
                                 <label style="font-size: 0.8rem; color: #58a6ff; font-weight: bold;">Generated Webhook URL (Read-Only)</label>
@@ -762,6 +869,7 @@
                                         <th style="padding: 15px 10px; color: #c9d1d9;">Project Identifier</th>
                                         <th style="padding: 15px 10px; color: #c9d1d9;">CI System</th>
                                         <th style="padding: 15px 10px; color: #c9d1d9;">Secret Key Prefix</th>
+                                        <th style="padding: 15px 10px; color: #c9d1d9;">Workflow</th>
                                         <th style="padding: 15px 10px; text-align: right; color: #c9d1d9;">Manage</th>
                                     </tr>
                                 </thead>
@@ -773,6 +881,110 @@
                             This token must be injected into your CI/CD runner environments as a secret and passed in the `X-API-Key` header during HTTP POST requests to the Webhook URL.
                         </div>
                     </div>
+                </div>
+            </section>
+
+            <section id="view-rca" class="view-section">
+                <div class="header-bar">
+                    <div>
+                        <h1 style="margin:0;font-size:24px;">RCA &amp; AI Insights</h1>
+                        <p style="margin:5px 0 0;opacity:0.6;font-size:14px;">LLM-generated root cause summaries for test failures.</p>
+                    </div>
+                </div>
+                <div id="rca-ai-config-panel" class="data-card" style="margin-bottom:20px;display:none;">
+                    <h3 style="margin-top:0;font-size:14px;color:#58a6ff;">AI Provider (Manager)</h3>
+                    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;">
+                        <div><label style="font-size:11px;color:#8b949e;">Provider</label>
+                            <select id="rca-ai-provider" class="login-input"><option value="disabled">disabled</option><option value="openai">openai</option><option value="ollama">ollama</option></select></div>
+                        <div><label style="font-size:11px;color:#8b949e;">Model</label><input id="rca-ai-model" class="login-input" placeholder="gpt-4o-mini / llama3.2"></div>
+                        <div><label style="font-size:11px;color:#8b949e;">Base URL</label><input id="rca-ai-base-url" class="login-input" placeholder="http://localhost:11434"></div>
+                        <div><label style="font-size:11px;color:#8b949e;">API key env</label><input id="rca-ai-key-env" class="login-input" value="OPENAI_API_KEY"></div>
+                    </div>
+                    <label style="display:flex;align-items:center;gap:8px;margin:12px 0;font-size:12px;"><input type="checkbox" id="rca-ai-enabled"> Enable AI RCA on new failures</label>
+                    <button type="button" id="rca-save-ai-config" class="btn-primary">Save AI config</button>
+                </div>
+                <div class="data-card">
+                    <label style="font-size:11px;color:#8b949e;">Gateway filter</label>
+                    <select id="rca-project-filter" class="login-input" style="max-width:280px;margin-bottom:16px;"></select>
+                    <table style="width:100%;border-collapse:collapse;font-size:14px;">
+                        <thead><tr style="border-bottom:2px solid var(--border-main);">
+                            <th style="padding:10px;text-align:left;">Project</th><th>Test</th><th>RCA</th><th>Summary</th><th></th>
+                        </tr></thead>
+                        <tbody id="rca-insights-body"><tr><td colspan="5" style="padding:20px;opacity:0.5;">Open this view to load data.</td></tr></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section id="view-quarantine" class="view-section">
+                <div class="header-bar">
+                    <div>
+                        <h1 style="margin:0;font-size:24px;">Quality / Quarantine</h1>
+                        <p style="margin:5px 0 0;opacity:0.6;font-size:14px;">DenyList for flaky tests — CI calls <code>GET /api/ci/quarantine</code> with <code>X-API-Key</code>.</p>
+                    </div>
+                </div>
+                <div class="data-card" style="margin-bottom:16px;">
+                    <select id="quarantine-project-filter" class="login-input" style="max-width:280px;"></select>
+                    <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap;" class="role-lead">
+                        <input type="text" id="quarantine-test-name" class="login-input" placeholder="Test name to quarantine" style="flex:1;min-width:200px;">
+                        <button type="button" id="quarantine-add-btn" class="btn-secondary">Add to quarantine</button>
+                    </div>
+                </div>
+                <div class="data-card">
+                    <table style="width:100%;border-collapse:collapse;">
+                        <thead><tr style="border-bottom:2px solid var(--border-main);">
+                            <th style="padding:10px;text-align:left;">Test</th><th>Fingerprint</th><th>Reason</th><th>Since</th><th></th>
+                        </tr></thead>
+                        <tbody id="quarantine-list-body"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section id="view-runbooks" class="view-section">
+                <div class="header-bar">
+                    <h1 style="margin:0;font-size:24px;">Runbooks &amp; Automations</h1>
+                    <p style="margin:8px 0 0;opacity:0.6;font-size:14px;">Apply curated remediation DAGs to a gateway. Actions use registered plugins only (K8s, Slack, Jira, …).</p>
+                </div>
+                <div class="data-card" style="margin-bottom:16px;">
+                    <label style="font-size:12px;opacity:0.7;">Target CI/CD gateway</label>
+                    <select id="runbooks-project-select" style="width:100%;max-width:400px;margin-top:6px;padding:8px;"></select>
+                </div>
+                <div id="runbooks-template-grid"></div>
+            </section>
+
+            <section id="view-dora" class="view-section">
+                <div class="header-bar">
+                    <h1 style="margin:0;font-size:24px;">DORA &amp; Executive Dashboard</h1>
+                    <p style="margin:8px 0 0;opacity:0.6;font-size:14px;">Deployment frequency, lead time, change failure rate, MTTR — correlated with Prometheus via <code>/api/webhooks/prometheus</code>.</p>
+                </div>
+                <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;">
+                    <select id="dora-project-filter" style="padding:8px;min-width:180px;" onchange="refreshDORAMetrics()"></select>
+                    <select id="dora-range-select" style="padding:8px;" onchange="refreshDORAMetrics()">
+                        <option value="7d">Last 7 days</option>
+                        <option value="30d" selected>Last 30 days</option>
+                        <option value="90d">Last 90 days</option>
+                    </select>
+                    <button type="button" class="btn-secondary" onclick="refreshDORAMetrics()">Refresh</button>
+                </div>
+                <div class="finops-bento-metrics" style="margin-bottom:20px;">
+                    <div class="kpi-card"><div>Deploy frequency / day</div><div class="kpi-value" id="dora-kpi-deploy-freq">—</div></div>
+                    <div class="kpi-card"><div>Lead time (median)</div><div class="kpi-value" id="dora-kpi-lead-time">—</div></div>
+                    <div class="kpi-card"><div>Change failure rate</div><div class="kpi-value" id="dora-kpi-cfr">—</div></div>
+                    <div class="kpi-card"><div>MTTR</div><div class="kpi-value" id="dora-kpi-mttr">—</div></div>
+                    <div class="kpi-card"><div>Pipeline runs</div><div class="kpi-value" id="dora-kpi-deployments">—</div></div>
+                    <div class="kpi-card"><div>External signals</div><div class="kpi-value" id="dora-kpi-signals">—</div></div>
+                </div>
+                <div class="data-card" style="margin-bottom:16px;">
+                    <h3 style="margin:0 0 12px;font-size:15px;">Deployments vs failures (weekly)</h3>
+                    <canvas id="dora-trend-chart" height="120"></canvas>
+                </div>
+                <div class="data-card">
+                    <h3 style="margin:0 0 12px;font-size:15px;">Prometheus ↔ incident correlations (±15 min)</h3>
+                    <table style="width:100%;border-collapse:collapse;">
+                        <thead><tr style="border-bottom:2px solid var(--border-main);">
+                            <th style="padding:8px;text-align:left;">Signal</th><th>Incident</th><th>Name</th><th>Fired</th>
+                        </tr></thead>
+                        <tbody id="dora-correlations-body"></tbody>
+                    </table>
                 </div>
             </section>
 
@@ -969,6 +1181,60 @@
         </div>
     </div>
 
+    <div id="workflow-editor-modal" role="dialog" aria-modal="true" aria-labelledby="workflow-editor-title">
+        <div class="workflow-editor-shell">
+            <div class="workflow-editor-toolbar">
+                <h2 id="workflow-editor-title" style="margin:0;font-size:16px;flex:1;color:#c9d1d9;">Visual Workflow</h2>
+                <span id="workflow-status-pill" class="workflow-status-pill state-legacy" title="Remediation mode">Legacy</span>
+                <label id="workflow-enable-wrap" class="wf-enable-wrap wf-edit-only" for="workflow-enabled-toggle">
+                    <input type="checkbox" id="workflow-enabled-toggle" checked>
+                    <span>Enable workflow</span>
+                </label>
+                <span id="workflow-readonly-badge">Read-only (Observer)</span>
+                <button type="button" class="btn-secondary" onclick="toggleWorkflowHelp()" title="Help">?</button>
+                <button type="button" class="btn-secondary wf-edit-only" onclick="loadFlakyExampleWorkflow()">Example</button>
+                <button type="button" class="btn-secondary wf-edit-only" onclick="addWorkflowNode('trigger')">+ Trigger</button>
+                <button type="button" class="btn-secondary wf-edit-only" onclick="addWorkflowNode('condition')">+ Condition</button>
+                <button type="button" class="btn-secondary wf-edit-only" onclick="addWorkflowNode('action')">+ Action</button>
+                <button type="button" class="btn-secondary wf-edit-only" onclick="simulateWorkflow()">Simulate</button>
+                <button type="button" class="btn-secondary" onclick="fitWorkflowCanvas()">Fit</button>
+                <button type="button" class="btn-secondary wf-edit-only" onclick="clearWorkflow()">Reset</button>
+                <button type="button" class="btn-primary wf-edit-only" onclick="saveWorkflow()">Save</button>
+                <button type="button" class="btn-secondary" onclick="closeWorkflowEditor()">Close</button>
+            </div>
+            <div class="workflow-editor-body">
+                <div class="workflow-canvas-wrap">
+                    <div id="drawflow"></div>
+                    <div id="workflow-canvas-empty">
+                        <div>
+                            <p style="margin:0 0 8px;color:#c9d1d9;">Empty canvas</p>
+                            <p style="margin:0;">Click <strong>+ Trigger</strong> to start, or load a saved workflow.</p>
+                        </div>
+                    </div>
+                </div>
+                <aside id="workflow-help-panel" class="open">
+                    <h3 style="margin:0 0 10px;color:#58a6ff;font-size:13px;">Simulate incident</h3>
+                    <label style="font-size:11px;display:block;margin-bottom:4px;">Test name</label>
+                    <input type="text" id="wf-sim-name" class="login-input" value="[FLAKY] checkout payment" style="margin-bottom:8px;font-size:11px;">
+                    <label style="font-size:11px;display:block;margin-bottom:4px;">Status</label>
+                    <input type="text" id="wf-sim-status" class="login-input" value="CRITICAL" style="margin-bottom:8px;font-size:11px;">
+                    <label style="font-size:11px;display:block;margin-bottom:4px;">Error</label>
+                    <input type="text" id="wf-sim-error" class="login-input" value="timeout waiting for upstream" style="margin-bottom:8px;font-size:11px;">
+                    <button type="button" class="btn-secondary wf-edit-only" style="width:100%;margin-bottom:10px;" onclick="simulateWorkflow()">Run simulation</button>
+                    <pre id="workflow-simulate-result" class="workflow-simulate-result"></pre>
+                    <h3 style="margin:16px 0 10px;color:#58a6ff;font-size:13px;">Help</h3>
+                    <p><strong>Trigger</strong> — Entry point when a CI alert is ingested into QA Capsule.</p>
+                    <p><strong>Condition</strong> — Branches on tags (e.g. <code>[FLAKY]</code>), status, or text match. Connect the <em>true</em> (top) or <em>false</em> (bottom) output.</p>
+                    <p><strong>Action</strong> — Runs a native integration from the Plugin Engine registry (Slack, Jira, …). Configure gateway routing values first.</p>
+                    <p style="margin-top:12px;border-top:1px solid #30363d;padding-top:10px;">Example: Trigger → Condition [FLAKY] → true → Slack; false → Jira.</p>
+                    <p><strong>Enable workflow</strong> — When checked and saved, the DAG drives remediation. When unchecked, the graph is stored as a <em>draft</em> and legacy AUTO-RUN + <code>trigger_on</code> rules still apply.</p>
+                    <p><strong>Reset</strong> deletes the DAG entirely and restores legacy mode.</p>
+                </aside>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/drawflow@0.0.59/dist/drawflow.min.js"></script>
     <script type="module" src="app.js"></script>
 </body>
 </html>

@@ -97,26 +97,63 @@ func registerSystemRoutes(config *core.Config) {
 		}
 		out := make([]map[string]interface{}, 0)
 		for _, m := range reg.List() {
-			if !integrations.IsActiveForRouting(m.Status) {
+			if !integrations.IsActiveForRouting(m.Status, m.RoutingEnabled, m.AutoRun) {
 				continue
 			}
 			out = append(out, map[string]interface{}{
-				"file_path":      m.FilePath,
-				"integration":    m.Integration,
-				"name":           m.Name,
-				"auto_run":       m.AutoRun,
-				"routing_fields": integrations.RoutingFieldsForIntegration(m.Integration),
+				"file_path":       m.FilePath,
+				"integration":     m.Integration,
+				"name":            m.Name,
+				"auto_run":        m.AutoRun,
+				"routing_enabled": m.RoutingEnabled,
+				"routing_fields":  integrations.RoutingFieldsForIntegration(m.Integration),
 			})
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(out)
 	}))
 
+	// Enable/disable integration for CI/CD gateway routing (Manager or Platform Admin)
+	http.HandleFunc("/api/plugins/routing", jwtAuthMiddleware(config, "", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		authHeader := r.Header.Get("Authorization")
+		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+		claims := &Claims{}
+		jwt.ParseWithClaims(tokenString, claims, func(t *jwt.Token) (interface{}, error) { return jwtKey, nil })
+		if !core.CanManagePluginAutoRun(claims.Role) {
+			writeJSONError(w, "Manager or Platform Admin required", http.StatusForbidden)
+			return
+		}
+		var req struct {
+			FilePath string `json:"file_path"`
+			Enabled  bool   `json:"enabled"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid body", http.StatusBadRequest)
+			return
+		}
+		reg := core.RemediationRegistry()
+		if reg == nil {
+			http.Error(w, "Remediation engine not initialized", http.StatusServiceUnavailable)
+			return
+		}
+		if err := reg.UpdateRoutingEnabled(req.FilePath, req.Enabled); err != nil {
+			writeJSONError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{"status": "ok", "routing_enabled": req.Enabled})
+	}))
+
 	// Update Plugin JSON configurations
 	http.HandleFunc("/api/plugins/config", jwtAuthMiddleware(config, core.RoleLead, func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
-			FilePath string            `json:"file_path"`
-			Env      map[string]string `json:"env"`
+			FilePath       string            `json:"file_path"`
+			Env            map[string]string `json:"env"`
+			EnableRouting  bool              `json:"enable_routing"`
 		}
 
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -129,7 +166,7 @@ func registerSystemRoutes(config *core.Config) {
 			http.Error(w, "Remediation engine not initialized", http.StatusServiceUnavailable)
 			return
 		}
-		if err := reg.UpdateConfig(req.FilePath, req.Env); err != nil {
+		if err := reg.UpdateConfig(req.FilePath, req.Env, req.EnableRouting); err != nil {
 			log.Printf("[ERROR] Cannot update integration config %s: %v", req.FilePath, err)
 			http.Error(w, "Failed to save configuration", http.StatusInternalServerError)
 			return

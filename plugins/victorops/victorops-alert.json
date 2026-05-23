@@ -6,6 +6,7 @@
   "description": "Posts a CRITICAL alert to your Splunk On-Call / VictorOps routing URL integration.",
   "integration": "victorops",
   "name": "Splunk On-Call (VictorOps) Alert",
+  "routing_enabled": false,
   "status": "Active",
   "trigger_on": [
     "CRITICAL",

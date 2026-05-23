@@ -14,6 +14,7 @@ let currentSelectedCI = 'gitlab';
 let ciSRERoutingRows = [];
 /** Active plugins for Add configuration dropdown. */
 let activePluginsForRouting = [];
+let sreRoutingControlsBound = false;
 export let selectedCurrency = 'USD';
 
 export let analyticsChart = null;
@@ -78,18 +79,52 @@ export function selectCI(ciName, element) {
     }
 }
 
-function initSRERoutingUI() {
-    bindSRERoutingControls();
+function workflowTableBadge(project) {
+    if (project.workflow_enabled) {
+        return '<span class="wf-table-badge active" title="DAG drives remediation">Active</span>';
+    }
+    if (project.has_workflow) {
+        return '<span class="wf-table-badge draft" title="Saved draft — legacy AUTO-RUN">Draft</span>';
+    }
+    return '<span class="wf-table-badge legacy" title="Legacy AUTO-RUN">Legacy</span>';
 }
 
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initSRERoutingUI);
-} else {
-    initSRERoutingUI();
+let gatewayTableClickBound = false;
+
+function bindGatewayTableClicks() {
+    const tbody = document.getElementById('projects-table-body');
+    if (!tbody || gatewayTableClickBound) return;
+    gatewayTableClickBound = true;
+    tbody.addEventListener('click', (e) => {
+        const wfBtn = e.target.closest('.btn-open-workflow');
+        if (wfBtn) {
+            e.preventDefault();
+            const projectId = wfBtn.getAttribute('data-project-id');
+            const projectName = wfBtn.getAttribute('data-project-name') || projectId;
+            if (typeof window.openWorkflowEditor === 'function') {
+                window.openWorkflowEditor(projectId, projectName);
+            } else {
+                notify('Workflow editor not loaded. Hard-refresh the page (Ctrl+F5).', 'error');
+            }
+            return;
+        }
+        const editBtn = e.target.closest('.btn-edit-project');
+        if (editBtn) {
+            e.preventDefault();
+            editProject(editBtn.getAttribute('data-project-id'));
+            return;
+        }
+        const delBtn = e.target.closest('.btn-delete-project');
+        if (delBtn) {
+            e.preventDefault();
+            deleteProject(delBtn.getAttribute('data-project-id'));
+        }
+    });
 }
 
 export function loadGatewaysData() {
     bindSRERoutingControls();
+    bindGatewayTableClicks();
     const tbody = document.getElementById('projects-table-body');
     fetchWithAuth(`/api/my-projects?_ts=${Date.now()}`)
         .then(res => parseApiJson(res))
@@ -97,27 +132,29 @@ export function loadGatewaysData() {
             allProjects = ok ? asArray(data) : [];
             if (!tbody) return;
             if (!ok) {
-                tbody.innerHTML = '<tr><td colspan="4"><span class="load-error-msg">Unable to load gateways.</span></td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5"><span class="load-error-msg">Unable to load gateways.</span></td></tr>';
                 return;
             }
             if (allProjects.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:20px; opacity:0.5;">No pipelines provisioned yet.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px; opacity:0.5;">No pipelines provisioned yet.</td></tr>';
                 return;
             }
             tbody.innerHTML = allProjects.map(p => `
                 <tr style="border-bottom: 1px solid var(--border-main);">
-                    <td style="padding: 10px;"><strong>${p.name}</strong></td>
-                    <td style="padding: 10px; text-transform: uppercase;">${p.ci_system}</td>
+                    <td style="padding: 10px;"><strong>${escapePluginHtml(p.name)}</strong></td>
+                    <td style="padding: 10px; text-transform: uppercase;">${escapePluginHtml(p.ci_system)}</td>
                     <td style="padding: 10px;"><code style="color: #ff7b72; font-family: monospace;">••••••••••••</code></td>
+                    <td style="padding: 10px;">${workflowTableBadge(p)}</td>
                     <td style="padding: 10px; text-align: right;">
-                        <button type="button" class="btn btn-secondary btn-sm btn-info" onclick="window.editProject('${p.id}')">EDIT</button>
-                        <button type="button" class="btn btn-secondary btn-sm btn-danger" onclick="window.deleteProject('${p.id}')">DELETE</button>
+                        <button type="button" class="btn btn-secondary btn-sm btn-open-workflow" style="margin-right:6px;" data-project-id="${escapePluginHtml(String(p.id))}" data-project-name="${escapePluginHtml(p.name)}" title="Visual remediation DAG">WORKFLOW</button>
+                        <button type="button" class="btn btn-secondary btn-sm btn-info btn-edit-project" data-project-id="${escapePluginHtml(String(p.id))}">EDIT</button>
+                        <button type="button" class="btn btn-secondary btn-sm btn-danger btn-delete-project" data-project-id="${escapePluginHtml(String(p.id))}">DELETE</button>
                     </td>
                 </tr>
             `).join('');
         })
         .catch(() => {
-            if (tbody) tbody.innerHTML = '<tr><td colspan="4"><span class="load-error-msg">Unable to load gateways.</span></td></tr>';
+            if (tbody) tbody.innerHTML = '<tr><td colspan="5"><span class="load-error-msg">Unable to load gateways.</span></td></tr>';
         });
 
     loadActivePluginsForRouting();
@@ -134,7 +171,7 @@ export function loadGatewaysData() {
 }
 
 export function editProject(projectId) {
-    const p = allProjects.find(item => item.id === projectId);
+    const p = allProjects.find(item => String(item.id) === String(projectId));
     if (!p) return;
 
     editingProjectId = projectId;
@@ -701,39 +738,60 @@ function pluginLogoUrl(integration) {
     return `/assets/${asset}.png`;
 }
 
-/** Load integrations available for SRE routing dropdown (active status). */
+function isPluginRoutingEligible(p) {
+    const st = String(p?.status ?? 'active').trim().toLowerCase();
+    if (st !== 'active') return false;
+    if (p?.routing_enabled === true) return true;
+    if (p?.routing_enabled === false) return false;
+    return p?.auto_run === true;
+}
+
+/** Load integrations available for SRE routing dropdown (Manager-enabled). */
 export async function loadActivePluginsForRouting() {
     const apply = (list) => {
-        activePluginsForRouting = list.filter(p => {
-            const st = String(p.status || '').toLowerCase();
-            return st === 'active' || st === '';
-        });
+        activePluginsForRouting = list.filter(isPluginRoutingEligible);
         bindSRERoutingControls();
         renderSRERoutingList();
     };
 
+    const loadFromFullList = async () => {
+        const res = await fetchWithAuth(`/api/plugins?_ts=${Date.now()}`);
+        const { ok, data } = await parseApiJson(res);
+        if (!ok) return [];
+        return asArray(data).map(p => ({
+            ...p,
+            routing_fields: p.routing_fields || routingFieldsForIntegrationClient(p.integration)
+        }));
+    };
+
     try {
-        let res = await fetchWithAuth(`/api/plugins/active?_ts=${Date.now()}`);
-        let { ok, data } = await parseApiJson(res);
-        if (ok && asArray(data).length > 0) {
+        const res = await fetchWithAuth(`/api/plugins/active?_ts=${Date.now()}`);
+        const { ok, data, status } = await parseApiJson(res);
+        if (ok) {
             apply(asArray(data));
             return;
         }
-        res = await fetchWithAuth(`/api/plugins?_ts=${Date.now()}`);
-        ({ ok, data } = await parseApiJson(res));
-        if (ok) {
-            apply(asArray(data).map(p => ({
-                ...p,
-                routing_fields: p.routing_fields || routingFieldsForIntegrationClient(p.integration)
-            })));
+        if (status === 404) {
+            apply(await loadFromFullList());
             return;
+        }
+        const fallback = await loadFromFullList();
+        if (fallback.length) apply(fallback);
+        else {
+            activePluginsForRouting = [];
+            bindSRERoutingControls();
+            renderSRERoutingList();
         }
     } catch (e) {
         console.warn('[SRE routing] failed to load active plugins', e);
+        try {
+            apply(await loadFromFullList());
+        } catch {
+            activePluginsForRouting = [];
+            bindSRERoutingControls();
+            renderSRERoutingList();
+        }
     }
-    activePluginsForRouting = [];
-    bindSRERoutingControls();
-    renderSRERoutingList();
 }
 
 function routingFieldsForIntegrationClient(integration) {
@@ -761,34 +819,30 @@ function routingFieldsForIntegrationClient(integration) {
     return map[(integration || '').toLowerCase()] || [];
 }
 
-let sreRoutingControlsBound = false;
-
 function isPluginActiveForRouting(p) {
-    const st = String(p?.status ?? 'Active').trim().toLowerCase();
-    return st === 'active' || st === '';
+    return isPluginRoutingEligible(p);
 }
 
 function bindSRERoutingControls() {
     if (sreRoutingControlsBound) return;
-    const form = document.getElementById('ci-config-form');
-    if (!form) return;
+    const btn = document.getElementById('ci-add-routing-btn');
+    if (!btn) return;
     sreRoutingControlsBound = true;
-    form.addEventListener('click', (e) => {
-        const btn = e.target.closest('#ci-add-routing-btn');
-        if (!btn || btn.disabled) return;
+    btn.addEventListener('click', (e) => {
         e.preventDefault();
-        e.stopPropagation();
         void addSRERoutingRow();
     });
-    const direct = document.getElementById('ci-add-routing-btn');
-    if (direct && !direct.dataset.sreBound) {
-        direct.dataset.sreBound = '1';
-        direct.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            void addSRERoutingRow();
-        });
-    }
+}
+
+function initSRERoutingUI() {
+    bindSRERoutingControls();
+    bindGatewayTableClicks();
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initSRERoutingUI);
+} else {
+    initSRERoutingUI();
 }
 
 function findActivePlugin(filePath) {
@@ -806,7 +860,7 @@ export function renderSRERoutingList() {
     }
 
     if (!activePluginsForRouting.length) {
-        container.innerHTML = '<p style="font-size:12px;color:#8b949e;margin:0;">No active integrations loaded. Open <strong>Plugin Engine</strong> and ensure integrations are <code>Active</code>, then refresh this page.</p>';
+        container.innerHTML = '<p style="font-size:12px;color:#8b949e;margin:0;">No integrations enabled for gateways yet. A <strong>Manager</strong> must <strong>Configure &amp; Save</strong> a plugin in Plugin Engine, or click <strong>Enable for gateways</strong>, then refresh (Ctrl+F5).</p>';
         return;
     }
 
@@ -854,7 +908,7 @@ export async function addSRERoutingRow() {
         return;
     }
     if (!activePluginsForRouting.length) {
-        notify('No active integrations. Open Plugin Engine, set status to Active, then refresh (Ctrl+F5).', 'error');
+        notify('No gateway-enabled integrations. Ask a Manager to Configure & Save in Plugin Engine, or enable "for gateways", then refresh (Ctrl+F5).', 'error');
         return;
     }
     const available = activePluginsForRouting.find(p => !ciSRERoutingRows.some(r => r.file_path === p.file_path));
@@ -925,6 +979,24 @@ export function togglePluginAutoRun(filePath, enable) {
             loadPlugins();
             loadGatewaysData();
         } else notify('Failed to update AUTO-RUN.', 'error');
+    });
+}
+
+export function togglePluginGatewayRouting(filePath, enable) {
+    const role = parseJwt(localStorage.getItem('sre-jwt'))?.role;
+    if (!canManagePluginAutoRun(role)) {
+        notify('Only Manager or Platform Admin can enable integrations for CI/CD gateways.', 'error');
+        return;
+    }
+    fetchWithAuth('/api/plugins/routing', {
+        method: 'POST',
+        body: JSON.stringify({ file_path: filePath, enabled: enable })
+    }).then(res => parseApiJson(res)).then(({ ok }) => {
+        if (ok) {
+            notify(enable ? 'Integration enabled for CI/CD gateways.' : 'Integration removed from gateway routing list.', 'success');
+            loadPlugins();
+            loadGatewaysData();
+        } else notify('Failed to update gateway routing.', 'error');
     });
 }
 
@@ -1033,11 +1105,18 @@ function renderPluginList(plugins, query = '', category = 'all') {
             const userRole = parseJwt(localStorage.getItem('sre-jwt'))?.role;
             const canToggleAuto = canManagePluginAutoRun(userRole);
             const autoOn = p.auto_run !== false && String(p.status).toLowerCase() === 'active';
+            const gatewayOn = isPluginRoutingEligible(p);
             const autoBadge = autoOn
                 ? '<span style="font-size:10px; color:#3fb950; border:1px solid #3fb950; padding:2px 6px; border-radius:4px;">AUTO-RUN ON</span>'
                 : '<span style="font-size:10px; color:#8b949e; border:1px solid #484f58; padding:2px 6px; border-radius:4px;">AUTO-RUN OFF</span>';
+            const gatewayBadge = gatewayOn
+                ? '<span style="font-size:10px; color:#58a6ff; border:1px solid #58a6ff; padding:2px 6px; border-radius:4px;">GATEWAYS ON</span>'
+                : '<span style="font-size:10px; color:#8b949e; border:1px solid #484f58; padding:2px 6px; border-radius:4px;">GATEWAYS OFF</span>';
             const autoToggleBtn = canToggleAuto
                 ? `<button type="button" class="btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="window.togglePluginAutoRun('${safePath}', ${!autoOn})">${autoOn ? 'Disable auto-run' : 'Enable auto-run'}</button>`
+                : '';
+            const gatewayToggleBtn = canToggleAuto
+                ? `<button type="button" class="btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="window.togglePluginGatewayRouting('${safePath}', ${!gatewayOn})">${gatewayOn ? 'Disable for gateways' : 'Enable for gateways'}</button>`
                 : '';
             const envKeysAttr = envKeys.join(',');
 
@@ -1052,7 +1131,7 @@ function renderPluginList(plugins, query = '', category = 'all') {
                             <div>
                                 <h3 style="margin:0 0 5px 0; color:var(--text-main); font-size: 16px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
                                     ${escapePluginHtml(p.name)} <span style="font-size:10px; background:#238636; color:white; padding:3px 8px; border-radius:12px;">v${escapePluginHtml(p.version || '1.0')}</span>
-                                    ${autoBadge} ${autoToggleBtn}
+                                    ${gatewayBadge} ${autoBadge} ${gatewayToggleBtn} ${autoToggleBtn}
                                 </h3>
                                 <p style="font-size:13px; color:#8b949e; margin:0 0 4px; line-height: 1.4;">${escapePluginHtml(desc)}</p>
                                 ${triggers ? `<p style="font-size:11px; color:#6e7681; margin:0;">Triggers: ${escapePluginHtml(triggers)}</p>` : ''}
@@ -1130,7 +1209,14 @@ export function savePluginConfig(path, idx, keysStr) {
     const env = {};
     keysStr.split(',').filter(k => k).forEach(k => env[k] = document.getElementById(`env-${idx}-${k}`).value);
     fetchWithAuth('/api/plugins/config', { method: 'POST', body: JSON.stringify({ file_path: path, env: env }) })
-        .then(res => { if (res.ok) notify("Configuration saved", "success"); else notify("Failed to save", "error"); })
+        .then(res => parseApiJson(res))
+        .then(({ ok }) => {
+            if (ok) {
+                notify('Configuration saved', 'success');
+                loadPlugins();
+                loadGatewaysData();
+            } else notify('Failed to save', 'error');
+        });
 }
 
 export function runPlugin(path, idx) {

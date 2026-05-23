@@ -9,6 +9,7 @@
   "description": "Imports a failed test execution into Xray Cloud (Jira) using the Xray authenticate + import API.",
   "integration": "xray",
   "name": "Xray Cloud — Import failed execution",
+  "routing_enabled": false,
   "status": "Active",
   "trigger_on": [
     "CRITICAL",

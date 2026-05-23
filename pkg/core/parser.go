@@ -19,6 +19,8 @@ type UnifiedAlert struct {
 	Status          string `json:"status"`
 	ExecutionTimeMs int64  `json:"execution_time_ms,omitempty"`
 	JiraIssueKey    string `json:"jira_issue_key,omitempty"`
+	CommitSHA       string `json:"commit_sha,omitempty"`
+	Branch          string `json:"branch,omitempty"`
 }
 
 // JUnitTestSuites represents the root of a JUnit XML report (for multiple suites)
@@ -115,6 +117,8 @@ func NormalizePayload(raw map[string]interface{}) UnifiedAlert {
 			Status:          status,
 			ExecutionTimeMs: int64Field(raw, "execution_time_ms"),
 			JiraIssueKey:    stringField(raw, "jira_issue_key", ""),
+			CommitSHA:       stringField(raw, "commit_sha", ""),
+			Branch:          stringField(raw, "branch", ""),
 		}
 	}
 }

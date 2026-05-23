@@ -64,6 +64,36 @@ export function canManageProjects(role) {
     return r === 'manager' || r === 'lead';
 }
 
+export function canManageWorkflow(role) {
+    return hasMinRole(role, 'lead');
+}
+
+export function canViewRCA(role) {
+    const r = normalizeRole(role);
+    return r === 'lead' || r === 'manager' || r === 'observer';
+}
+
+export function canViewQuarantine(role) {
+    return canViewRCA(role);
+}
+
+export function canManageQuarantine(role) {
+    return hasMinRole(role, 'lead');
+}
+
+export function canConfigureAI(role) {
+    const r = normalizeRole(role);
+    return r === 'manager' || r === 'admin';
+}
+
+export function canAccessRunbooks(role) {
+    return hasMinRole(role, 'lead');
+}
+
+export function canAccessDORA(role) {
+    return normalizeRole(role) === 'manager';
+}
+
 export function canAccessPlugins(role) {
     const r = normalizeRole(role);
     return r === 'manager' || r === 'lead';
@@ -156,6 +186,14 @@ export function canAccessView(role, viewId) {
             return canAccessPlugins(role);
         case 'ingestion':
             return canManageProjects(role);
+        case 'rca':
+            return canViewRCA(role);
+        case 'quarantine':
+            return canViewQuarantine(role);
+        case 'runbooks':
+            return canAccessRunbooks(role);
+        case 'dora':
+            return canAccessDORA(role);
         default:
             return false;
     }
@@ -169,7 +207,11 @@ export function accessDeniedMessage(viewId) {
         management: 'IAM Access',
         settings: 'Settings',
         plugins: 'Plugin Engine',
-        ingestion: 'CI/CD Gateways'
+        ingestion: 'CI/CD Gateways',
+        rca: 'RCA & AI Insights',
+        quarantine: 'Quarantine',
+        runbooks: 'Runbooks',
+        dora: 'DORA Dashboard'
     };
     const name = labels[viewId] || viewId;
     return `You do not have access to ${name}.`;

@@ -1,0 +1,748 @@
+/**
+ * Visual SRE Workflow Builder (Drawflow + canonical DAG JSON).
+ */
+import { fetchWithAuth, parseApiJson, parseJwt } from './api.js';
+import { notify, showConfirmModal } from './ui.js';
+import { canManageWorkflow, normalizeRole } from './roles.js';
+
+let editor = null;
+let currentProjectId = null;
+let canEditWorkflow = false;
+let workflowCatalog = [];
+let canonicalWorkflow = null;
+
+const NODE_TEMPLATES = {
+    trigger: {
+        html: `<div class="wf-node wf-trigger"><div class="wf-title">Trigger</div><div class="wf-desc">On CI alert ingested</div></div>`,
+        inputs: 0,
+        outputs: 1,
+        data: { label: 'On CI alert', nodeType: 'trigger' }
+    },
+    condition: {
+        html: `<div class="wf-node wf-condition"><div class="wf-title">Condition</div>
+            <div class="wf-branch-hint"><span class="true">●</span> top = true · <span class="false">●</span> bottom = false</div>
+            <select class="wf-cond-op login-input" style="margin-top:6px;font-size:11px;width:100%;">
+                <option value="tag:prefix:[FLAKY]">Tag: [FLAKY]</option>
+                <option value="tag:prefix:[PERF]">Tag: [PERF]</option>
+                <option value="status:eq:CRITICAL">Status: CRITICAL</option>
+                <option value="status:eq:PERF_DEGRADATION">Status: PERF</option>
+                <option value="text:contains:timeout">Error contains timeout</option>
+                <option value="text:contains:502">Error contains 502</option>
+                <option value="text:contains:oom">Error contains OOM</option>
+            </select></div>`,
+        inputs: 1,
+        outputs: 2,
+        data: { label: 'Condition', nodeType: 'condition', when: { op: 'tag', match: 'prefix', value: '[FLAKY]', field: 'incident.name' } }
+    },
+    action: {
+        html: `<div class="wf-node wf-action"><div class="wf-title">Action</div>
+            <select class="wf-action-path login-input" style="margin-top:6px;font-size:11px;width:100%;"><option value="">Select integration…</option></select></div>`,
+        inputs: 1,
+        outputs: 0,
+        data: { label: 'Action', nodeType: 'action', file_path: '', integration: '' }
+    }
+};
+
+/** Drawflow typenode: false = HTML template (required for custom node HTML). */
+const HTML_NODE = false;
+
+export function openWorkflowEditor(projectId, projectName) {
+    if (!projectId) {
+        notify('Invalid project id.', 'error');
+        return;
+    }
+    currentProjectId = projectId;
+    const modal = document.getElementById('workflow-editor-modal');
+    if (!modal) {
+        notify('Workflow editor UI is missing. Refresh the page.', 'error');
+        return;
+    }
+    const titleEl = document.getElementById('workflow-editor-title');
+    if (titleEl) {
+        titleEl.textContent = `Visual Workflow — ${projectName || projectId}`;
+    }
+    modal.style.display = 'flex';
+    document.body.classList.add('workflow-modal-open');
+    bindWorkflowToolbar();
+    bindWorkflowModalKeys();
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            void loadWorkflow(projectId).catch((err) => {
+                console.error('[workflow] load failed', err);
+                notify('Failed to open workflow editor.', 'error');
+            });
+        });
+    });
+}
+
+function bindWorkflowToolbar() {
+    const toggle = document.getElementById('workflow-enabled-toggle');
+    if (toggle && !toggle.dataset.bound) {
+        toggle.dataset.bound = '1';
+        toggle.addEventListener('change', () => updateWorkflowStatusPill());
+    }
+}
+
+export function closeWorkflowEditor() {
+    const modal = document.getElementById('workflow-editor-modal');
+    if (modal) modal.style.display = 'none';
+    document.body.classList.remove('workflow-modal-open');
+    destroyDrawflowEditor();
+    currentProjectId = null;
+}
+
+let workflowModalKeysBound = false;
+
+function bindWorkflowModalKeys() {
+    if (workflowModalKeysBound) return;
+    workflowModalKeysBound = true;
+    document.addEventListener('keydown', (e) => {
+        const modal = document.getElementById('workflow-editor-modal');
+        if (!modal || modal.style.display === 'none') return;
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            closeWorkflowEditor();
+        }
+    });
+    const modal = document.getElementById('workflow-editor-modal');
+    if (modal && !modal.dataset.backdropBound) {
+        modal.dataset.backdropBound = '1';
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) closeWorkflowEditor();
+        });
+    }
+}
+
+function destroyDrawflowEditor() {
+    const container = document.getElementById('drawflow');
+    if (container) {
+        container.innerHTML = '';
+    }
+    editor = null;
+}
+
+function initDrawflow() {
+    if (typeof Drawflow === 'undefined') {
+        notify('Drawflow library not loaded. Check your network or refresh.', 'error');
+        return null;
+    }
+    const container = document.getElementById('drawflow');
+    if (!container) return null;
+
+    destroyDrawflowEditor();
+    container.innerHTML = '';
+
+    editor = new Drawflow(container);
+    editor.reroute = true;
+    editor.reroute_fix_curvature = true;
+    editor.curvature = 0.45;
+    editor.zoom_max = 1.6;
+    editor.zoom_min = 0.4;
+    editor.editor_mode = canEditWorkflow ? 'edit' : 'fixed';
+    editor.start();
+    bindDrawflowEvents();
+
+    const canvas = container.querySelector('.drawflow');
+    if (canvas) {
+        canvas.style.width = '100%';
+        canvas.style.height = '100%';
+        canvas.style.minHeight = '420px';
+    }
+    refreshDrawflowViewport();
+    return editor;
+}
+
+function bindDrawflowEvents() {
+    if (!editor || editor._qaCapsuleBound) return;
+    editor._qaCapsuleBound = true;
+    const refresh = () => {
+        populateActionSelects();
+        bindNodeControls();
+        updateCanvasEmptyState();
+        requestAnimationFrame(() => refreshDrawflowViewport());
+    };
+    if (typeof editor.on === 'function') {
+        editor.on('nodeCreated', refresh);
+        editor.on('nodeRemoved', () => updateCanvasEmptyState());
+        editor.on('connectionCreated', () => updateCanvasEmptyState());
+        editor.on('connectionRemoved', () => updateCanvasEmptyState());
+    }
+}
+
+function refreshDrawflowViewport() {
+    if (!editor) return;
+    requestAnimationFrame(() => {
+        try {
+            if (typeof editor.zoom_refresh === 'function') {
+                editor.zoom_refresh();
+            }
+            if (typeof editor.zoom_reset === 'function') {
+                editor.zoom_reset();
+            }
+        } catch (_) { /* ignore */ }
+        updateCanvasEmptyState();
+    });
+}
+
+function drawflowNodeCount() {
+    if (!editor?.drawflow?.drawflow?.Home?.data) return 0;
+    return Object.keys(editor.drawflow.drawflow.Home.data).length;
+}
+
+function updateCanvasEmptyState() {
+    const el = document.getElementById('workflow-canvas-empty');
+    if (!el) return;
+    el.classList.toggle('visible', drawflowNodeCount() === 0);
+}
+
+function addDrawflowNode(type, posX, posY, data, html) {
+    const tpl = NODE_TEMPLATES[type];
+    if (!editor || !tpl) return null;
+    const nodeData = { ...tpl.data, ...data };
+    return editor.addNode(
+        type,
+        tpl.inputs,
+        tpl.outputs,
+        posX,
+        posY,
+        type,
+        nodeData,
+        html || tpl.html,
+        HTML_NODE
+    );
+}
+
+async function loadWorkflow(projectId) {
+    const res = await fetchWithAuth(`/api/projects/${encodeURIComponent(projectId)}/workflow`);
+    const { ok, data } = await parseApiJson(res);
+    if (!ok) {
+        notify(data?.error || 'Failed to load workflow.', 'error');
+        return;
+    }
+    canEditWorkflow = !!data.can_edit;
+    workflowCatalog = Array.isArray(data.catalog) ? data.catalog : [];
+    canonicalWorkflow = data.workflow || null;
+
+    applyEditorRBAC();
+    if (!initDrawflow()) return;
+
+    populateActionSelects();
+    syncEnableToggle(data.workflow, data.workflow_enabled, data.has_workflow);
+    importWorkflowToCanvas(data.workflow, data.workflow?.ui);
+    refreshDrawflowViewport();
+    updateWorkflowStatusPill();
+}
+
+function syncEnableToggle(workflow, workflowEnabled, hasWorkflow) {
+    const toggle = document.getElementById('workflow-enabled-toggle');
+    if (!toggle) return;
+    if (workflow && typeof workflow.enabled === 'boolean') {
+        toggle.checked = workflow.enabled;
+    } else if (hasWorkflow) {
+        toggle.checked = !!workflowEnabled;
+    } else {
+        toggle.checked = false;
+    }
+}
+
+export function isWorkflowEnabled() {
+    const toggle = document.getElementById('workflow-enabled-toggle');
+    return toggle ? toggle.checked : false;
+}
+
+export function updateWorkflowStatusPill() {
+    const pill = document.getElementById('workflow-status-pill');
+    if (!pill) return;
+    const enabled = isWorkflowEnabled();
+    const hasGraph = drawflowNodeCount() > 0;
+    const hasStored = canonicalWorkflow && (canonicalWorkflow.entry || Object.keys(canonicalWorkflow.nodes || {}).length > 0);
+
+    pill.classList.remove('state-active', 'state-draft', 'state-legacy');
+    if (enabled && (hasGraph || hasStored)) {
+        pill.textContent = 'DAG active';
+        pill.classList.add('state-active');
+        pill.title = 'Visual workflow drives remediation on alert ingest';
+    } else if (hasGraph || hasStored) {
+        pill.textContent = 'Draft';
+        pill.classList.add('state-draft');
+        pill.title = 'Workflow saved but disabled — legacy AUTO-RUN still applies';
+    } else {
+        pill.textContent = 'Legacy';
+        pill.classList.add('state-legacy');
+        pill.title = 'No visual workflow — legacy AUTO-RUN and trigger_on rules';
+    }
+}
+
+function applyEditorRBAC() {
+    const role = normalizeRole(parseJwt(localStorage.getItem('sre-jwt'))?.role);
+    canEditWorkflow = canManageWorkflow(role) && canEditWorkflow;
+    document.querySelectorAll('.wf-edit-only').forEach(el => {
+        el.style.display = canEditWorkflow ? '' : 'none';
+    });
+    const badge = document.getElementById('workflow-readonly-badge');
+    if (badge) badge.style.display = canEditWorkflow ? 'none' : 'block';
+    const toggle = document.getElementById('workflow-enabled-toggle');
+    if (toggle) toggle.disabled = !canEditWorkflow;
+    if (editor) {
+        editor.editor_mode = canEditWorkflow ? 'edit' : 'fixed';
+    }
+}
+
+function populateActionSelects() {
+    const options = workflowCatalog.map(p =>
+        `<option value="${escapeAttr(p.file_path)}">${escapeHtml(p.name || p.file_path)}</option>`
+    ).join('');
+    document.querySelectorAll('.wf-action-path').forEach(sel => {
+        const cur = sel.value;
+        sel.innerHTML = `<option value="">Select integration…</option>${options}`;
+        if (cur) sel.value = cur;
+        if (!canEditWorkflow) sel.disabled = true;
+    });
+    document.querySelectorAll('.wf-cond-op').forEach(sel => {
+        if (!canEditWorkflow) sel.disabled = true;
+    });
+}
+
+function importWorkflowToCanvas(workflow, ui) {
+    if (!editor) return;
+    editor.clear();
+
+    let imported = false;
+    if (ui && ui.drawflow && drawflowImportHasNodes(ui)) {
+        try {
+            editor.import(ui);
+            imported = drawflowNodeCount() > 0;
+        } catch (e) {
+            console.warn('[workflow] drawflow import failed', e);
+        }
+    }
+
+    if (imported) {
+        bindNodeControls();
+        syncControlsFromNodeData();
+        updateCanvasEmptyState();
+        return;
+    }
+
+    if (workflow?.nodes && Object.keys(workflow.nodes).length > 0) {
+        buildCanvasFromCanonical(workflow);
+        return;
+    }
+
+    addDefaultStarterGraph();
+}
+
+function drawflowImportHasNodes(ui) {
+    const data = ui?.drawflow?.Home?.data;
+    return data && Object.keys(data).length > 0;
+}
+
+function layoutWorkflowPositions(workflow, entryId) {
+    const positions = {};
+    const queue = [{ id: entryId, depth: 0 }];
+    const seen = new Set();
+    while (queue.length) {
+        const { id, depth } = queue.shift();
+        if (!id || seen.has(id)) continue;
+        seen.add(id);
+        positions[id] = { x: 80 + depth * 260, y: 120 };
+        (workflow.edges || []).forEach((e) => {
+            if (e.from !== id) return;
+            const child = e.to;
+            if (child && workflow.nodes[child]) {
+                queue.push({ id: child, depth: depth + 1 });
+            }
+        });
+    }
+    let orphanY = 320;
+    Object.keys(workflow.nodes || {}).forEach((cid) => {
+        if (!positions[cid]) {
+            positions[cid] = { x: 80, y: orphanY };
+            orphanY += 120;
+        }
+    });
+    return positions;
+}
+
+function buildCanvasFromCanonical(workflow) {
+    const entry = workflow.entry;
+    if (!entry || !workflow.nodes?.[entry]) {
+        addDefaultStarterGraph();
+        return;
+    }
+    const idMap = {};
+    const positions = layoutWorkflowPositions(workflow, entry);
+    for (const [cid, node] of Object.entries(workflow.nodes)) {
+        const tpl = NODE_TEMPLATES[node.type];
+        if (!tpl) continue;
+        const pos = positions[cid] || { x: 80, y: 80 };
+        const data = { ...tpl.data, label: node.label || tpl.data.label, nodeType: node.type };
+        if (node.type === 'condition' && node.when) data.when = node.when;
+        if (node.type === 'action') {
+            data.file_path = node.file_path || '';
+            data.integration = node.integration || '';
+        }
+        const numId = addDrawflowNode(node.type, pos.x, pos.y, data, tpl.html);
+        if (numId != null) idMap[cid] = numId;
+    }
+    (workflow.edges || []).forEach((e) => {
+        const from = idMap[e.from];
+        const to = idMap[e.to];
+        if (!from || !to) return;
+        let outPort = 'output_1';
+        if (e.when === 'false') outPort = 'output_2';
+        try {
+            editor.addConnection(from, to, outPort, 'input_1');
+        } catch (err) {
+            console.warn('[workflow] connection failed', e, err);
+        }
+    });
+    bindNodeControls();
+    syncControlsFromNodeData();
+    updateCanvasEmptyState();
+    refreshDrawflowViewport();
+}
+
+function addDefaultStarterGraph() {
+    if (!editor) return;
+    const t = addDrawflowNode('trigger', 120, 120, {}, null);
+    const c = addDrawflowNode('condition', 380, 120, {}, null);
+    if (t && c) {
+        editor.addConnection(t, c, 'output_1', 'input_1');
+    }
+    if (canEditWorkflow && workflowCatalog.length > 0) {
+        const plugin = workflowCatalog[0];
+        const a = addDrawflowNode('action', 640, 60, {
+            file_path: plugin.file_path,
+            integration: plugin.integration,
+            label: plugin.name || 'Action'
+        }, null);
+        if (c && a) editor.addConnection(c, a, 'output_1', 'input_1');
+    }
+    bindNodeControls();
+    syncControlsFromNodeData();
+    updateCanvasEmptyState();
+}
+
+function syncControlsFromNodeData() {
+    if (!editor) return;
+    Object.values(editor.drawflow.drawflow.Home.data).forEach((node) => {
+        const id = node.id;
+        const d = node.data || {};
+        const el = document.querySelector(`#node-${id}`);
+        if (!el) return;
+        if (d.nodeType === 'condition' && d.when) {
+            const sel = el.querySelector('.wf-cond-op');
+            if (sel) sel.value = conditionToPreset(d.when);
+        }
+        if (d.nodeType === 'action' && d.file_path) {
+            const sel = el.querySelector('.wf-action-path');
+            if (sel) sel.value = d.file_path;
+        }
+    });
+}
+
+function conditionToPreset(when) {
+    if (!when) return 'tag:prefix:[FLAKY]';
+    const { op, match, value, field } = when;
+    if (op === 'tag') return `tag:${match || 'prefix'}:${value || '[FLAKY]'}`;
+    if (op === 'status') return `status:${match || 'eq'}:${value || 'CRITICAL'}`;
+    if (op === 'text') return `text:${match || 'contains'}:${value || 'timeout'}`;
+    return 'tag:prefix:[FLAKY]';
+}
+
+function bindNodeControls() {
+    document.querySelectorAll('.wf-cond-op').forEach(sel => {
+        sel.onchange = () => syncConditionData(sel);
+        if (!canEditWorkflow) sel.disabled = true;
+    });
+    document.querySelectorAll('.wf-action-path').forEach(sel => {
+        sel.onchange = () => syncActionData(sel);
+        if (!canEditWorkflow) sel.disabled = true;
+    });
+}
+
+function syncConditionData(sel) {
+    const nodeEl = sel.closest('.drawflow-node');
+    if (!nodeEl || !editor) return;
+    const id = nodeEl.id.replace('node-', '');
+    const when = parseConditionPreset(sel.value);
+    const data = editor.getNodeFromId(id)?.data || {};
+    data.when = when;
+    editor.updateNodeDataFromId(id, data);
+}
+
+function syncActionData(sel) {
+    const nodeEl = sel.closest('.drawflow-node');
+    if (!nodeEl || !editor) return;
+    const id = nodeEl.id.replace('node-', '');
+    const path = sel.value;
+    const plugin = workflowCatalog.find(p => p.file_path === path);
+    const data = editor.getNodeFromId(id)?.data || {};
+    data.file_path = path;
+    data.integration = plugin?.integration || '';
+    data.label = plugin?.name || 'Action';
+    editor.updateNodeDataFromId(id, data);
+}
+
+function parseConditionPreset(val) {
+    const [op, match, ...rest] = val.split(':');
+    const value = rest.join(':');
+    if (op === 'tag') return { op: 'tag', match, value, field: 'incident.name' };
+    if (op === 'status') return { op: 'status', match, value };
+    if (op === 'text') return { op: 'text', match: match || 'contains', field: 'incident.error', value };
+    return { op: 'tag', match: 'prefix', value: '[FLAKY]', field: 'incident.name' };
+}
+
+export function addWorkflowNode(type) {
+    if (!canEditWorkflow || !editor) return;
+    const count = drawflowNodeCount();
+    const y = 100 + count * 100;
+    addDrawflowNode(type, 200, y, {}, null);
+    populateActionSelects();
+    bindNodeControls();
+    updateCanvasEmptyState();
+}
+
+function flushAllNodeDataBeforeExport() {
+    document.querySelectorAll('.wf-cond-op').forEach(sel => syncConditionData(sel));
+    document.querySelectorAll('.wf-action-path').forEach(sel => syncActionData(sel));
+}
+
+function validateWorkflowDoc(doc, enabled) {
+    if (!doc?.entry || !doc.nodes?.[doc.entry]) {
+        return 'Workflow must include a Trigger node.';
+    }
+    const triggers = Object.values(doc.nodes).filter(n => n.type === 'trigger');
+    if (triggers.length > 1) {
+        return 'Only one Trigger node is allowed.';
+    }
+    if (enabled) {
+        const actions = Object.values(doc.nodes).filter(n => n.type === 'action');
+        if (!actions.length) {
+            return 'Enable requires at least one Action node.';
+        }
+        const missing = actions.find(a => !a.file_path?.trim());
+        if (missing) {
+            return 'Every Action node must select an integration before enabling.';
+        }
+    }
+    return '';
+}
+
+export async function saveWorkflow() {
+    if (!canEditWorkflow || !currentProjectId || !editor) return;
+    flushAllNodeDataBeforeExport();
+    const enabled = isWorkflowEnabled();
+    const exported = editor.export();
+    let doc = canonicalFromDrawflow(exported);
+
+    if (!doc) {
+        if (enabled) {
+            notify('Workflow must include a Trigger node before enabling.', 'error');
+            return;
+        }
+        doc = {
+            version: 1,
+            enabled: false,
+            entry: '',
+            nodes: {},
+            edges: [],
+            meta: { name: 'Remediation workflow (draft)' }
+        };
+    }
+
+    const validationErr = validateWorkflowDoc(doc, enabled);
+    if (validationErr) {
+        notify(validationErr, 'error');
+        return;
+    }
+
+    doc.ui = exported;
+    doc.enabled = enabled;
+    doc.version = 1;
+    doc.meta = { ...(doc.meta || {}), name: doc.meta?.name || 'Remediation workflow' };
+
+    const res = await fetchWithAuth(`/api/projects/${encodeURIComponent(currentProjectId)}/workflow`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(doc)
+    });
+    const { ok, data } = await parseApiJson(res);
+    if (!ok) {
+        notify(data?.error || 'Failed to save workflow.', 'error');
+        return;
+    }
+    canonicalWorkflow = doc;
+    updateWorkflowStatusPill();
+    if (enabled) {
+        notify('Workflow saved and enabled — DAG is active for this pipeline.', 'success');
+    } else {
+        notify('Workflow saved as draft — legacy AUTO-RUN remains active.', 'success');
+    }
+    if (typeof window.loadGatewaysData === 'function') {
+        window.loadGatewaysData();
+    }
+}
+
+export async function clearWorkflow() {
+    if (!canEditWorkflow || !currentProjectId) return;
+    showConfirmModal(
+        'Reset visual workflow?',
+        'This deletes the DAG for this pipeline and restores legacy AUTO-RUN behavior.',
+        'danger',
+        async () => {
+            const res = await fetchWithAuth(`/api/projects/${encodeURIComponent(currentProjectId)}/workflow`, {
+                method: 'DELETE'
+            });
+            if (res.ok) {
+                notify('Workflow cleared — legacy AUTO-RUN restored.', 'success');
+                canonicalWorkflow = null;
+                const toggle = document.getElementById('workflow-enabled-toggle');
+                if (toggle) toggle.checked = false;
+                if (initDrawflow()) {
+                    addDefaultStarterGraph();
+                }
+                updateWorkflowStatusPill();
+                if (typeof window.loadGatewaysData === 'function') {
+                    window.loadGatewaysData();
+                }
+            } else {
+                notify('Failed to clear workflow.', 'error');
+            }
+        }
+    );
+}
+
+function canonicalFromDrawflow(exported) {
+    const home = exported?.drawflow?.Home?.data;
+    if (!home) return null;
+    const nodes = {};
+    const idMap = {};
+    let entry = '';
+
+    Object.entries(home).forEach(([numId, node]) => {
+        const cid = `n_${numId}`;
+        idMap[numId] = cid;
+        const d = node.data || {};
+        const type = d.nodeType || node.name;
+        const out = { type, label: d.label || type };
+        if (type === 'condition') out.when = d.when || NODE_TEMPLATES.condition.data.when;
+        if (type === 'action') {
+            out.file_path = d.file_path || '';
+            out.integration = d.integration || '';
+        }
+        nodes[cid] = out;
+        if (type === 'trigger' && !entry) entry = cid;
+    });
+    if (!entry) return null;
+
+    const edges = [];
+    Object.entries(home).forEach(([numId, node]) => {
+        const outs = node.outputs || {};
+        Object.entries(outs).forEach(([outKey, out]) => {
+            const conns = out.connections || [];
+            conns.forEach(c => {
+                const target = idMap[String(c.node)];
+                if (!target) return;
+                let when = '';
+                const isCondition = node.name === 'condition' || node.data?.nodeType === 'condition';
+                if (isCondition && outKey === 'output_2') when = 'false';
+                else if (isCondition && outKey === 'output_1') when = 'true';
+                edges.push({
+                    from: idMap[numId],
+                    to: target,
+                    when
+                });
+            });
+        });
+    });
+
+    return { version: 1, enabled: false, entry, nodes, edges };
+}
+
+function escapeHtml(s) {
+    return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+}
+function escapeAttr(s) {
+    return escapeHtml(s).replace(/'/g, '&#39;');
+}
+
+export function toggleWorkflowHelp() {
+    const panel = document.getElementById('workflow-help-panel');
+    if (panel) panel.classList.toggle('open');
+}
+
+export function fitWorkflowCanvas() {
+    refreshDrawflowViewport();
+}
+
+export async function simulateWorkflow() {
+    if (!currentProjectId || !editor) return;
+    flushAllNodeDataBeforeExport();
+    const exported = editor.export();
+    const doc = canonicalFromDrawflow(exported);
+    if (!doc) {
+        notify('Add a Trigger node before simulating.', 'error');
+        return;
+    }
+    const sample = {
+        name: document.getElementById('wf-sim-name')?.value?.trim() || '[FLAKY] checkout payment',
+        status: document.getElementById('wf-sim-status')?.value?.trim() || 'CRITICAL',
+        error: document.getElementById('wf-sim-error')?.value?.trim() || 'timeout waiting for upstream'
+    };
+    const res = await fetchWithAuth(`/api/projects/${encodeURIComponent(currentProjectId)}/workflow/simulate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...sample, workflow: doc })
+    });
+    const { ok, data } = await parseApiJson(res);
+    const out = document.getElementById('workflow-simulate-result');
+    if (!ok) {
+        notify(data?.error || 'Simulation failed.', 'error');
+        if (out) out.textContent = '';
+        return;
+    }
+    const plan = data?.plan || {};
+    const lines = [
+        `Sample: ${sample.name} (${sample.status})`,
+        plan.visited?.length ? `Path: ${plan.visited.join(' → ')}` : '',
+        plan.actions?.length ? `Would run: ${plan.actions.join(' → ')}` : 'Would run: (no actions)',
+        plan.skipped?.length ? `Skipped: ${plan.skipped.join('; ')}` : ''
+    ].filter(Boolean);
+    if (out) {
+        out.textContent = lines.join('\n');
+        out.classList.add('visible');
+    }
+    notify('Simulation complete — see panel below canvas.', 'success');
+}
+
+export function loadFlakyExampleWorkflow() {
+    if (!canEditWorkflow || !editor) return;
+    editor.clear();
+    const t = addDrawflowNode('trigger', 80, 140, {}, null);
+    const c = addDrawflowNode('condition', 340, 140, {
+        when: { op: 'tag', match: 'prefix', value: '[FLAKY]', field: 'incident.name' }
+    }, null);
+    const slackPath = workflowCatalog.find(p => p.file_path?.includes('slack'))?.file_path || workflowCatalog[0]?.file_path;
+    const jiraPath = workflowCatalog.find(p => p.file_path?.includes('jira'))?.file_path;
+    const a1 = slackPath ? addDrawflowNode('action', 600, 80, {
+        file_path: slackPath,
+        integration: 'slack',
+        label: 'Slack notify'
+    }, null) : null;
+    const a2 = jiraPath ? addDrawflowNode('action', 600, 200, {
+        file_path: jiraPath,
+        integration: 'jira',
+        label: 'Jira ticket'
+    }, null) : null;
+    if (t && c) editor.addConnection(t, c, 'output_1', 'input_1');
+    if (c && a1) editor.addConnection(c, a1, 'output_1', 'input_1');
+    if (c && a2) editor.addConnection(c, a2, 'output_2', 'input_1');
+    populateActionSelects();
+    bindNodeControls();
+    syncControlsFromNodeData();
+    updateCanvasEmptyState();
+    refreshDrawflowViewport();
+    notify('Flaky example loaded — true→Slack, false→Jira.', 'success');
+}

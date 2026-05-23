@@ -4,14 +4,20 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/QA-Capsule/qa-capsule-community/pkg/integrations"
 )
 
 var remediationEngine *integrations.Engine
 
-// InitRemediationEngine loads integrations once at startup (immutable until restart).
+// InitRemediationEngine loads integrations once at startup.
 func InitRemediationEngine(pluginsDir string) error {
+	return ReloadRemediationRegistry(pluginsDir)
+}
+
+// ReloadRemediationRegistry re-reads plugin manifests from disk (picks up routing_enabled / config changes).
+func ReloadRemediationRegistry(pluginsDir string) error {
 	reg, err := integrations.LoadRegistry(pluginsDir)
 	if err != nil {
 		return err
@@ -28,13 +34,34 @@ func requireEngine() (*integrations.Engine, error) {
 }
 
 // EvaluateAlertRules runs native Go integrations when triggers match (no shell).
+// When a visual workflow DAG is enabled for the project, it takes precedence over legacy linear auto-trigger.
 // allowedPluginPaths limits auto-run to plugins configured on the project gateway (nil = all auto_run plugins).
-func EvaluateAlertRules(config Config, alert UnifiedAlert, projectContext map[string]string, allowedPluginPaths map[string]bool) {
+func EvaluateAlertRules(config Config, projectName string, alert UnifiedAlert, projectContext map[string]string, allowedPluginPaths map[string]bool) {
 	engine, err := requireEngine()
 	if err != nil {
 		return
 	}
 	routing := mapToRouting(projectContext)
+	inc := integrations.IncidentContext{
+		Name:        alert.Name,
+		Error:       alert.Error,
+		ConsoleLogs: alert.ConsoleLogs,
+		Status:      alert.Status,
+		Action:      "AUTO_EVENT:" + alert.Name,
+	}
+	if doc := LoadProjectWorkflow(projectName); integrations.IsWorkflowActive(doc) {
+		wctx := integrations.WorkflowContext{
+			Incident: inc,
+			Tags:     integrations.DeriveTags(alert.Name),
+			Allowed:  allowedPluginPaths,
+		}
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+			defer cancel()
+			integrations.NewWorkflowEngine(engine).Execute(ctx, doc, wctx, routing)
+		}()
+		return
+	}
 	engine.EvaluateAlertRules(alert.Name, alert.Error, alert.ConsoleLogs, alert.Status, routing, allowedPluginPaths)
 }
 
@@ -69,6 +96,11 @@ func RemediationRegistry() *integrations.Registry {
 		return nil
 	}
 	return remediationEngine.Registry()
+}
+
+// RemediationEngine exposes the integration runner for workflow simulation.
+func RemediationEngine() *integrations.Engine {
+	return remediationEngine
 }
 
 func mapToRouting(ctx map[string]string) integrations.ProjectRouting {

@@ -18,5 +18,6 @@ func main() {
 		os.Exit(1)
 	}
 	core.InitDB("qa-capsule.db")
+	core.InitSuperApp()
 	server.Start(config)
 }

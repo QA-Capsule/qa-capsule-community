@@ -121,3 +121,29 @@ func CanAccessChartStudio(role string) bool {
 	r := NormalizeRole(role)
 	return r == RoleManager || r == RoleLead || r == RoleObserver
 }
+
+// CanManageWorkflow allows creating/editing visual remediation DAGs (Lead+).
+func CanManageWorkflow(role string) bool {
+	return HasMinRole(role, RoleLead)
+}
+
+// CanViewRCA allows reading AI insights (Observer+ on operations roles).
+func CanViewRCA(role string) bool {
+	r := NormalizeRole(role)
+	return r == RoleLead || r == RoleManager || r == RoleObserver
+}
+
+// CanViewQuarantine allows reading quarantine list.
+func CanViewQuarantine(role string) bool {
+	return CanViewRCA(role)
+}
+
+// CanManageQuarantine allows manual quarantine / lift (Lead+).
+func CanManageQuarantine(role string) bool {
+	return HasMinRole(role, RoleLead)
+}
+
+// CanConfigureAI allows changing LLM provider settings (Manager+).
+func CanConfigureAI(role string) bool {
+	return IsManager(role) || IsAdmin(role)
+}

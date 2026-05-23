@@ -8,9 +8,9 @@ export function notify(message, type = 'success') {
     if (!container) return alert(message);
 
     const toast = document.createElement('div');
-    const bgColor = type === 'error' ? '#ff4444' : '#00C851';
+    const bgColor = type === 'error' ? 'var(--log-fatal, #dc2626)' : 'var(--log-pass, #059669)';
 
-    toast.style.cssText = `background-color: ${bgColor}; color: white; padding: 15px 20px; border-radius: 4px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); font-weight: bold; font-size: 14px; transition: opacity 0.5s ease; margin-top: 10px; z-index: 99999;`;
+    toast.style.cssText = `background-color: ${bgColor}; color: white; padding: 12px 18px; border-radius: var(--radius-sm, 8px); box-shadow: var(--shadow-md, 0 8px 24px rgba(0,0,0,0.2)); font-weight: 600; font-size: 13px; transition: opacity 0.5s ease; margin-top: 10px; z-index: 100001; max-width: min(420px, 90vw); line-height: 1.4;`;
     toast.innerHTML = `<span>${message}</span>`;
     container.appendChild(toast);
     setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 500); }, 4000);

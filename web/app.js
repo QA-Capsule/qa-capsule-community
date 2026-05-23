@@ -13,7 +13,13 @@ import * as finops from './js/finops.js';
 import * as about from './js/about.js';
 import * as analyticsLayout from './js/analytics-layout.js';
 import { applyRoleVisibility, canAccessFinOps, canAccessPlugins, canResolveIncidents, canDeleteIncidents, hasMinRole, roleLabel, canManageTeams, canManageIAM, isAdmin, canAccessView, accessDeniedMessage, defaultViewForRole, canManagePluginAutoRun } from './js/roles.js';
+import * as workflowEditor from './js/workflow-editor.js';
+import * as rca from './js/rca.js';
+import * as quarantine from './js/quarantine.js';
+import * as runbooks from './js/runbooks.js';
+import * as dora from './js/dora.js';
 import { setupAutocomplete } from './js/autocomplete.js';
+import { initTheme } from './js/ui.js';
 
 // EXPORT GLOBALLY FOR HTML INLINE HANDLERS
 Object.assign(window, { notify, showConfirmModal, showPromptModal, closeModal, toggleTheme, initSidebar, toggleSidebar, parseJwt, performLogout, fetchWithAuth });
@@ -37,7 +43,21 @@ for (const [key, value] of Object.entries(about)) {
 for (const [key, value] of Object.entries(analyticsLayout)) {
     if (typeof value === 'function') window[key] = value;
 }
-
+for (const [key, value] of Object.entries(workflowEditor)) {
+    if (typeof value === 'function') window[key] = value;
+}
+for (const [key, value] of Object.entries(rca)) {
+    if (typeof value === 'function') window[key] = value;
+}
+for (const [key, value] of Object.entries(quarantine)) {
+    if (typeof value === 'function') window[key] = value;
+}
+for (const [key, value] of Object.entries(runbooks)) {
+    if (typeof value === 'function') window[key] = value;
+}
+for (const [key, value] of Object.entries(dora)) {
+    if (typeof value === 'function') window[key] = value;
+}
 // ==========================================
 // VARIABLES GLOBALES & FINOPS SRE
 // ==========================================
@@ -1167,6 +1187,21 @@ window.switchView = function (id, el) {
     if (id === 'finops' && payload && canAccessFinOps(payload.role)) {
         if (window.loadFinOpsView) window.loadFinOpsView();
     }
+    if (id === 'rca' && payload && canAccessView(payload.role, 'rca')) {
+        if (window.loadRCAView) window.loadRCAView();
+        if (window.loadAIConfigPanel) window.loadAIConfigPanel();
+    }
+    if (id === 'quarantine' && payload && canAccessView(payload.role, 'quarantine')) {
+        if (window.loadQuarantineView) window.loadQuarantineView();
+    }
+    if (id === 'runbooks' && payload && canAccessView(payload.role, 'runbooks')) {
+        if (window.loadRunbooksView) window.loadRunbooksView();
+    }
+    if (id === 'dora' && payload && canAccessView(payload.role, 'dora')) {
+        if (window.loadDORAView) window.loadDORAView();
+    } else if (typeof window.destroyDORAChart === 'function') {
+        window.destroyDORAChart();
+    }
     if (id === 'about') {
         if (window.loadAboutView) window.loadAboutView();
     }
@@ -1228,7 +1263,12 @@ window.initSmartSearchFields = function () {
 // ==========================================
 // STARTUP
 // ==========================================
+window.addEventListener('unhandledrejection', (e) => {
+    console.error('[QA Capsule] unhandled promise rejection', e.reason);
+});
+
 window.onload = function () {
+    initTheme();
     initSidebar();
     pingApiServer();
     window.checkAuth();

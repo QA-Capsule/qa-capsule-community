@@ -7,6 +7,7 @@
   "description": "Creates an Opsgenie (Jira Service Management ops) alert for on-call SRE teams.",
   "integration": "opsgenie",
   "name": "Opsgenie Alert",
+  "routing_enabled": false,
   "status": "Active",
   "trigger_on": [
     "CRITICAL",

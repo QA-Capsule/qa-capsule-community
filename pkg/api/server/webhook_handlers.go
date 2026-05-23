@@ -40,6 +40,11 @@ func registerWebhookRoutes(config *core.Config) {
 			return
 		}
 
+		commitSHA := r.Header.Get("X-Commit-Sha")
+		if commitSHA == "" {
+			commitSHA = r.Header.Get("X-Git-Commit")
+		}
+
 		var alerts []core.UnifiedAlert
 
 		if strings.HasSuffix(r.URL.Path, "/upload") {
@@ -61,13 +66,26 @@ func registerWebhookRoutes(config *core.Config) {
 			}
 			framework := r.URL.Query().Get("framework")
 			alerts = core.ParseJUnitXML(fileBytes, framework)
+			for i := range alerts {
+				alerts[i].CommitSHA = commitSHA
+			}
 		} else {
 			var rawPayload map[string]interface{}
 			if err := json.NewDecoder(r.Body).Decode(&rawPayload); err != nil {
 				http.Error(w, "Invalid JSON payload format", http.StatusBadRequest)
 				return
 			}
+			if commitSHA == "" {
+				if v, ok := rawPayload["commit_sha"].(string); ok {
+					commitSHA = v
+				}
+			}
 			alerts = core.ParseAlertsFromRaw(rawPayload)
+			for i := range alerts {
+				if alerts[i].CommitSHA == "" {
+					alerts[i].CommitSHA = commitSHA
+				}
+			}
 		}
 
 		nonSkipped := 0
@@ -93,6 +111,10 @@ func registerWebhookRoutes(config *core.Config) {
 		}
 		if runID == "" {
 			runID = fmt.Sprintf("run-%d", time.Now().UnixNano())
+		}
+		branch := r.Header.Get("X-Branch")
+		if branch == "" {
+			branch = r.Header.Get("X-Git-Branch")
 		}
 
 		alertContext, allowedPlugins := core.ProjectAlertContext(projectName)
@@ -120,6 +142,12 @@ func registerWebhookRoutes(config *core.Config) {
 				}
 			}
 		}
+
+		outcome := "success"
+		if processed > 0 {
+			outcome = "failure"
+		}
+		core.RecordPipelineRun(projectName, runID, commitSHA, branch, outcome)
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusAccepted)

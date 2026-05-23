@@ -84,8 +84,13 @@ func (e *Engine) EvaluateAlertRules(alertName, alertError, alertConsole, alertSt
 		if !strings.EqualFold(m.Status, "active") || !m.AutoRun {
 			continue
 		}
-		if len(allowedPaths) > 0 && !allowedPaths[m.FilePath] {
-			continue
+		if allowedPaths != nil {
+			if len(allowedPaths) == 0 {
+				continue
+			}
+			if !allowedPaths[m.FilePath] {
+				continue
+			}
 		}
 		if !matchesTrigger(alertText, m.TriggerOn) {
 			continue

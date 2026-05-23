@@ -3,7 +3,10 @@ package core
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"strings"
+
+	"github.com/QA-Capsule/qa-capsule-community/pkg/integrations"
 )
 
 // SRERoutingEntry is one plugin routing block on a CI/CD gateway project.
@@ -72,6 +75,30 @@ func ParseSRERoutingJSON(raw string) []SRERoutingEntry {
 		return nil
 	}
 	return entries
+}
+
+// ValidateSRERoutingEntries rejects routing blocks for integrations not activated by a Manager (Active + auto_run).
+func ValidateSRERoutingEntries(entries []SRERoutingEntry) error {
+	if len(entries) == 0 {
+		return nil
+	}
+	reg := RemediationRegistry()
+	if reg == nil {
+		return fmt.Errorf("remediation engine not initialized")
+	}
+	for _, e := range entries {
+		if e.FilePath == "" {
+			continue
+		}
+		m, ok := reg.GetByPath(e.FilePath)
+		if !ok {
+			return fmt.Errorf("unknown integration: %s", e.FilePath)
+		}
+		if !integrations.IsActiveForRouting(m.Status, m.RoutingEnabled, m.AutoRun) {
+			return fmt.Errorf("integration %q is not activated by a Manager in Plugin Engine", m.Name)
+		}
+	}
+	return nil
 }
 
 // MarshalSRERoutingJSON encodes routing entries for persistence.
