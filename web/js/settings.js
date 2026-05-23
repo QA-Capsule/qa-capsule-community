@@ -89,6 +89,7 @@ function workflowTableBadge(project) {
     return '<span class="wf-table-badge legacy" title="Legacy AUTO-RUN">Legacy</span>';
 }
 
+<<<<<<< HEAD
 let gatewayTableClickBound = false;
 
 function bindGatewayTableClicks() {
@@ -118,13 +119,35 @@ function bindGatewayTableClicks() {
         if (delBtn) {
             e.preventDefault();
             deleteProject(delBtn.getAttribute('data-project-id'));
+=======
+let workflowTableClickBound = false;
+
+function bindWorkflowTableClicks() {
+    const tbody = document.getElementById('projects-table-body');
+    if (!tbody || workflowTableClickBound) return;
+    workflowTableClickBound = true;
+    tbody.addEventListener('click', (e) => {
+        const btn = e.target.closest('.btn-open-workflow');
+        if (!btn) return;
+        e.preventDefault();
+        const projectId = btn.getAttribute('data-project-id');
+        const projectName = btn.getAttribute('data-project-name') || projectId;
+        if (typeof window.openWorkflowEditor === 'function') {
+            window.openWorkflowEditor(projectId, projectName);
+        } else {
+            notify('Workflow editor not loaded. Hard-refresh the page (Ctrl+F5).', 'error');
+>>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
         }
     });
 }
 
 export function loadGatewaysData() {
     bindSRERoutingControls();
+<<<<<<< HEAD
     bindGatewayTableClicks();
+=======
+    bindWorkflowTableClicks();
+>>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
     const tbody = document.getElementById('projects-table-body');
     fetchWithAuth(`/api/my-projects?_ts=${Date.now()}`)
         .then(res => parseApiJson(res))
@@ -146,9 +169,15 @@ export function loadGatewaysData() {
                     <td style="padding: 10px;"><code style="color: #ff7b72; font-family: monospace;">••••••••••••</code></td>
                     <td style="padding: 10px;">${workflowTableBadge(p)}</td>
                     <td style="padding: 10px; text-align: right;">
+<<<<<<< HEAD
                         <button type="button" class="btn btn-secondary btn-sm btn-open-workflow" style="margin-right:6px;" data-project-id="${escapePluginHtml(String(p.id))}" data-project-name="${escapePluginHtml(p.name)}" title="Visual remediation DAG">WORKFLOW</button>
                         <button type="button" class="btn btn-secondary btn-sm btn-info btn-edit-project" data-project-id="${escapePluginHtml(String(p.id))}">EDIT</button>
                         <button type="button" class="btn btn-secondary btn-sm btn-danger btn-delete-project" data-project-id="${escapePluginHtml(String(p.id))}">DELETE</button>
+=======
+                        <button type="button" class="btn btn-secondary btn-sm btn-open-workflow" style="margin-right:6px;" data-project-id="${escapePluginHtml(p.id)}" data-project-name="${escapePluginHtml(p.name)}" title="Visual remediation DAG">WORKFLOW</button>
+                        <button type="button" class="btn btn-secondary btn-sm btn-info" onclick="window.editProject('${p.id}')">EDIT</button>
+                        <button type="button" class="btn btn-secondary btn-sm btn-danger" onclick="window.deleteProject('${p.id}')">DELETE</button>
+>>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
                     </td>
                 </tr>
             `).join('');
@@ -836,7 +865,11 @@ function bindSRERoutingControls() {
 
 function initSRERoutingUI() {
     bindSRERoutingControls();
+<<<<<<< HEAD
     bindGatewayTableClicks();
+=======
+    bindWorkflowTableClicks();
+>>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
 }
 
 if (document.readyState === 'loading') {

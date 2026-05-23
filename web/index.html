@@ -19,7 +19,11 @@
             margin: auto; background: #0d1117; border: 1px solid #30363d; border-radius: 10px; overflow: hidden;
         }
         .workflow-editor-toolbar {
+<<<<<<< HEAD
             display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 12px 16px; border-bottom: 1px solid #30363d;
+=======
+            display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid #30363d;
+>>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
             background: #161b22;
         }
         .workflow-editor-body { display: flex; flex: 1; min-height: 0; height: 100%; }
@@ -39,12 +43,18 @@
         }
         #drawflow .drawflow-node {
             background: #161b22 !important; border: 1px solid #58a6ff !important;
+<<<<<<< HEAD
             border-radius: 8px !important; color: #c9d1d9 !important; min-width: 180px;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
         }
         #drawflow .drawflow-node:has(.wf-trigger) { border-color: #3fb950 !important; }
         #drawflow .drawflow-node:has(.wf-condition) { border-color: #d29922 !important; }
         #drawflow .drawflow-node:has(.wf-action) { border-color: #58a6ff !important; }
+=======
+            border-radius: 8px !important; color: #c9d1d9 !important; min-width: 160px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+        }
+>>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
         #drawflow .drawflow-node.selected { border-color: #3fb950 !important; }
         #drawflow .drawflow_content_node { width: 100%; }
         #drawflow .connection .main-path { stroke: #58a6ff; stroke-width: 2px; }
@@ -1192,12 +1202,18 @@
                 </label>
                 <span id="workflow-readonly-badge">Read-only (Observer)</span>
                 <button type="button" class="btn-secondary" onclick="toggleWorkflowHelp()" title="Help">?</button>
+<<<<<<< HEAD
                 <button type="button" class="btn-secondary wf-edit-only" onclick="loadFlakyExampleWorkflow()">Example</button>
                 <button type="button" class="btn-secondary wf-edit-only" onclick="addWorkflowNode('trigger')">+ Trigger</button>
                 <button type="button" class="btn-secondary wf-edit-only" onclick="addWorkflowNode('condition')">+ Condition</button>
                 <button type="button" class="btn-secondary wf-edit-only" onclick="addWorkflowNode('action')">+ Action</button>
                 <button type="button" class="btn-secondary wf-edit-only" onclick="simulateWorkflow()">Simulate</button>
                 <button type="button" class="btn-secondary" onclick="fitWorkflowCanvas()">Fit</button>
+=======
+                <button type="button" class="btn-secondary wf-edit-only" onclick="addWorkflowNode('trigger')">+ Trigger</button>
+                <button type="button" class="btn-secondary wf-edit-only" onclick="addWorkflowNode('condition')">+ Condition</button>
+                <button type="button" class="btn-secondary wf-edit-only" onclick="addWorkflowNode('action')">+ Action</button>
+>>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
                 <button type="button" class="btn-secondary wf-edit-only" onclick="clearWorkflow()">Reset</button>
                 <button type="button" class="btn-primary wf-edit-only" onclick="saveWorkflow()">Save</button>
                 <button type="button" class="btn-secondary" onclick="closeWorkflowEditor()">Close</button>
@@ -1207,12 +1223,18 @@
                     <div id="drawflow"></div>
                     <div id="workflow-canvas-empty">
                         <div>
+<<<<<<< HEAD
                             <p style="margin:0 0 8px;color:#c9d1d9;">Empty canvas</p>
                             <p style="margin:0;">Click <strong>+ Trigger</strong> to start, or load a saved workflow.</p>
+=======
+                            <p style="margin:0 0 8px;color:#c9d1d9;">Canvas vide</p>
+                            <p style="margin:0;">Cliquez <strong>+ Trigger</strong> pour commencer, ou chargez un exemple.</p>
+>>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
                         </div>
                     </div>
                 </div>
                 <aside id="workflow-help-panel" class="open">
+<<<<<<< HEAD
                     <h3 style="margin:0 0 10px;color:#58a6ff;font-size:13px;">Simulate incident</h3>
                     <label style="font-size:11px;display:block;margin-bottom:4px;">Test name</label>
                     <input type="text" id="wf-sim-name" class="login-input" value="[FLAKY] checkout payment" style="margin-bottom:8px;font-size:11px;">
@@ -1223,6 +1245,9 @@
                     <button type="button" class="btn-secondary wf-edit-only" style="width:100%;margin-bottom:10px;" onclick="simulateWorkflow()">Run simulation</button>
                     <pre id="workflow-simulate-result" class="workflow-simulate-result"></pre>
                     <h3 style="margin:16px 0 10px;color:#58a6ff;font-size:13px;">Help</h3>
+=======
+                    <h3 style="margin:0 0 10px;color:#58a6ff;font-size:13px;">Help Center</h3>
+>>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
                     <p><strong>Trigger</strong> — Entry point when a CI alert is ingested into QA Capsule.</p>
                     <p><strong>Condition</strong> — Branches on tags (e.g. <code>[FLAKY]</code>), status, or text match. Connect the <em>true</em> (top) or <em>false</em> (bottom) output.</p>
                     <p><strong>Action</strong> — Runs a native integration from the Plugin Engine registry (Slack, Jira, …). Configure gateway routing values first.</p>

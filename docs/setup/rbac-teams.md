@@ -15,7 +15,7 @@ QA Capsule uses hierarchical teams and role-based access control (RBAC) to isola
 | **admin** | Platform Admin | All projects | Yes | Yes | Yes | Yes | Yes |
 | **manager** | Manager | All projects | Yes | Yes | No | Limited | No |
 | **lead** | Lead | Team projects | Yes | Yes | Yes | No | No |
-| **observer** | Observer | Team projects | No | No | No | No | No |
+| **observer** | Observer | Team projects | No | No | No (read-only N/A — no gateway access) | No | No |
 
 !!! note "Legacy role codes"
     Older databases may still list `operator` / `viewer`; they are migrated automatically to `lead` / `observer` on startup.

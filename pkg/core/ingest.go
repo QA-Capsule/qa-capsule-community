@@ -85,7 +85,10 @@ func ProcessAlert(cfg Config, projectName, runID string, alert UnifiedAlert, rou
 
 	alert.Name = finalName
 	go EvaluateAlertRules(cfg, projectName, alert, routing, allowedPluginPaths)
+<<<<<<< HEAD
 	PostIncidentHooks(id, projectName, runID, alert.CommitSHA, alert, flaky)
+=======
+>>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
 
 	return IngestResult{IncidentID: id, Flaky: flaky, PerfAlert: perf}
 }

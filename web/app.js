@@ -14,10 +14,13 @@ import * as about from './js/about.js';
 import * as analyticsLayout from './js/analytics-layout.js';
 import { applyRoleVisibility, canAccessFinOps, canAccessPlugins, canResolveIncidents, canDeleteIncidents, hasMinRole, roleLabel, canManageTeams, canManageIAM, isAdmin, canAccessView, accessDeniedMessage, defaultViewForRole, canManagePluginAutoRun } from './js/roles.js';
 import * as workflowEditor from './js/workflow-editor.js';
+<<<<<<< HEAD
 import * as rca from './js/rca.js';
 import * as quarantine from './js/quarantine.js';
 import * as runbooks from './js/runbooks.js';
 import * as dora from './js/dora.js';
+=======
+>>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
 import { setupAutocomplete } from './js/autocomplete.js';
 import { initTheme } from './js/ui.js';
 
@@ -46,6 +49,7 @@ for (const [key, value] of Object.entries(analyticsLayout)) {
 for (const [key, value] of Object.entries(workflowEditor)) {
     if (typeof value === 'function') window[key] = value;
 }
+<<<<<<< HEAD
 for (const [key, value] of Object.entries(rca)) {
     if (typeof value === 'function') window[key] = value;
 }
@@ -58,6 +62,9 @@ for (const [key, value] of Object.entries(runbooks)) {
 for (const [key, value] of Object.entries(dora)) {
     if (typeof value === 'function') window[key] = value;
 }
+=======
+
+>>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
 // ==========================================
 // VARIABLES GLOBALES & FINOPS SRE
 // ==========================================

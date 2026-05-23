@@ -126,6 +126,7 @@ func CanAccessChartStudio(role string) bool {
 func CanManageWorkflow(role string) bool {
 	return HasMinRole(role, RoleLead)
 }
+<<<<<<< HEAD
 
 // CanViewRCA allows reading AI insights (Observer+ on operations roles).
 func CanViewRCA(role string) bool {
@@ -147,3 +148,5 @@ func CanManageQuarantine(role string) bool {
 func CanConfigureAI(role string) bool {
 	return IsManager(role) || IsAdmin(role)
 }
+=======
+>>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb

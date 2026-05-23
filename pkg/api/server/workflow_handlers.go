@@ -20,6 +20,7 @@ func handleProjectWorkflow(config *core.Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimPrefix(r.URL.Path, "/api/projects/")
 		path = strings.TrimSuffix(path, "/")
+<<<<<<< HEAD
 		projectID := ""
 		isSimulate := strings.HasSuffix(path, "/workflow/simulate")
 		switch {
@@ -31,6 +32,13 @@ func handleProjectWorkflow(config *core.Config) http.HandlerFunc {
 			http.NotFound(w, r)
 			return
 		}
+=======
+		if !strings.HasSuffix(path, "/workflow") {
+			http.NotFound(w, r)
+			return
+		}
+		projectID := strings.TrimSuffix(path, "/workflow")
+>>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
 		projectID = strings.Trim(projectID, "/")
 		if projectID == "" {
 			writeJSONError(w, "project id required", http.StatusBadRequest)
@@ -47,6 +55,7 @@ func handleProjectWorkflow(config *core.Config) http.HandlerFunc {
 			return
 		}
 
+<<<<<<< HEAD
 		if isSimulate {
 			if r.Method != http.MethodPost {
 				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -60,6 +69,8 @@ func handleProjectWorkflow(config *core.Config) http.HandlerFunc {
 			return
 		}
 
+=======
+>>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
 		switch r.Method {
 		case http.MethodGet:
 			handleGetWorkflow(w, r, projectID, claims)
@@ -141,6 +152,7 @@ func handlePutWorkflow(w http.ResponseWriter, r *http.Request, projectID string)
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
+<<<<<<< HEAD
 func handleSimulateWorkflow(w http.ResponseWriter, r *http.Request, projectID string) {
 	var payload struct {
 		Name     string                          `json:"name"`
@@ -207,6 +219,8 @@ func handleSimulateWorkflow(w http.ResponseWriter, r *http.Request, projectID st
 	})
 }
 
+=======
+>>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
 func handleDeleteWorkflow(w http.ResponseWriter, projectID string) {
 	if err := core.ClearProjectWorkflow(projectID); err != nil {
 		writeJSONError(w, "Failed to clear workflow", http.StatusInternalServerError)

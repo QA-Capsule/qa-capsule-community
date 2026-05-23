@@ -1,5 +1,9 @@
 {
+<<<<<<< HEAD
   "auto_run": true,
+=======
+  "auto_run": false,
+>>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
   "config": {
     "JIRA_API_TOKEN": "ATATT3xFfGF0B1NW6HUoH0ii0TWGcvD5UaBsVoBs3eJIDi2kAdJwB3iYGOEL2YWbgIIX5mf1Y41VslxE6lRzZ8HBYRyaEwTFWJ26Mnp9EbIWnk4JMIMpnrV3-aXeugoKg4FynRTv05uHEENxR6TLofUvU7twFm8efG8J70eMYC3Xn1dGoP6c6j8=6AEE4D46",
     "JIRA_EMAIL": "khabarachraf@gmail.com",

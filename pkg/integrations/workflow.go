@@ -103,6 +103,7 @@ func DeriveTags(incidentName string) []string {
 	return tags
 }
 
+<<<<<<< HEAD
 // ValidateWorkflow checks structure, cycles, registry paths, routing-active plugins, and gateway allow-list.
 func ValidateWorkflow(doc *WorkflowDocument, reg *Registry, allowed map[string]bool) error {
 	return validateWorkflow(doc, reg, allowed, true)
@@ -114,6 +115,10 @@ func ValidateWorkflowStructure(doc *WorkflowDocument, reg *Registry) error {
 }
 
 func validateWorkflow(doc *WorkflowDocument, reg *Registry, allowed map[string]bool, requireRoutingActive bool) error {
+=======
+// ValidateWorkflow checks structure, cycles, and registry-backed actions.
+func ValidateWorkflow(doc *WorkflowDocument, reg *Registry, allowed map[string]bool) error {
+>>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
 	if doc == nil {
 		return fmt.Errorf("workflow is nil")
 	}
@@ -150,7 +155,11 @@ func validateWorkflow(doc *WorkflowDocument, reg *Registry, allowed map[string]b
 		}
 		if node.Type == "action" {
 			if strings.TrimSpace(node.FilePath) == "" {
+<<<<<<< HEAD
 				return fmt.Errorf("action node %q requires an integration (file_path)", id)
+=======
+				return fmt.Errorf("action node %q requires file_path", id)
+>>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
 			}
 			if reg == nil {
 				return fmt.Errorf("remediation registry not loaded")
@@ -159,7 +168,11 @@ func validateWorkflow(doc *WorkflowDocument, reg *Registry, allowed map[string]b
 			if !ok {
 				return fmt.Errorf("unknown integration path: %s", node.FilePath)
 			}
+<<<<<<< HEAD
 			if requireRoutingActive && !IsActiveForRouting(m.Status, m.RoutingEnabled, m.AutoRun) {
+=======
+			if !IsActiveForRouting(m.Status, m.RoutingEnabled, m.AutoRun) {
+>>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
 				return fmt.Errorf("integration %q is not active for routing", m.Name)
 			}
 			if len(allowed) > 0 && !allowed[node.FilePath] {

@@ -68,6 +68,7 @@ export function canManageWorkflow(role) {
     return hasMinRole(role, 'lead');
 }
 
+<<<<<<< HEAD
 export function canViewRCA(role) {
     const r = normalizeRole(role);
     return r === 'lead' || r === 'manager' || r === 'observer';
@@ -94,6 +95,8 @@ export function canAccessDORA(role) {
     return normalizeRole(role) === 'manager';
 }
 
+=======
+>>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
 export function canAccessPlugins(role) {
     const r = normalizeRole(role);
     return r === 'manager' || r === 'lead';

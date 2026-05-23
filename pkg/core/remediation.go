@@ -55,11 +55,15 @@ func EvaluateAlertRules(config Config, projectName string, alert UnifiedAlert, p
 			Tags:     integrations.DeriveTags(alert.Name),
 			Allowed:  allowedPluginPaths,
 		}
+<<<<<<< HEAD
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 			defer cancel()
 			integrations.NewWorkflowEngine(engine).Execute(ctx, doc, wctx, routing)
 		}()
+=======
+		go integrations.NewWorkflowEngine(engine).Execute(context.Background(), doc, wctx, routing)
+>>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
 		return
 	}
 	engine.EvaluateAlertRules(alert.Name, alert.Error, alert.ConsoleLogs, alert.Status, routing, allowedPluginPaths)

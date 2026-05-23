@@ -175,9 +175,12 @@ func Start(initialConfig core.Config) {
 	registerTeamRoutes(config)
 	registerProjectRoutes(config)
 	registerWorkflowRoutes(config)
+<<<<<<< HEAD
 	registerIntelligenceRoutes(config)
 	registerRunbooksRoutes(config)
 	registerDORARoutes(config)
+=======
+>>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
 	registerWebhookRoutes(config)
 	registerIncidentRoutes(config)
 	registerArtifactRoutes(config)

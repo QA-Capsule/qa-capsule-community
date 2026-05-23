@@ -20,15 +20,22 @@ const NODE_TEMPLATES = {
     },
     condition: {
         html: `<div class="wf-node wf-condition"><div class="wf-title">Condition</div>
+<<<<<<< HEAD
             <div class="wf-branch-hint"><span class="true">●</span> top = true · <span class="false">●</span> bottom = false</div>
+=======
+>>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
             <select class="wf-cond-op login-input" style="margin-top:6px;font-size:11px;width:100%;">
                 <option value="tag:prefix:[FLAKY]">Tag: [FLAKY]</option>
                 <option value="tag:prefix:[PERF]">Tag: [PERF]</option>
                 <option value="status:eq:CRITICAL">Status: CRITICAL</option>
                 <option value="status:eq:PERF_DEGRADATION">Status: PERF</option>
+<<<<<<< HEAD
                 <option value="text:contains:timeout">Error contains timeout</option>
                 <option value="text:contains:502">Error contains 502</option>
                 <option value="text:contains:oom">Error contains OOM</option>
+=======
+                <option value="text:contains:timeout">Text contains timeout</option>
+>>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
             </select></div>`,
         inputs: 1,
         outputs: 2,
@@ -62,9 +69,13 @@ export function openWorkflowEditor(projectId, projectName) {
         titleEl.textContent = `Visual Workflow — ${projectName || projectId}`;
     }
     modal.style.display = 'flex';
+<<<<<<< HEAD
     document.body.classList.add('workflow-modal-open');
     bindWorkflowToolbar();
     bindWorkflowModalKeys();
+=======
+    bindWorkflowToolbar();
+>>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
     requestAnimationFrame(() => {
         requestAnimationFrame(() => {
             void loadWorkflow(projectId).catch((err) => {
@@ -86,11 +97,15 @@ function bindWorkflowToolbar() {
 export function closeWorkflowEditor() {
     const modal = document.getElementById('workflow-editor-modal');
     if (modal) modal.style.display = 'none';
+<<<<<<< HEAD
     document.body.classList.remove('workflow-modal-open');
+=======
+>>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
     destroyDrawflowEditor();
     currentProjectId = null;
 }
 
+<<<<<<< HEAD
 let workflowModalKeysBound = false;
 
 function bindWorkflowModalKeys() {
@@ -113,6 +128,8 @@ function bindWorkflowModalKeys() {
     }
 }
 
+=======
+>>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
 function destroyDrawflowEditor() {
     const container = document.getElementById('drawflow');
     if (container) {
@@ -135,12 +152,17 @@ function initDrawflow() {
     editor = new Drawflow(container);
     editor.reroute = true;
     editor.reroute_fix_curvature = true;
+<<<<<<< HEAD
     editor.curvature = 0.45;
     editor.zoom_max = 1.6;
     editor.zoom_min = 0.4;
     editor.editor_mode = canEditWorkflow ? 'edit' : 'fixed';
     editor.start();
     bindDrawflowEvents();
+=======
+    editor.editor_mode = canEditWorkflow ? 'edit' : 'fixed';
+    editor.start();
+>>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
 
     const canvas = container.querySelector('.drawflow');
     if (canvas) {
@@ -152,6 +174,7 @@ function initDrawflow() {
     return editor;
 }
 
+<<<<<<< HEAD
 function bindDrawflowEvents() {
     if (!editor || editor._qaCapsuleBound) return;
     editor._qaCapsuleBound = true;
@@ -169,6 +192,8 @@ function bindDrawflowEvents() {
     }
 }
 
+=======
+>>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
 function refreshDrawflowViewport() {
     if (!editor) return;
     requestAnimationFrame(() => {
@@ -337,6 +362,7 @@ function drawflowImportHasNodes(ui) {
     return data && Object.keys(data).length > 0;
 }
 
+<<<<<<< HEAD
 function layoutWorkflowPositions(workflow, entryId) {
     const positions = {};
     const queue = [{ id: entryId, depth: 0 }];
@@ -376,14 +402,29 @@ function buildCanvasFromCanonical(workflow) {
         const tpl = NODE_TEMPLATES[node.type];
         if (!tpl) continue;
         const pos = positions[cid] || { x: 80, y: 80 };
+=======
+function buildCanvasFromCanonical(workflow) {
+    const idMap = {};
+    let y = 80;
+    let x = 80;
+    for (const [cid, node] of Object.entries(workflow.nodes)) {
+        const tpl = NODE_TEMPLATES[node.type];
+        if (!tpl) continue;
+>>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
         const data = { ...tpl.data, label: node.label || tpl.data.label, nodeType: node.type };
         if (node.type === 'condition' && node.when) data.when = node.when;
         if (node.type === 'action') {
             data.file_path = node.file_path || '';
             data.integration = node.integration || '';
         }
+<<<<<<< HEAD
         const numId = addDrawflowNode(node.type, pos.x, pos.y, data, tpl.html);
         if (numId != null) idMap[cid] = numId;
+=======
+        const numId = addDrawflowNode(node.type, x, y, data, tpl.html);
+        idMap[cid] = numId;
+        y += 130;
+>>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
     }
     (workflow.edges || []).forEach((e) => {
         const from = idMap[e.from];
@@ -391,16 +432,23 @@ function buildCanvasFromCanonical(workflow) {
         if (!from || !to) return;
         let outPort = 'output_1';
         if (e.when === 'false') outPort = 'output_2';
+<<<<<<< HEAD
         try {
             editor.addConnection(from, to, outPort, 'input_1');
         } catch (err) {
             console.warn('[workflow] connection failed', e, err);
         }
+=======
+        editor.addConnection(from, to, outPort, 'input_1');
+>>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
     });
     bindNodeControls();
     syncControlsFromNodeData();
     updateCanvasEmptyState();
+<<<<<<< HEAD
     refreshDrawflowViewport();
+=======
+>>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
 }
 
 function addDefaultStarterGraph() {
@@ -490,7 +538,11 @@ function parseConditionPreset(val) {
     const value = rest.join(':');
     if (op === 'tag') return { op: 'tag', match, value, field: 'incident.name' };
     if (op === 'status') return { op: 'status', match, value };
+<<<<<<< HEAD
     if (op === 'text') return { op: 'text', match: match || 'contains', field: 'incident.error', value };
+=======
+    if (op === 'text') return { op: 'text', match, field: 'incident.name', value };
+>>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
     return { op: 'tag', match: 'prefix', value: '[FLAKY]', field: 'incident.name' };
 }
 
@@ -504,6 +556,7 @@ export function addWorkflowNode(type) {
     updateCanvasEmptyState();
 }
 
+<<<<<<< HEAD
 function flushAllNodeDataBeforeExport() {
     document.querySelectorAll('.wf-cond-op').forEach(sel => syncConditionData(sel));
     document.querySelectorAll('.wf-action-path').forEach(sel => syncActionData(sel));
@@ -533,6 +586,10 @@ function validateWorkflowDoc(doc, enabled) {
 export async function saveWorkflow() {
     if (!canEditWorkflow || !currentProjectId || !editor) return;
     flushAllNodeDataBeforeExport();
+=======
+export async function saveWorkflow() {
+    if (!canEditWorkflow || !currentProjectId || !editor) return;
+>>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
     const enabled = isWorkflowEnabled();
     const exported = editor.export();
     let doc = canonicalFromDrawflow(exported);
@@ -552,12 +609,15 @@ export async function saveWorkflow() {
         };
     }
 
+<<<<<<< HEAD
     const validationErr = validateWorkflowDoc(doc, enabled);
     if (validationErr) {
         notify(validationErr, 'error');
         return;
     }
 
+=======
+>>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
     doc.ui = exported;
     doc.enabled = enabled;
     doc.version = 1;
@@ -643,6 +703,7 @@ function canonicalFromDrawflow(exported) {
         Object.entries(outs).forEach(([outKey, out]) => {
             const conns = out.connections || [];
             conns.forEach(c => {
+<<<<<<< HEAD
                 const target = idMap[String(c.node)];
                 if (!target) return;
                 let when = '';
@@ -652,6 +713,16 @@ function canonicalFromDrawflow(exported) {
                 edges.push({
                     from: idMap[numId],
                     to: target,
+=======
+                let when = '';
+                if (outKey === 'output_2') when = 'false';
+                if (outKey === 'output_1' && (node.name === 'condition' || node.data?.nodeType === 'condition')) {
+                    when = 'true';
+                }
+                edges.push({
+                    from: idMap[numId],
+                    to: idMap[String(c.node)],
+>>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
                     when
                 });
             });
@@ -672,6 +743,7 @@ export function toggleWorkflowHelp() {
     const panel = document.getElementById('workflow-help-panel');
     if (panel) panel.classList.toggle('open');
 }
+<<<<<<< HEAD
 
 export function fitWorkflowCanvas() {
     refreshDrawflowViewport();
@@ -746,3 +818,5 @@ export function loadFlakyExampleWorkflow() {
     refreshDrawflowViewport();
     notify('Flaky example loaded — true→Slack, false→Jira.', 'success');
 }
+=======
+>>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
