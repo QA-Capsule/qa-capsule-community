@@ -71,16 +71,33 @@ func registerAuthRoutes(config *core.Config) {
 	// Standard Login
 	http.HandleFunc("/api/login", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
+		w.Header().Set("Content-Type", "application/json")
 		var creds struct{ Username, Password string }
-		json.NewDecoder(r.Body).Decode(&creds)
+		if err := json.NewDecoder(r.Body).Decode(&creds); err != nil {
+			writeJSONError(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+		creds.Username = strings.TrimSpace(creds.Username)
+		if creds.Username == "" || creds.Password == "" {
+			writeJSONError(w, "Username and password are required", http.StatusBadRequest)
+			return
+		}
 
 		var hash, role string
-		var requireChange int
-		err := core.DB.QueryRow("SELECT password_hash, role, require_password_change FROM users WHERE username = ?", creds.Username).Scan(&hash, &role, &requireChange)
+		var requireChange, isActive int
+		err := core.DB.QueryRow(
+			"SELECT password_hash, role, require_password_change, is_active FROM users WHERE username = ? COLLATE NOCASE",
+			creds.Username,
+		).Scan(&hash, &role, &requireChange, &isActive)
 		if err != nil || bcrypt.CompareHashAndPassword([]byte(hash), []byte(creds.Password)) != nil {
-			http.Error(w, "Invalid credentials", http.StatusUnauthorized)
+			writeJSONError(w, "Invalid username or password", http.StatusUnauthorized)
+			return
+		}
+		if isActive == 0 {
+			writeJSONError(w, "Account is disabled. Contact your Platform Admin.", http.StatusForbidden)
 			return
 		}
 
@@ -99,7 +116,6 @@ func registerAuthRoutes(config *core.Config) {
 		token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 		tokenString, _ := token.SignedString(jwtKey)
 
-		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"token":                   tokenString,
 			"require_password_change": requireChange == 1,

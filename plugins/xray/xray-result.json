@@ -1,18 +1,19 @@
 {
-  "name": "Xray Cloud — Import failed execution",
-  "version": "1.0.0",
+  "auto_run": false,
+  "config": {
+    "XRAY_CLIENT_ID": "",
+    "XRAY_CLIENT_SECRET": "",
+    "XRAY_PROJECT_KEY": "",
+    "XRAY_TEST_KEY": ""
+  },
   "description": "Imports a failed test execution into Xray Cloud (Jira) using the Xray authenticate + import API.",
+  "integration": "xray",
+  "name": "Xray Cloud — Import failed execution",
   "status": "Active",
-  "command": "xray-action.sh",
   "trigger_on": [
     "CRITICAL",
     "FAILED",
     "Timeout"
   ],
-  "env": {
-    "XRAY_CLIENT_ID": "",
-    "XRAY_CLIENT_SECRET": "",
-    "XRAY_TEST_KEY": "",
-    "XRAY_PROJECT_KEY": ""
-  }
+  "version": "1.0.0"
 }

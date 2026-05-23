@@ -4,11 +4,16 @@
  */
 import { fetchWithAuth, parseJwt, parseApiJson, asArray } from './api.js';
 import { notify, showConfirmModal, showPromptModal } from './ui.js';
+import { canManagePluginAutoRun } from './roles.js';
 import * as analyticsLayout from './analytics-layout.js';
 
 export let allProjects = [];
 let editingProjectId = null;
 let currentSelectedCI = 'gitlab';
+/** Per-pipeline SRE routing rows (CI/CD Gateway form). */
+let ciSRERoutingRows = [];
+/** Active plugins for Add configuration dropdown. */
+let activePluginsForRouting = [];
 export let selectedCurrency = 'USD';
 
 export let analyticsChart = null;
@@ -73,7 +78,18 @@ export function selectCI(ciName, element) {
     }
 }
 
+function initSRERoutingUI() {
+    bindSRERoutingControls();
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initSRERoutingUI);
+} else {
+    initSRERoutingUI();
+}
+
 export function loadGatewaysData() {
+    bindSRERoutingControls();
     const tbody = document.getElementById('projects-table-body');
     fetchWithAuth(`/api/my-projects?_ts=${Date.now()}`)
         .then(res => parseApiJson(res))
@@ -104,6 +120,8 @@ export function loadGatewaysData() {
             if (tbody) tbody.innerHTML = '<tr><td colspan="4"><span class="load-error-msg">Unable to load gateways.</span></td></tr>';
         });
 
+    loadActivePluginsForRouting();
+
     fetchWithAuth(`/api/teams?_ts=${Date.now()}`)
         .then(res => parseApiJson(res))
         .then(({ ok, data }) => {
@@ -124,10 +142,27 @@ export function editProject(projectId) {
     document.getElementById('ci-team-id').value = p.team_id || "";
     document.getElementById('ci-specific').value = p.repo_path || "";
 
-    const routing = p.routing || {};
-    document.getElementById('ci-slack-channel').value = p.slack_channel || routing.slack_channel || "";
-    document.getElementById('ci-jira-key').value = p.jira_project_key || routing.jira_project_key || "";
-    document.getElementById('ci-teams-webhook').value = p.teams_webhook || routing.teams_webhook || "";
+    ciSRERoutingRows = [];
+    if (Array.isArray(p.sre_routing) && p.sre_routing.length > 0) {
+        ciSRERoutingRows = p.sre_routing.map(e => ({
+            file_path: e.file_path || '',
+            integration: e.integration || '',
+            name: e.name || '',
+            values: { ...(e.values || {}) }
+        }));
+    } else {
+        const routing = p.routing || {};
+        if (p.slack_channel || routing.slack_channel) {
+            ciSRERoutingRows.push({ file_path: 'slack/slack-notifier.json', integration: 'slack', name: 'Slack', values: { SLACK_CHANNEL: p.slack_channel || routing.slack_channel } });
+        }
+        if (p.jira_project_key || routing.jira_project_key) {
+            ciSRERoutingRows.push({ file_path: 'jira/jira-ticket.json', integration: 'jira', name: 'Jira', values: { JIRA_PROJECT_KEY: p.jira_project_key || routing.jira_project_key } });
+        }
+        if (p.teams_webhook || routing.teams_webhook) {
+            ciSRERoutingRows.push({ file_path: 'teams/teams.json', integration: 'teams', name: 'Teams', values: { TEAMS_WEBHOOK_URL: p.teams_webhook || routing.teams_webhook } });
+        }
+    }
+    renderSRERoutingList();
 
     const ciCard = document.querySelector(`.ci-card[onclick*="'${p.ci_system}'"]`);
     if (ciCard) selectCI(p.ci_system, ciCard);
@@ -173,11 +208,8 @@ export function saveCIConfig() {
         ci_system: currentSelectedCI,
         repo_path: document.getElementById('ci-specific').value,
         api_key: document.getElementById('ci-api-key').value,
-        routing: {
-            slack_channel: document.getElementById('ci-slack-channel').value,
-            jira_project_key: document.getElementById('ci-jira-key').value,
-            teams_webhook: document.getElementById('ci-teams-webhook').value
-        }
+        sre_routing: collectSRERoutingPayload(),
+        routing: {}
     };
 
     const method = editingProjectId ? 'PUT' : 'POST';
@@ -194,9 +226,8 @@ export function saveCIConfig() {
             editingProjectId = null;
             document.getElementById('ci-project-name').value = "";
             document.getElementById('ci-specific').value = "";
-            document.getElementById('ci-slack-channel').value = "";
-            document.getElementById('ci-jira-key').value = "";
-            document.getElementById('ci-teams-webhook').value = "";
+            ciSRERoutingRows = [];
+            renderSRERoutingList();
             const apiKeyInput = document.getElementById('ci-api-key');
             if (apiKeyInput) {
                 apiKeyInput.type = 'text';
@@ -440,11 +471,27 @@ function pdfDrawSectionTitle(doc, y, title) {
     return y + 8;
 }
 
-function pdfDrawChartBlock(doc, y, title, img, chartType) {
+function pdfDrawChartBlock(doc, y, title, imgMeta, chartType) {
     const m = PDF_PAGE.margin;
     const contentW = PDF_PAGE.w - m * 2;
-    const blockH = chartType === 'evolution' ? 78 : 58;
-    y = pdfEnsureSpace(doc, y, blockH + 14, m);
+    const dataUrl = typeof imgMeta === 'string' ? imgMeta : imgMeta?.dataUrl;
+    const srcW = imgMeta?.width || (chartType === 'evolution' ? 1000 : 720);
+    const srcH = imgMeta?.height || (chartType === 'evolution' ? 440 : 380);
+    if (!dataUrl) return y;
+
+    const maxImgH = chartType === 'evolution' ? 118 : 82;
+    const aspect = srcW > 0 && srcH > 0 ? srcW / srcH : (chartType === 'evolution' ? 2 : 1.2);
+    let imgW = contentW - 8;
+    let imgH = imgW / aspect;
+    if (imgH > maxImgH) {
+        imgH = maxImgH;
+        imgW = imgH * aspect;
+    }
+
+    const cardPad = 6;
+    const blockH = imgH + cardPad * 2;
+    const titleH = 10;
+    y = pdfEnsureSpace(doc, y, titleH + blockH + 8, m);
 
     y = pdfDrawSectionTitle(doc, y, title);
 
@@ -457,11 +504,15 @@ function pdfDrawChartBlock(doc, y, title, img, chartType) {
         doc.rect(m, y, contentW, blockH, 'FD');
     }
 
-    const pad = 4;
-    const imgW = contentW - pad * 2;
-    const imgH = blockH - pad * 2;
-    doc.addImage(img, 'PNG', m + pad, y + pad, imgW, imgH);
-    return y + blockH + 10;
+    const imgX = m + (contentW - imgW) / 2;
+    if (typeof doc.addImage === 'function') {
+        try {
+            doc.addImage(dataUrl, 'PNG', imgX, y + cardPad, imgW, imgH, undefined, 'NONE');
+        } catch {
+            doc.addImage(dataUrl, 'PNG', imgX, y + cardPad, imgW, imgH);
+        }
+    }
+    return y + blockH + 12;
 }
 
 export async function downloadWeeklyReportPDF() {
@@ -471,9 +522,19 @@ export async function downloadWeeklyReportPDF() {
     if (rangeQ === null) return notify('Select a valid time range first.', 'error');
 
     try {
-        const metricsRes = await fetchWithAuth(`/api/metrics?${rangeQ}&_ts=${Date.now()}`);
-        const metricsData = await metricsRes.json();
-        if (!metricsData) return notify('Could not load metrics for export.', 'error');
+        const fetchMetrics = async () => {
+            const metricsRes = await fetchWithAuth(`/api/metrics?${rangeQ}&_ts=${Date.now()}`);
+            return metricsRes.json();
+        };
+
+        const { layout, metricsData } = await analyticsLayout.prepareDashboardDataForPdf(fetchMetrics);
+        if (!metricsData || metricsData.error) {
+            return notify('Could not load metrics for export.', 'error');
+        }
+
+        if (!window.jspdf?.jsPDF) {
+            return notify('PDF library not loaded. Refresh the page (Ctrl+F5).', 'error');
+        }
 
         const res = await fetchWithAuth(`/api/reports/weekly?project=${encodeURIComponent(projectFilter)}&${rangeQ}&_ts=${Date.now()}`);
         const tableData = await res.json();
@@ -482,8 +543,13 @@ export async function downloadWeeklyReportPDF() {
             return notify('No incidents in the selected time range.', 'warning');
         }
 
-        const layout = analyticsLayout.getAnalyticsLayout();
-        const chartImages = await analyticsLayout.renderChartsForPdfExport(metricsData, layout);
+        const chartWidgets = (layout || []).filter(w => w.type === 'doughnut' || w.type === 'evolution');
+        let chartImages = {};
+        try {
+            chartImages = await analyticsLayout.renderChartsForPdfExport(metricsData, layout);
+        } catch (chartErr) {
+            console.warn('[PDF] chart render:', chartErr);
+        }
         const rangeLabel = document.getElementById('dashboard-range-summary')?.textContent || rangeQ;
         const titleScope = projectFilter === 'all' ? 'Global Organization' : `Project: ${projectFilter}`;
 
@@ -500,17 +566,32 @@ export async function downloadWeeklyReportPDF() {
         paintPageBg();
 
         let y = pdfDrawHeader(doc, { logoData, titleScope, rangeLabel });
+        y = pdfDrawSectionTitle(doc, y, 'System analytics & quality');
         y = pdfDrawKpiRow(doc, y, layout.filter(w => w.type === 'metric'), metricsData);
 
-        layout.filter(w => w.type !== 'metric').forEach(w => {
-            const img = chartImages[`analytics-${w.id}`];
-            if (!img) return;
-            y = pdfDrawChartBlock(doc, y, w.title || 'Chart', img, w.type);
+        chartWidgets.forEach((w) => {
+            const imgMeta = chartImages[`analytics-${w.id}`];
+            if (!imgMeta?.dataUrl) return;
+            try {
+                doc.addPage();
+                doc.setFillColor(248, 250, 252);
+                doc.rect(0, 0, PDF_PAGE.w, PDF_PAGE.h, 'F');
+                const chartY = PDF_PAGE.margin + 4;
+                pdfDrawChartBlock(doc, chartY, w.title || (w.type === 'doughnut' ? 'Failure taxonomy' : 'Incident evolution'), imgMeta, w.type);
+            } catch (imgErr) {
+                console.warn(`[PDF] skip image ${w.id}:`, imgErr);
+            }
         });
 
-        y = pdfEnsureSpace(doc, y, 40);
+        doc.addPage();
+        doc.setFillColor(248, 250, 252);
+        doc.rect(0, 0, PDF_PAGE.w, PDF_PAGE.h, 'F');
+        y = PDF_PAGE.margin + 4;
         y = pdfDrawSectionTitle(doc, y, 'Pipeline health summary');
 
+        if (typeof doc.autoTable !== 'function') {
+            throw new Error('PDF table plugin missing');
+        }
         doc.autoTable({
             head: [['Pipeline', 'Total alerts', 'Resolved', 'Flaky tests', 'Health']],
             body: tableData.map(row => [
@@ -563,7 +644,8 @@ export async function downloadWeeklyReportPDF() {
         notify('PDF report generated successfully.', 'success');
     } catch (err) {
         console.error('PDF Gen Error:', err);
-        notify('Failed to generate PDF report', 'error');
+        const hint = err?.message ? ` (${err.message})` : '';
+        notify(`Failed to generate PDF report${hint}`, 'error');
     } finally {
         analyticsLayout.refreshMainAnalyticsGrid();
     }
@@ -602,6 +684,248 @@ const PLUGIN_FOLDER_LABELS = {
 
 function escapePluginHtml(s) {
     return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+const INTEGRATION_ASSET = {
+    sendgrid: 'email',
+    smtp: 'email',
+    qa: 'qa',
+    testrail: 'testrail',
+    zephyr: 'zephyr',
+    xray: 'xray'
+};
+
+function pluginLogoUrl(integration) {
+    const key = (integration || '').toLowerCase();
+    const asset = INTEGRATION_ASSET[key] || key;
+    return `/assets/${asset}.png`;
+}
+
+/** Load integrations available for SRE routing dropdown (active status). */
+export async function loadActivePluginsForRouting() {
+    const apply = (list) => {
+        activePluginsForRouting = list.filter(p => {
+            const st = String(p.status || '').toLowerCase();
+            return st === 'active' || st === '';
+        });
+        bindSRERoutingControls();
+        renderSRERoutingList();
+    };
+
+    try {
+        let res = await fetchWithAuth(`/api/plugins/active?_ts=${Date.now()}`);
+        let { ok, data } = await parseApiJson(res);
+        if (ok && asArray(data).length > 0) {
+            apply(asArray(data));
+            return;
+        }
+        res = await fetchWithAuth(`/api/plugins?_ts=${Date.now()}`);
+        ({ ok, data } = await parseApiJson(res));
+        if (ok) {
+            apply(asArray(data).map(p => ({
+                ...p,
+                routing_fields: p.routing_fields || routingFieldsForIntegrationClient(p.integration)
+            })));
+            return;
+        }
+    } catch (e) {
+        console.warn('[SRE routing] failed to load active plugins', e);
+    }
+    activePluginsForRouting = [];
+    bindSRERoutingControls();
+    renderSRERoutingList();
+}
+
+function routingFieldsForIntegrationClient(integration) {
+    const map = {
+        slack: [{ key: 'SLACK_CHANNEL', label: 'Slack Channel', placeholder: '#alerts-backend' }],
+        jira: [{ key: 'JIRA_PROJECT_KEY', label: 'Jira Project Key', placeholder: 'SCRUM' }],
+        teams: [{ key: 'TEAMS_WEBHOOK_URL', label: 'MS Teams Webhook URL', placeholder: 'https://...', input_type: 'url' }],
+        pagerduty: [{ key: 'PAGERDUTY_ROUTING_KEY', label: 'PagerDuty Routing Key', placeholder: 'Integration key' }],
+        opsgenie: [{ key: 'OPSGENIE_TEAM', label: 'Opsgenie Team (optional)', placeholder: 'team-name' }],
+        victorops: [{ key: 'VICTOROPS_ROUTING_URL', label: 'VictorOps Routing URL', placeholder: 'https://...', input_type: 'url' }],
+        datadog: [{ key: 'DATADOG_TAGS', label: 'Datadog Tags (optional)', placeholder: 'env:ci' }],
+        webhook: [{ key: 'WEBHOOK_URL', label: 'Custom Webhook URL', placeholder: 'https://...', input_type: 'url' }],
+        sendgrid: [{ key: 'SENDGRID_TO', label: 'Alert Email To', placeholder: 'oncall@company.com' }],
+        smtp: [{ key: 'SMTP_TO', label: 'SMTP Alert To', placeholder: 'oncall@company.com' }],
+        github: [
+            { key: 'GITHUB_OWNER', label: 'GitHub Owner', placeholder: 'org' },
+            { key: 'GITHUB_REPO', label: 'GitHub Repository', placeholder: 'repo' },
+            { key: 'GITHUB_WORKFLOW_ID', label: 'Workflow ID', placeholder: 'ci.yml' }
+        ],
+        testrail: [{ key: 'WEBHOOK_URL', label: 'TestRail Webhook URL', placeholder: 'https://...', input_type: 'url' }],
+        zephyr: [{ key: 'WEBHOOK_URL', label: 'Zephyr Webhook URL', placeholder: 'https://...', input_type: 'url' }],
+        xray: [{ key: 'WEBHOOK_URL', label: 'Xray Webhook URL', placeholder: 'https://...', input_type: 'url' }],
+        k8s: [{ key: 'WEBHOOK_URL', label: 'GitOps / Operator Webhook URL', placeholder: 'https://...', input_type: 'url' }]
+    };
+    return map[(integration || '').toLowerCase()] || [];
+}
+
+let sreRoutingControlsBound = false;
+
+function isPluginActiveForRouting(p) {
+    const st = String(p?.status ?? 'Active').trim().toLowerCase();
+    return st === 'active' || st === '';
+}
+
+function bindSRERoutingControls() {
+    if (sreRoutingControlsBound) return;
+    const form = document.getElementById('ci-config-form');
+    if (!form) return;
+    sreRoutingControlsBound = true;
+    form.addEventListener('click', (e) => {
+        const btn = e.target.closest('#ci-add-routing-btn');
+        if (!btn || btn.disabled) return;
+        e.preventDefault();
+        e.stopPropagation();
+        void addSRERoutingRow();
+    });
+    const direct = document.getElementById('ci-add-routing-btn');
+    if (direct && !direct.dataset.sreBound) {
+        direct.dataset.sreBound = '1';
+        direct.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            void addSRERoutingRow();
+        });
+    }
+}
+
+function findActivePlugin(filePath) {
+    return activePluginsForRouting.find(p => p.file_path === filePath);
+}
+
+export function renderSRERoutingList() {
+    const container = document.getElementById('ci-sre-routing-list');
+    const addBtn = document.getElementById('ci-add-routing-btn');
+    if (!container) return;
+
+    if (addBtn) {
+        addBtn.disabled = false;
+        addBtn.title = 'Add a routing block for an active integration';
+    }
+
+    if (!activePluginsForRouting.length) {
+        container.innerHTML = '<p style="font-size:12px;color:#8b949e;margin:0;">No active integrations loaded. Open <strong>Plugin Engine</strong> and ensure integrations are <code>Active</code>, then refresh this page.</p>';
+        return;
+    }
+
+    if (!ciSRERoutingRows.length) {
+        container.innerHTML = '<p style="font-size:12px;color:#6e7681;margin:0;">No routing configured. Click <strong>Add configuration</strong> to bind Slack, Jira, Teams, etc.</p>';
+        return;
+    }
+
+    container.innerHTML = ciSRERoutingRows.map((row, idx) => {
+        const plugin = findActivePlugin(row.file_path) || activePluginsForRouting.find(p => p.integration === row.integration);
+        const fields = plugin?.routing_fields || [];
+        const logo = pluginLogoUrl(row.integration || plugin?.integration);
+        const options = activePluginsForRouting.map(p => {
+            const usedElsewhere = ciSRERoutingRows.some((r, i) => i !== idx && r.file_path === p.file_path);
+            const sel = p.file_path === row.file_path ? ' selected' : '';
+            const dis = usedElsewhere ? ' disabled' : '';
+            return `<option value="${escapePluginHtml(p.file_path)}"${sel}${dis}>${escapePluginHtml(p.name)}</option>`;
+        }).join('');
+        const fieldInputs = fields.map(f => {
+            const val = row.values?.[f.key] || '';
+            const type = f.input_type === 'url' ? 'url' : 'text';
+            return `<div><label style="font-size:11px;color:#8b949e;">${escapePluginHtml(f.label)}</label>
+                <input type="${type}" class="login-input sre-route-field" data-row="${idx}" data-key="${escapePluginHtml(f.key)}"
+                placeholder="${escapePluginHtml(f.placeholder || '')}" value="${escapePluginHtml(val)}" style="margin:4px 0 0;"></div>`;
+        }).join('');
+        return `<div class="sre-routing-card" data-row-idx="${idx}" style="background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:14px;">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+                <img src="${logo}" alt="" style="width:32px;height:32px;object-fit:contain;border-radius:6px;background:#161b22;" onerror="this.style.display='none'">
+                <select class="login-input sre-route-plugin-select" data-row="${idx}" style="margin:0;flex:1;" onchange="window.onSRERoutingPluginChange(${idx}, this.value)">${options}</select>
+                <button type="button" class="btn-secondary" style="padding:6px 10px;color:#ff7b72;border-color:#ff7b72;" onclick="window.removeSRERoutingRow(${idx})" title="Remove">×</button>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:10px;">${fieldInputs || '<p style="font-size:11px;color:#8b949e;margin:0;">No routing fields for this integration.</p>'}</div>
+        </div>`;
+    }).join('');
+}
+
+export async function addSRERoutingRow() {
+    try {
+        if (!activePluginsForRouting.length) {
+            await loadActivePluginsForRouting();
+        }
+    } catch (e) {
+        console.error('[SRE routing] load plugins', e);
+        notify('Could not load integrations. Check the server and refresh the page.', 'error');
+        return;
+    }
+    if (!activePluginsForRouting.length) {
+        notify('No active integrations. Open Plugin Engine, set status to Active, then refresh (Ctrl+F5).', 'error');
+        return;
+    }
+    const available = activePluginsForRouting.find(p => !ciSRERoutingRows.some(r => r.file_path === p.file_path));
+    if (!available) {
+        notify('All active integrations are already configured for this pipeline.', 'error');
+        return;
+    }
+    ciSRERoutingRows.push({
+        file_path: available.file_path,
+        integration: available.integration,
+        name: available.name,
+        values: {}
+    });
+    renderSRERoutingList();
+    const container = document.getElementById('ci-sre-routing-list');
+    const lastCard = container?.querySelector('.sre-routing-card:last-child');
+    if (lastCard) lastCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+export function removeSRERoutingRow(idx) {
+    ciSRERoutingRows.splice(idx, 1);
+    renderSRERoutingList();
+}
+
+export function onSRERoutingPluginChange(idx, filePath) {
+    const plugin = findActivePlugin(filePath);
+    if (!plugin) return;
+    ciSRERoutingRows[idx] = {
+        file_path: plugin.file_path,
+        integration: plugin.integration,
+        name: plugin.name,
+        values: {}
+    };
+    renderSRERoutingList();
+}
+
+function collectSRERoutingPayload() {
+    const container = document.getElementById('ci-sre-routing-list');
+    if (!container) return [];
+    return ciSRERoutingRows.map((row, idx) => {
+        const values = { ...(row.values || {}) };
+        container.querySelectorAll(`.sre-route-field[data-row="${idx}"]`).forEach(inp => {
+            const key = inp.getAttribute('data-key');
+            if (key) values[key] = inp.value.trim();
+        });
+        const plugin = findActivePlugin(row.file_path);
+        return {
+            file_path: row.file_path,
+            integration: row.integration || plugin?.integration,
+            name: row.name || plugin?.name,
+            values
+        };
+    }).filter(e => e.file_path);
+}
+
+export function togglePluginAutoRun(filePath, enable) {
+    const role = parseJwt(localStorage.getItem('sre-jwt'))?.role;
+    if (!canManagePluginAutoRun(role)) {
+        notify('Only Manager or Platform Admin can change AUTO-RUN.', 'error');
+        return;
+    }
+    fetchWithAuth('/api/plugins/autorun', {
+        method: 'POST',
+        body: JSON.stringify({ file_path: filePath, auto_run: enable })
+    }).then(res => parseApiJson(res)).then(({ ok }) => {
+        if (ok) {
+            notify(enable ? 'AUTO-RUN enabled for this integration.' : 'AUTO-RUN disabled — webhooks will not trigger it.', 'success');
+            loadPlugins();
+            loadGatewaysData();
+        } else notify('Failed to update AUTO-RUN.', 'error');
+    });
 }
 
 function pluginFolderName(filePath) {
@@ -706,8 +1030,14 @@ function renderPluginList(plugins, query = '', category = 'all') {
             const desc = p.description || 'No description provided.';
             const logoUrl = `/assets/${folder.toLowerCase()}.png`;
             const triggers = (p.trigger_on || []).join(', ');
-            const autoBadge = p.status === 'Active'
-                ? '<span style="font-size:10px; color:#3fb950; border:1px solid #3fb950; padding:2px 6px; border-radius:4px; letter-spacing: 0.5px;">AUTO-RUN ON</span>'
+            const userRole = parseJwt(localStorage.getItem('sre-jwt'))?.role;
+            const canToggleAuto = canManagePluginAutoRun(userRole);
+            const autoOn = p.auto_run !== false && String(p.status).toLowerCase() === 'active';
+            const autoBadge = autoOn
+                ? '<span style="font-size:10px; color:#3fb950; border:1px solid #3fb950; padding:2px 6px; border-radius:4px;">AUTO-RUN ON</span>'
+                : '<span style="font-size:10px; color:#8b949e; border:1px solid #484f58; padding:2px 6px; border-radius:4px;">AUTO-RUN OFF</span>';
+            const autoToggleBtn = canToggleAuto
+                ? `<button type="button" class="btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="window.togglePluginAutoRun('${safePath}', ${!autoOn})">${autoOn ? 'Disable auto-run' : 'Enable auto-run'}</button>`
                 : '';
             const envKeysAttr = envKeys.join(',');
 
@@ -722,7 +1052,7 @@ function renderPluginList(plugins, query = '', category = 'all') {
                             <div>
                                 <h3 style="margin:0 0 5px 0; color:var(--text-main); font-size: 16px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
                                     ${escapePluginHtml(p.name)} <span style="font-size:10px; background:#238636; color:white; padding:3px 8px; border-radius:12px;">v${escapePluginHtml(p.version || '1.0')}</span>
-                                    ${autoBadge}
+                                    ${autoBadge} ${autoToggleBtn}
                                 </h3>
                                 <p style="font-size:13px; color:#8b949e; margin:0 0 4px; line-height: 1.4;">${escapePluginHtml(desc)}</p>
                                 ${triggers ? `<p style="font-size:11px; color:#6e7681; margin:0;">Triggers: ${escapePluginHtml(triggers)}</p>` : ''}
@@ -814,10 +1144,19 @@ export function runPlugin(path, idx) {
 
     fetchWithAuth('/api/plugins/run', { method: 'POST', body: JSON.stringify({ file_path: path }) }).then(async (res) => {
         const data = await res.json();
-        btn.innerHTML = `Execute`; btn.disabled = false; btn.style.opacity = '1';
-        if (res.ok) { notify("Success", "success"); logsEl.style.color = '#00ff00'; }
-        else { notify("Error", "error"); logsEl.style.color = '#ff7b72'; }
-        logsEl.innerText = data.logs || "No output.";
+        const logs = data.logs || data.error || 'No output.';
+        const failed = !res.ok || /\[ERROR\]|Failed to create|ERREUR:/i.test(logs);
+        btn.innerHTML = `Execute`;
+        btn.disabled = false;
+        btn.style.opacity = '1';
+        if (failed) {
+            notify('Plugin execution failed — see console output.', 'error');
+            logsEl.style.color = '#ff7b72';
+        } else {
+            notify('Plugin executed successfully.', 'success');
+            logsEl.style.color = '#00ff00';
+        }
+        logsEl.innerText = logs;
     });
 }
 

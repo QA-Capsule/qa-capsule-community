@@ -1,17 +1,18 @@
 {
-  "name": "Email — SendGrid",
-  "version": "1.0.0",
+  "auto_run": false,
+  "config": {
+    "SENDGRID_API_KEY": "",
+    "SENDGRID_FROM": "qa-capsule@yourcompany.com",
+    "SENDGRID_TO": ""
+  },
   "description": "Sends an HTML alert email via SendGrid v3 Mail Send API.",
+  "integration": "sendgrid",
+  "name": "Email — SendGrid",
   "status": "Active",
-  "command": "sendgrid-action.sh",
   "trigger_on": [
     "CRITICAL",
     "FATAL",
     "Timeout"
   ],
-  "env": {
-    "SENDGRID_API_KEY": "",
-    "SENDGRID_FROM": "qa-capsule@yourcompany.com",
-    "SENDGRID_TO": ""
-  }
+  "version": "1.0.0"
 }

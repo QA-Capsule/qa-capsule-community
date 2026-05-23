@@ -17,6 +17,13 @@ export const METRIC_CATALOG = {
     mttf_minutes: { label: 'MTTF', hint: 'Mean time to failure', suffix: ' min' }
 };
 
+/** High-DPI export for PDF (Chart.js devicePixelRatio on logical size). */
+const PDF_CHART_PIXEL_RATIO = 2;
+const PDF_CHART_SIZES = {
+    doughnut: { w: 720, h: 400 },
+    evolution: { w: 1000, h: 480 }
+};
+
 export const DEFAULT_ANALYTICS_LAYOUT = [
     { id: 'm1', type: 'metric', metric: 'total_incidents', title: 'Total incidents', color: CHART_PALETTE.semantic.info, span: 1 },
     { id: 'm2', type: 'metric', metric: 'active_backlog', title: 'Active backlog', color: CHART_PALETTE.semantic.danger, span: 1 },
@@ -325,19 +332,22 @@ function renderDoughnut(canvas, data, widget, theme, key, { forPdf = false } = {
             responsive: !forPdf,
             maintainAspectRatio: false,
             animation: !forPdf,
-            cutout: forPdf ? '62%' : '70%',
-            layout: { padding: forPdf ? 8 : 0 },
+            devicePixelRatio: forPdf ? PDF_CHART_PIXEL_RATIO : undefined,
+            cutout: forPdf ? '58%' : '70%',
+            layout: forPdf ? { padding: { top: 20, bottom: 36, left: 24, right: 24 } } : { padding: 0 },
             interaction: forPdf ? undefined : { mode: 'nearest', intersect: true },
             plugins: {
                 tooltip: forPdf ? { enabled: false } : { enabled: true },
                 legend: {
-                    position: forPdf ? 'right' : 'bottom',
+                    position: forPdf ? 'bottom' : 'bottom',
                     align: 'center',
                     labels: {
                         color: theme.legend,
-                        usePointStyle: true,
+                        usePointStyle: !forPdf,
+                        boxWidth: forPdf ? 14 : 12,
+                        boxHeight: forPdf ? 14 : 12,
                         font: { size: forPdf ? 11 : 12 },
-                        padding: forPdf ? 14 : 12
+                        padding: forPdf ? 18 : 12
                     }
                 },
                 title: {
@@ -369,26 +379,39 @@ function renderEvolution(canvas, data, widget, theme, key, { forPdf = false } = 
             responsive: !forPdf,
             maintainAspectRatio: false,
             animation: false,
+            devicePixelRatio: forPdf ? PDF_CHART_PIXEL_RATIO : undefined,
             interaction: { mode: 'index', intersect: false },
             plugins: {
+                tooltip: forPdf ? { enabled: false } : { enabled: true },
                 legend: {
                     position: 'top',
                     align: 'start',
-                    labels: { color: theme.legend, usePointStyle: true, font: { size: forPdf ? 10 : 11 }, padding: 12 }
+                    labels: {
+                        color: theme.legend,
+                        usePointStyle: !forPdf,
+                        boxWidth: forPdf ? 12 : 10,
+                        padding: forPdf ? 16 : 12,
+                        font: { size: forPdf ? 10 : 11 }
+                    }
                 }
             },
+            layout: forPdf ? { padding: { top: 8, right: 20, bottom: 28, left: 12 } } : undefined,
             scales: {
                 x: {
-                    ticks: { color: theme.tick, font: { size: forPdf ? 9 : 10 }, maxRotation: forPdf ? 25 : 0 },
+                    ticks: { color: theme.tick, font: { size: forPdf ? 9 : 10 }, maxRotation: forPdf ? 0 : 0, autoSkip: true },
                     grid: { display: false }
                 },
                 y: {
+                    beginAtZero: true,
+                    grace: forPdf ? '8%' : undefined,
                     ticks: { color: theme.tick, font: { size: forPdf ? 9 : 10 }, stepSize: 1 },
                     grid: { color: theme.grid },
                     title: forPdf ? { display: true, text: 'Incidents', color: theme.tick, font: { size: 9 } } : undefined
                 },
                 y1: {
                     position: 'right',
+                    beginAtZero: true,
+                    grace: forPdf ? '8%' : undefined,
                     ticks: { color: widget.color3 || '#059669', font: { size: forPdf ? 9 : 10 } },
                     grid: { drawOnChartArea: false },
                     title: forPdf ? { display: true, text: 'MTTR (min)', color: widget.color3 || '#059669', font: { size: 9 } } : undefined
@@ -398,10 +421,58 @@ function renderEvolution(canvas, data, widget, theme, key, { forPdf = false } = 
     });
 }
 
-/** High-resolution chart renders for PDF (light theme, off-screen). Does not touch dashboard chart instances. */
+function renderPdfChartInstance(canvas, metricsData, widget, theme) {
+    const key = `pdf-${widget.id}`;
+    if (widget.type === 'doughnut') return renderDoughnut(canvas, metricsData, widget, theme, key, { forPdf: true });
+    if (widget.type === 'evolution') return renderEvolution(canvas, metricsData, widget, theme, key, { forPdf: true });
+    return null;
+}
+
+async function downscaleChartDataUrl(dataUrl, maxPx = 2200) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+            let w = img.width;
+            let h = img.height;
+            if (w <= maxPx) {
+                resolve({ dataUrl, width: w, height: h });
+                return;
+            }
+            const scale = maxPx / w;
+            w = Math.round(w * scale);
+            h = Math.round(h * scale);
+            const c = document.createElement('canvas');
+            c.width = w;
+            c.height = h;
+            c.getContext('2d').drawImage(img, 0, 0, w, h);
+            resolve({ dataUrl: c.toDataURL('image/png'), width: w, height: h });
+        };
+        img.onerror = () => resolve(null);
+        img.src = dataUrl;
+    });
+}
+
+async function captureChartImage(chart, canvas, logicalW, logicalH) {
+    if (!chart?.toBase64Image || !canvas) return null;
+    try {
+        chart.update('none');
+        await new Promise(r => setTimeout(r, 80));
+        const raw = chart.toBase64Image('image/png', 1);
+        if (!raw || raw.length < 100) return null;
+        return downscaleChartDataUrl(raw, 2400);
+    } catch (e) {
+        console.warn('[PDF] chart capture failed:', e);
+        return null;
+    }
+}
+
+/**
+ * Renders every chart widget from the dashboard layout for PDF (high DPI, off-screen).
+ * Order matches the saved analytics layout.
+ */
 export async function renderChartsForPdfExport(metricsData, layout) {
     const theme = getExportChartTheme();
-    const chartWidgets = layout.filter(w => w.type !== 'metric');
+    const chartWidgets = (layout || []).filter(w => w.type === 'doughnut' || w.type === 'evolution');
     if (chartWidgets.length === 0) return {};
 
     let root = document.getElementById('pdf-chart-export-root');
@@ -409,32 +480,58 @@ export async function renderChartsForPdfExport(metricsData, layout) {
         root = document.createElement('div');
         root.id = 'pdf-chart-export-root';
         root.setAttribute('aria-hidden', 'true');
-        root.style.cssText = 'position:fixed;left:-10000px;top:0;width:0;height:0;overflow:hidden;';
         document.body.appendChild(root);
     }
+    root.style.cssText = 'position:fixed;left:-16000px;top:0;visibility:hidden;pointer-events:none;z-index:-1;overflow:visible;';
 
-    const sizes = { doughnut: { w: 640, h: 280 }, evolution: { w: 920, h: 320 } };
     root.innerHTML = chartWidgets.map(w => {
-        const s = sizes[w.type] || sizes.evolution;
-        return `<div style="width:${s.w}px;height:${s.h}px;background:#fff;"><canvas id="pdf-chart-${w.id}" width="${s.w}" height="${s.h}"></canvas></div>`;
+        const s = PDF_CHART_SIZES[w.type] || PDF_CHART_SIZES.evolution;
+        return `<div class="pdf-chart-slot" data-widget-id="${w.id}" style="width:${s.w}px;height:${s.h}px;background:#fff;display:block;margin-bottom:24px;">
+            <canvas id="pdf-chart-${w.id}" style="width:${s.w}px;height:${s.h}px;display:block;"></canvas>
+        </div>`;
     }).join('');
 
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
     const images = {};
-    chartWidgets.forEach(w => {
-        const canvas = document.getElementById(`pdf-chart-${w.id}`);
-        if (!canvas) return;
+    for (const w of chartWidgets) {
+        const s = PDF_CHART_SIZES[w.type] || PDF_CHART_SIZES.evolution;
         const key = `analytics-${w.id}`;
-        let chart;
-        if (w.type === 'doughnut') chart = renderDoughnut(canvas, metricsData, w, theme, key, { forPdf: true });
-        else if (w.type === 'evolution') chart = renderEvolution(canvas, metricsData, w, theme, key, { forPdf: true });
-        if (chart?.toBase64Image) images[key] = chart.toBase64Image('image/png', 1.5);
-        if (chart) chart.destroy();
-    });
+        const canvas = document.getElementById(`pdf-chart-${w.id}`);
+        if (!canvas) continue;
+        try {
+            const chart = renderPdfChartInstance(canvas, metricsData, w, theme);
+            if (!chart) continue;
+            const captured = await captureChartImage(chart, canvas, s.w, s.h);
+            if (captured) images[key] = captured;
+            chart.destroy();
+        } catch (e) {
+            console.warn(`[PDF] skip chart ${w.id}:`, e);
+        }
+    }
 
     root.innerHTML = '';
     return images;
+}
+
+/** Load saved layout + metrics so PDF matches the Operations dashboard. */
+export async function prepareDashboardDataForPdf(fetchMetrics) {
+    try {
+        await loadAnalyticsLayoutFromPrefs();
+    } catch {
+        currentLayout = [...DEFAULT_ANALYTICS_LAYOUT];
+    }
+    const layout = getAnalyticsLayout();
+    let metricsData = null;
+    try {
+        metricsData = await fetchMetrics();
+    } catch (e) {
+        console.warn('[PDF] metrics fetch failed:', e);
+    }
+    if (metricsData && typeof metricsData === 'object' && !metricsData.error) {
+        lastMetricsData = metricsData;
+    }
+    return { layout, metricsData };
 }
 
 function getAnalyticsGridElement() {

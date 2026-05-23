@@ -32,11 +32,11 @@ func registerProjectRoutes(config *core.Config) {
 
 		if claims.Role == "admin" || claims.Role == "manager" {
 			rows, err = core.DB.Query(`
-				SELECT id, name, ci_system, repo_path, team_id, api_key, slack_channel, jira_project_key, teams_webhook 
+				SELECT id, name, ci_system, repo_path, team_id, api_key, slack_channel, jira_project_key, teams_webhook, sre_routing_json 
 				FROM projects`)
 		} else {
 			query := `
-				SELECT p.id, p.name, p.ci_system, p.repo_path, p.team_id, p.api_key, p.slack_channel, p.jira_project_key, p.teams_webhook
+				SELECT p.id, p.name, p.ci_system, p.repo_path, p.team_id, p.api_key, p.slack_channel, p.jira_project_key, p.teams_webhook, p.sre_routing_json
 				FROM projects p
 				JOIN user_teams ut ON p.team_id = ut.team_id
 				JOIN users u ON u.id = ut.user_id
@@ -55,15 +55,16 @@ func registerProjectRoutes(config *core.Config) {
 		var projects []map[string]interface{}
 		for rows.Next() {
 			var id, name, ciSystem, apiKey string
-			var repoPath, slackChan, jiraKey, teamsHook sql.NullString
+			var repoPath, slackChan, jiraKey, teamsHook, sreRouting sql.NullString
 			var teamId sql.NullInt64
 
-			err := rows.Scan(&id, &name, &ciSystem, &repoPath, &teamId, &apiKey, &slackChan, &jiraKey, &teamsHook)
+			err := rows.Scan(&id, &name, &ciSystem, &repoPath, &teamId, &apiKey, &slackChan, &jiraKey, &teamsHook, &sreRouting)
 			if err != nil {
 				log.Println("[SCAN ERROR] Projects:", err)
 				continue
 			}
 
+			entries := core.ParseSRERoutingJSON(sreRouting.String)
 			projects = append(projects, map[string]interface{}{
 				"id":        id,
 				"name":      name,
@@ -71,6 +72,10 @@ func registerProjectRoutes(config *core.Config) {
 				"repo_path": repoPath.String,
 				"team_id":   teamId.Int64,
 				"api_key":   apiKey,
+				"slack_channel":    slackChan.String,
+				"jira_project_key": jiraKey.String,
+				"teams_webhook":    teamsHook.String,
+				"sre_routing":      entries,
 				"routing": map[string]string{
 					"slack_channel":    slackChan.String,
 					"jira_project_key": jiraKey.String,
@@ -98,8 +103,9 @@ func registerProjectRoutes(config *core.Config) {
 		if r.Method == http.MethodPost {
 			var newProject struct {
 				core.ProjectConfig
-				RepoPath string `json:"repo_path"`
-				TeamID   int    `json:"team_id"`
+				RepoPath    string                `json:"repo_path"`
+				TeamID      int                   `json:"team_id"`
+				SRERouting  []core.SRERoutingEntry `json:"sre_routing"`
 			}
 			json.NewDecoder(r.Body).Decode(&newProject)
 
@@ -107,10 +113,21 @@ func registerProjectRoutes(config *core.Config) {
 				http.Error(w, "Team ID is required", http.StatusBadRequest)
 				return
 			}
+			slack, jira, teams := core.SyncLegacyRoutingColumns(newProject.SRERouting)
+			if slack == "" {
+				slack = newProject.Routing.SlackChannel
+			}
+			if jira == "" {
+				jira = newProject.Routing.JiraProjectKey
+			}
+			if teams == "" {
+				teams = newProject.Routing.TeamsWebhook
+			}
+			routingJSON := core.MarshalSRERoutingJSON(newProject.SRERouting)
 
-			_, err := core.DB.Exec(`INSERT INTO projects (id, name, team_id, ci_system, repo_path, api_key, slack_channel, jira_project_key, teams_webhook) 
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-				newProject.ID, newProject.Name, newProject.TeamID, newProject.CISystem, newProject.RepoPath, newProject.APIKey, newProject.Routing.SlackChannel, newProject.Routing.JiraProjectKey, newProject.Routing.TeamsWebhook)
+			_, err := core.DB.Exec(`INSERT INTO projects (id, name, team_id, ci_system, repo_path, api_key, slack_channel, jira_project_key, teams_webhook, sre_routing_json) 
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				newProject.ID, newProject.Name, newProject.TeamID, newProject.CISystem, newProject.RepoPath, newProject.APIKey, slack, jira, teams, routingJSON)
 
 			if err != nil {
 				log.Println("[DB ERROR] Failed to provision project:", err)
@@ -132,16 +149,28 @@ func registerProjectRoutes(config *core.Config) {
 		} else if r.Method == http.MethodPut {
 			var updateProject struct {
 				core.ProjectConfig
-				RepoPath string `json:"repo_path"`
-				TeamID   int    `json:"team_id"`
+				RepoPath   string                 `json:"repo_path"`
+				TeamID     int                    `json:"team_id"`
+				SRERouting []core.SRERoutingEntry `json:"sre_routing"`
 			}
 			if err := json.NewDecoder(r.Body).Decode(&updateProject); err != nil {
 				http.Error(w, "Invalid request", http.StatusBadRequest)
 				return
 			}
+			slack, jira, teams := core.SyncLegacyRoutingColumns(updateProject.SRERouting)
+			if slack == "" {
+				slack = updateProject.Routing.SlackChannel
+			}
+			if jira == "" {
+				jira = updateProject.Routing.JiraProjectKey
+			}
+			if teams == "" {
+				teams = updateProject.Routing.TeamsWebhook
+			}
+			routingJSON := core.MarshalSRERoutingJSON(updateProject.SRERouting)
 
-			_, err := core.DB.Exec(`UPDATE projects SET name = ?, team_id = ?, ci_system = ?, repo_path = ?, slack_channel = ?, jira_project_key = ?, teams_webhook = ? WHERE id = ?`,
-				updateProject.Name, updateProject.TeamID, updateProject.CISystem, updateProject.RepoPath, updateProject.Routing.SlackChannel, updateProject.Routing.JiraProjectKey, updateProject.Routing.TeamsWebhook, updateProject.ID)
+			_, err := core.DB.Exec(`UPDATE projects SET name = ?, team_id = ?, ci_system = ?, repo_path = ?, slack_channel = ?, jira_project_key = ?, teams_webhook = ?, sre_routing_json = ? WHERE id = ?`,
+				updateProject.Name, updateProject.TeamID, updateProject.CISystem, updateProject.RepoPath, slack, jira, teams, routingJSON, updateProject.ID)
 
 			if err != nil {
 				log.Println("[DB ERROR] Failed to update project:", err)

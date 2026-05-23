@@ -1,19 +1,20 @@
 {
-  "name": "Email — SMTP",
-  "version": "1.0.0",
+  "auto_run": false,
+  "config": {
+    "SMTP_FROM": "",
+    "SMTP_HOST": "",
+    "SMTP_PASS": "",
+    "SMTP_PORT": "587",
+    "SMTP_TO": "",
+    "SMTP_USER": ""
+  },
   "description": "Sends a plain-text alert via SMTP (TLS). Works with corporate relay or providers like Office365 / Gmail SMTP.",
+  "integration": "smtp",
+  "name": "Email — SMTP",
   "status": "Active",
-  "command": "smtp-action.sh",
   "trigger_on": [
     "CRITICAL",
     "FATAL"
   ],
-  "env": {
-    "SMTP_HOST": "",
-    "SMTP_PORT": "587",
-    "SMTP_USER": "",
-    "SMTP_PASS": "",
-    "SMTP_FROM": "",
-    "SMTP_TO": ""
-  }
+  "version": "1.0.0"
 }

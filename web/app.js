@@ -12,7 +12,7 @@ import * as profile from './js/profile.js';
 import * as finops from './js/finops.js';
 import * as about from './js/about.js';
 import * as analyticsLayout from './js/analytics-layout.js';
-import { applyRoleVisibility, canAccessFinOps, canAccessPlugins, canResolveIncidents, canDeleteIncidents, hasMinRole, roleLabel, canManageTeams, canManageIAM, isAdmin, canAccessView, accessDeniedMessage, defaultViewForRole } from './js/roles.js';
+import { applyRoleVisibility, canAccessFinOps, canAccessPlugins, canResolveIncidents, canDeleteIncidents, hasMinRole, roleLabel, canManageTeams, canManageIAM, isAdmin, canAccessView, accessDeniedMessage, defaultViewForRole, canManagePluginAutoRun } from './js/roles.js';
 import { setupAutocomplete } from './js/autocomplete.js';
 
 // EXPORT GLOBALLY FOR HTML INLINE HANDLERS
@@ -977,14 +977,22 @@ window.performLogin = function () {
 
     fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }), signal: controller.signal })
         .then(async res => {
-            if (res.ok) return res.json();
-            const msg = res.status === 401 ? 'Invalid username or password.' : `Login failed (${res.status}).`;
+            let body = null;
+            try { body = await res.json(); } catch (_) { /* plain text */ }
+            if (res.ok) return body;
+            const msg = (body && body.error) ? body.error
+                : res.status === 401 ? 'Invalid username or password.'
+                : res.status === 403 ? (body?.error || 'Account disabled.')
+                : `Login failed (${res.status}).`;
             throw new Error(msg);
         })
         .then(data => {
             localStorage.setItem('sre-jwt', data.token);
             if (errEl) errEl.style.display = 'none';
             resetApiOfflineBanner();
+            if (data.require_password_change) {
+                notify('Sign-in OK. Set a new password below to enter the app.', 'info');
+            }
             window.checkAuth();
         })
         .catch(err => {
@@ -1078,12 +1086,37 @@ window.checkAuth = function () {
 window.submitNewPassword = function () {
     const p1 = document.getElementById('force-new-pass').value;
     const p2 = document.getElementById('force-new-pass-confirm').value;
-    if (!p1 || p1 !== p2) return notify("Passwords do not match", "error");
+    if (!p1 || p1.length < 6) return notify("Password must be at least 6 characters", "error");
+    if (p1 !== p2) return notify("Passwords do not match", "error");
+
+    const payload = parseJwt(localStorage.getItem('sre-jwt'));
+    const username = payload?.username || document.getElementById('login-username')?.value?.trim();
+    if (!username) return notify("Session expired. Sign in again.", "error");
 
     fetchWithAuth('/api/users/change-password', { method: 'POST', body: JSON.stringify({ new_password: p1 }) })
-        .then(res => {
-            if (res.ok) { notify("Password secured. Please login again.", "success"); setTimeout(() => window.performLogout(), 2000); }
-            else notify("Error updating password", "error");
+        .then(res => parseApiJson(res))
+        .then(async ({ ok }) => {
+            if (!ok) {
+                notify("Error updating password", "error");
+                return;
+            }
+            localStorage.removeItem('sre-jwt');
+            const loginRes = await fetch('/api/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password: p1 })
+            });
+            const loginBody = await loginRes.json().catch(() => ({}));
+            if (!loginRes.ok) {
+                notify(loginBody.error || 'Password saved. Sign in with your new password.', 'info');
+                showLoginScreen();
+                return;
+            }
+            localStorage.setItem('sre-jwt', loginBody.token);
+            notify("Password secured. Welcome!", "success");
+            document.getElementById('force-new-pass').value = '';
+            document.getElementById('force-new-pass-confirm').value = '';
+            window.checkAuth();
         }).catch(() => notify("Network error", "error"));
 }
 

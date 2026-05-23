@@ -1,10 +1,11 @@
 {
-  "command": "k8s-action.sh",
-  "description": "Rollout restart for a Kubernetes deployment (requires kubectl and cluster credentials on the host).",
-  "env": {
+  "auto_run": false,
+  "config": {
     "DEPLOYMENT_NAME": "my-app",
     "K8S_NAMESPACE": "default"
   },
+  "description": "Rollout restart for a Kubernetes deployment (requires kubectl and cluster credentials on the host).",
+  "integration": "k8s",
   "name": "K8s Deployment Restart",
   "status": "Active",
   "trigger_on": [

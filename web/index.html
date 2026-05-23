@@ -208,6 +208,7 @@
             <p style="opacity: 0.6; font-size: 12px; letter-spacing: 2px; margin-bottom: 30px;">SRE CONTROL PLANE</p>
             <div id="login-error" class="sre-notification error" style="display: none; margin-bottom: 15px; font-size: 12px; padding: 10px;">AUTHENTICATION FAILED</div>
             <p id="login-server-hint" style="display: none; color: #d29922; font-size: 11px; margin-bottom: 12px; line-height: 1.4;"></p>
+            <p style="color: #6e7681; font-size: 11px; margin-bottom: 12px; line-height: 1.45;">Open <strong>http://localhost:9000</strong> (not a file on disk). Default admin: <code>admin</code> / <code>admin</code> if the database is new.</p>
             
             <input type="text" id="login-username" class="login-input" placeholder="Username or email" autocomplete="username">
             <input type="password" id="login-password" class="login-input" placeholder="Passphrase">
@@ -729,21 +730,10 @@
                                 </div>
                             </div>
 
-                            <h4 style="margin: 0 0 15px 0; font-size: 13px; color: #58a6ff; text-transform: uppercase; border-top: 1px solid #30363d; padding-top: 20px;">SRE Routing Configuration (Optional)</h4>
-                            <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 25px;">
-                                <div>
-                                    <label style="font-size: 11px; color: #8b949e;">Slack Channel</label>
-                                    <input type="text" id="ci-slack-channel" class="login-input" placeholder="#alerts-backend" style="margin: 0;">
-                                </div>
-                                <div>
-                                    <label style="font-size: 11px; color: #8b949e;">Jira Project Key</label>
-                                    <input type="text" id="ci-jira-key" class="login-input" placeholder="e.g. PAY or CORE" style="margin: 0;">
-                                </div>
-                                <div>
-                                    <label style="font-size: 11px; color: #8b949e;">MS Teams Webhook URL</label>
-                                    <input type="text" id="ci-teams-webhook" class="login-input" placeholder="https://..." style="margin: 0;">
-                                </div>
-                            </div>
+                            <h4 style="margin: 0 0 8px 0; font-size: 13px; color: #58a6ff; text-transform: uppercase; border-top: 1px solid #30363d; padding-top: 20px;">SRE Routing Configuration (Optional)</h4>
+                            <p style="font-size: 11px; color: #8b949e; margin: 0 0 12px; line-height: 1.45;">Add routing only for integrations <strong>activated</strong> by your Manager in Plugin Engine. Auto-run triggers apply to plugins listed here.</p>
+                            <div id="ci-sre-routing-list" style="display: flex; flex-direction: column; gap: 14px; margin-bottom: 12px;"></div>
+                            <button type="button" id="ci-add-routing-btn" class="btn-secondary" style="width: 100%; margin-bottom: 20px; font-size: 12px;" onclick="window.addSRERoutingRow && window.addSRERoutingRow()">+ Add configuration</button>
 
                             <div style="margin-top: 15px; background: #0d1117; padding: 15px; border-radius: 6px; border: 1px dashed #30363d;">
                                 <label style="font-size: 0.8rem; color: #58a6ff; font-weight: bold;">Generated Webhook URL (Read-Only)</label>

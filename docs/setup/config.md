@@ -21,10 +21,10 @@ QA Capsule is designed with a "Secure by Default" philosophy. There is no open r
 
 ### Default Credentials
 
-Unless you modified the `docker-compose.yml` environment variables, the default credentials are:
+Unless you modified deployment settings, the default credentials are:
 
-1. **Email:** `admin@qacapsule.local` (or the email specified in your `.env` file)
-2. **Password:** `admin123` (or the password specified in your `.env` file)
+1. **Username:** `admin`
+2. **Password:** `admin`
 
 ### The Mandatory Password Reset (Action Required)
 
@@ -82,23 +82,17 @@ Now that your system is secure and can send emails, it is time to invite your te
 
 ### Global Roles Explained
 
-QA Capsule uses a Role-Based Access Control (RBAC) system. Every user must be assigned one of three global roles:
+QA Capsule uses a Role-Based Access Control (RBAC) system. Every user must be assigned one of these global roles:
 
-1. **Viewer (Developer Level):** 
-   
-   * Can view the Dashboard, read Incident logs, and inspect StackTraces.
-   * *Cannot* provision new CI/CD endpoints, cannot edit Plugins, and cannot resolve incidents.
+1. **Observer** — View dashboard and incidents for assigned teams; cannot resolve or configure plugins.
 
-2. **Operator (QA/Lead Level):** 
-   
-   * Inherits Viewer permissions.
-   * Can provision new CI/CD Webhooks for their projects.
-   * Can click the "Acknowledge & Resolve" button on incidents.
-   * *Cannot* access the System Settings or IAM panels.
+2. **Lead** — Resolve/delete incidents (per policy), provision CI gateways, configure Plugin Engine integrations.
 
-3. **Administrator (SRE/DevOps Level):** 
-   
-   * Has unrestricted access to the entire platform, including user management, SMTP settings, and global Plugin configurations.
+3. **Manager** — Broader visibility (all projects), FinOps, team operations.
+
+4. **Platform Admin** — Full access: IAM, SMTP, system settings, all projects.
+
+See [RBAC & Teams](rbac-teams.md) for the permission matrix.
 
 ### Provisioning a New User
 
@@ -121,3 +115,59 @@ Here is exactly what happens when you click "Deploy Identity":
 4. When Jane logs in for the first time, she will hit the exact same **ACTION REQUIRED** screen you saw in Step 1, forcing her to choose a private password.
 
 You have now successfully configured the system! You are ready to move on to setting up your `CI/CD integrations`.
+
+---
+
+## 5. Artifact Storage (Test Evidence)
+
+QA Capsule stores Playwright traces, screenshots, and videos linked to incidents.
+
+### `config.yaml` block
+
+```yaml
+storage:
+  provider: local          # local | s3 (s3 is stub in community edition)
+  local_path: ./data/artifacts
+```
+
+### Environment variables
+
+| Variable | Description |
+|---|---|
+| `STORAGE_PROVIDER` | `local` (default) or `s3` |
+| `STORAGE_S3_BUCKET` | Future S3 bucket name |
+| `STORAGE_S3_REGION` | AWS region |
+| `STORAGE_S3_PREFIX` | Key prefix |
+
+### Upload endpoint
+
+```
+POST /api/incidents/{id}/artifacts
+```
+
+See [Artifacts & Developer CLI](../guides/artifacts-and-cli.md).
+
+---
+
+## 6. Plugin directory
+
+```yaml
+plugins:
+  directory: ./plugins
+```
+
+Integrations load **once at server start**. After editing a manifest JSON, restart QA Capsule. Shell `command` fields are ignored — use `"integration": "slack"` etc. See [Plugin Engine](../plugins/overview.md).
+
+---
+
+## 7. Integration secrets (recommended)
+
+Do **not** store production tokens in `config.yaml` or plugin JSON when possible. Set them on the server process:
+
+```bash
+export SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
+export JIRA_API_TOKEN=...
+export JIRA_URL=https://your.atlassian.net
+```
+
+The Go engine reads environment variables before manifest `env` values.

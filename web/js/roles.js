@@ -69,6 +69,11 @@ export function canAccessPlugins(role) {
     return r === 'manager' || r === 'lead';
 }
 
+export function canManagePluginAutoRun(role) {
+    const r = normalizeRole(role);
+    return r === 'manager' || r === 'admin';
+}
+
 export function canResolveIncidents(role) {
     return hasMinRole(role, 'lead') && normalizeRole(role) !== 'admin';
 }

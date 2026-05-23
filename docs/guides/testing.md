@@ -4,73 +4,155 @@ icon: material/play-box-multiple
 
 # End-to-End Testing Guide
 
-Once you have configured QA Capsule and set up your routing (Slack, Teams, or Jira), it is highly recommended to simulate a pipeline crash to verify the entire telemetry and plugin execution chain.
+Validate ingestion, dashboard, integrations, artifacts, flaky detection, and optional CLI/reporter flows.
 
-This guide will walk you through a complete End-to-End (E2E) test.
+---
 
 ## Prerequisites
 
-* QA Capsule is running (via `docker-compose up -d`).
-* You are logged into the UI as an Administrator.
-* You have a terminal open on your machine.
+* QA Capsule running (`go run ./cmd/qacapsule/main.go` or Docker).
+* Logged in as **Platform Admin** (`admin` / `admin` after password change).
+* Terminal with `curl` or PowerShell.
 
-## Phase 1: Provision a Test Endpoint
+---
 
-First, we need to create a project in the system to generate an API key.
+## Phase 1: Provision a test project
 
-* Go to the `CI/CD` Gateways tab in the UI.
-* Select GitLab CI.
-* Fill in the form:
-    * **Project Name** : QA Simulation Project
-    * **(Optional) Routing MS Teams** : Add your Teams Webhook.
-    * **(Optional) Routing Jira Key** : Add a test Jira key (e.g., TEST).
-* Click Provision Project Endpoint.
-* Look at the read-only boxes at the bottom. Copy the Generated API Key (it looks like `sre_pk_gitlab_a1b2c3d4`).
+1. **CI/CD Gateways** → create a project (e.g. `QA Simulation Project`).
+2. Copy **API Key** and note **Webhook URL** (`http://localhost:9000/api/webhooks/`).
 
-## Phase 2: Simulate a CI/CD Crash
+---
 
-Instead of breaking a real pipeline, we will act as the sre-agent.sh and send a manual `HTTP POST` request to the Webhook API using curl.
+## Phase 2: Ingest a failure (enriched JSON)
 
-Open your terminal and paste the following command. Make sure to replace the X-API-Key value with the one you just copied.
-
-```Bash
-curl -X POST http://localhost:9000/api/webhooks/gitlab \
-     -H "Content-Type: application/json" \
-     -H "X-API-Key: sre_pk_gitlab_YOUR_KEY_HERE" \
-     -d '{
-           "name": "E2E Checkout Workflow",
-           "error": "Timeout waiting for element #submit-btn",
-           "status": "CRITICAL",
-           "console_logs": "[INFO] Starting Cypress...\n[INFO] Navigating to /checkout\n[FATAL] Element #submit-btn not found after 10000ms.\n[TRACE] at Context.eval (checkout.spec.js:42:12)"
-         }'
-```
-If the API key is correct, your terminal will respond with:
-
-```JSON
-{"project":"QA Simulation Project","status":"incident_recorded"}
+```bash
+curl -X POST http://localhost:9000/api/webhooks/ \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: YOUR_KEY" \
+  -H "X-Run-Id: e2e-test-1" \
+  -d '{
+    "name": "E2E Checkout @jira-TEST-1",
+    "error": "Timeout waiting for #submit-btn",
+    "status": "CRITICAL",
+    "browser": "chromium",
+    "os": "linux",
+    "viewport": "1280x720",
+    "execution_time_ms": 4500,
+    "console_logs": "[FATAL] Element #submit-btn not found."
+  }'
 ```
 
-## Phase 3: Verify the Dashboard (Real-Time)
+Expected `202` body:
 
-1. Switch back to your browser and open the Dashboard tab.
-2. Thanks to the real-time polling engine, you should immediately see your Active Incidents KPI increment to 1.
-3. The incident will appear in the Incident History Log, styled with a red border because the status is CRITICAL.
-4. You will see the exact console_logs formatted perfectly in the code block.
-
-## Phase 4: Verify Plugin Execution
-
-Because the payload contained the word `[FATAL]`, the QA Capsule Plugin Engine will have automatically triggered any active plugins.
-
-1. Go to the Plugin Engine tab.
-2. Under the relevant plugin (e.g., Slack or MS Teams), click on the Logs / Console button (or check your Docker terminal logs).
-3. You should see the STDOUT confirming the execution:
-
-```Plaintext
-    [RUNBOOK] Success (MS Teams Notifier):
-    Sending payload to https://company.webhook.office.com/...
-    HTTP 200 OK
-    [EXIT STATUS] SUCCESS
+```json
+{
+  "status": "success",
+  "failures_processed": 1,
+  "last_incident_id": 1,
+  "incident_ids": [1]
+}
 ```
-4. Finally, check your actual Slack or Microsoft Teams application. You should have received a beautifully formatted alert card containing the error details!
 
-**Congratulations ! Your SRE Control Plane is fully operational.**
+---
+
+## Phase 3: Dashboard
+
+1. Open **Dashboard** → incident appears (red / CRITICAL).
+2. Confirm name, logs, and project filter.
+
+---
+
+## Phase 4: Plugin / integration execution
+
+1. **Plugin Engine** → ensure Slack/Jira/Teams integration is **Active**.
+2. Set secrets on the server (`SLACK_WEBHOOK_URL`, etc.) — see [Plugin overview](../plugins/overview.md).
+3. After ingestion, check server logs for `remediation auto-trigger` or run **Execute** manually on a card.
+
+---
+
+## Phase 5: Artifact upload
+
+```bash
+# Create a small zip for testing
+zip trace.zip README.md   # Linux/macOS
+
+curl -X POST "http://localhost:9000/api/incidents/1/artifacts" \
+  -H "X-API-Key: YOUR_KEY" \
+  -F "file=@trace.zip"
+```
+
+Expect `202` + file under `data/artifacts/incident_1/`.
+
+---
+
+## Phase 6: Flaky detection
+
+1. **Resolve** the incident in the UI.
+2. Re-send the **same** JSON (same `name` + `error`, new `X-Run-Id`).
+3. New incident name should start with `[FLAKY]`.
+
+Check API:
+
+```bash
+# Fingerprint = SHA256("E2E Checkout @jira-TEST-1|Timeout waiting for #submit-btn")
+curl "http://localhost:9000/api/incidents/check-flaky/YOUR_64_CHAR_HASH"
+```
+
+---
+
+## Phase 7: Performance regression (optional)
+
+Send three fast passes, then one slow pass (same test name):
+
+```bash
+for i in 1 2 3; do
+  curl -s -X POST http://localhost:9000/api/webhooks/ \
+    -H "X-API-Key: YOUR_KEY" -H "X-Run-Id: perf-$i" \
+    -H "Content-Type: application/json" \
+    -d '{"name":"Perf login","status":"PASSED","error":"","execution_time_ms":1000}'
+done
+
+curl -X POST http://localhost:9000/api/webhooks/ \
+  -H "X-API-Key: YOUR_KEY" -H "X-Run-Id: perf-slow" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Perf login","status":"PASSED","error":"","execution_time_ms":3500}'
+```
+
+Expect `[PERF] Perf login` incident.
+
+---
+
+## Phase 8: Developer CLI (optional)
+
+```bash
+go build -o bin/qacapsule-cli ./cmd/cli
+export QACAPSULE_API_URL=http://localhost:9000
+export QACAPSULE_API_KEY=YOUR_KEY
+
+bin/qacapsule-cli run --test-name "E2E Checkout @jira-TEST-1" \
+  --test-error "Timeout waiting for #submit-btn" \
+  cmd /c "exit 1"
+```
+
+Yellow flaky warning appears if Phase 6 succeeded.
+
+---
+
+## Phase 9: Playwright reporter (optional)
+
+See [Playwright Reporter](../integration/playwright-reporter.md).
+
+---
+
+## Success criteria
+
+| Check | Pass |
+|---|---|
+| Webhook returns `202` + `last_incident_id` | ☐ |
+| Dashboard shows incident | ☐ |
+| Integration logs / notification | ☐ |
+| Artifact on disk | ☐ |
+| `[FLAKY]` after re-fail | ☐ |
+| `[PERF]` after slow pass (optional) | ☐ |
+
+**Your SRE control plane is operational.**

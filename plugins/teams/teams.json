@@ -1,14 +1,15 @@
 {
-  "name": "MS Teams Incident Broadcaster",
-  "version": "1.0.0",
+  "auto_run": false,
+  "config": {
+    "TEAMS_WEBHOOK_URL": ""
+  },
   "description": "Instantly broadcasts critical alerts as interactive 'MessageCards' to a designated Microsoft Teams channel.",
+  "integration": "teams",
+  "name": "MS Teams Incident Broadcaster",
   "status": "Active",
-  "command": "teams-action.sh",
   "trigger_on": [
     "[FATAL]",
     "CRITICAL"
   ],
-  "env": {
-    "TEAMS_WEBHOOK_URL": ""
-  }
+  "version": "1.0.0"
 }

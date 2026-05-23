@@ -1,15 +1,16 @@
 {
-  "name": "PagerDuty Incident Trigger",
-  "version": "1.0.0",
+  "auto_run": false,
+  "config": {
+    "PAGERDUTY_ROUTING_KEY": ""
+  },
   "description": "Opens a PagerDuty incident via Events API v2 when critical pipeline failures are detected.",
+  "integration": "pagerduty",
+  "name": "PagerDuty Incident Trigger",
   "status": "Active",
-  "command": "pagerduty-action.sh",
   "trigger_on": [
     "CRITICAL",
     "FATAL",
     "[FATAL]"
   ],
-  "env": {
-    "PAGERDUTY_ROUTING_KEY": ""
-  }
+  "version": "1.0.0"
 }

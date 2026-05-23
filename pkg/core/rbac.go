@@ -103,6 +103,11 @@ func CanAccessPlugins(role string) bool {
 	return IsManager(role) || IsLead(role)
 }
 
+// CanManagePluginAutoRun allows toggling AUTO-RUN on integrations (Manager or Platform Admin).
+func CanManagePluginAutoRun(role string) bool {
+	return IsManager(role) || IsAdmin(role)
+}
+
 func CanResolveIncidents(role string) bool {
 	return HasMinRole(role, RoleLead)
 }

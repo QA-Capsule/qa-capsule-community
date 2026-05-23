@@ -14,8 +14,9 @@ QA Capsule supports two complementary ingestion paths:
 
 | Method | Endpoint | Best for |
 |---|---|---|
-| **JUnit XML Upload** (recommended) | `POST /api/webhooks/upload` | Playwright, Cypress, Pytest, JUnit, Robot Framework — any framework that exports XML |
-| **JSON Webhook** | `POST /api/webhooks/{provider}` | Custom scripts, lightweight notifications, legacy integrations |
+| **Playwright Reporter** | `POST /api/webhooks/` (per test) | Real-time failure + trace upload — see [Playwright Reporter](playwright-reporter.md) |
+| **JUnit XML Upload** | `POST /api/webhooks/upload` | Playwright, Cypress, Pytest, JUnit, Robot Framework — batch XML |
+| **JSON Webhook** | `POST /api/webhooks/` | Custom scripts, dimensional tags, perf metrics, batch `tests[]` |
 
 !!! tip "Always prefer JUnit XML when possible"
     The upload endpoint parses each failed `<testcase>` individually, creates one sub-alert per test, captures `system-out` / `system-err`, and enables accurate fingerprinting. JSON webhooks are better for pipeline-level alerts without structured test reports.
@@ -34,7 +35,9 @@ Use this checklist for **every** new project:
 - [ ] **6. Upload the XML** via `curl` multipart form to `/api/webhooks/upload?framework={Name}`.
 - [ ] **7. Verify** the incident appears in the Dashboard within seconds.
 - [ ] **8. Configure routing** (Slack channel, Teams webhook, Jira key) in the project provisioning form.
-- [ ] **9. Activate plugins** under the Plugins module if you want automatic notifications.
+- [ ] **9. Activate integrations** under Plugin Engine (native Go — no shell scripts).
+- [ ] **10. (Optional)** Upload traces via `POST /api/incidents/{id}/artifacts` or use the Playwright reporter.
+- [ ] **11. (Optional)** Set `execution_time_ms` on passed tests to enable `[PERF]` regression detection.
 
 ---
 

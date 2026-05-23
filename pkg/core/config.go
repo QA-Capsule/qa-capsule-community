@@ -47,11 +47,15 @@ type Config struct {
 	} `yaml:"security" json:"security"`
 	Telemetry TelemetryConfig `yaml:"telemetry" json:"telemetry"`
 	Projects []ProjectConfig `yaml:"projects" json:"projects"`
-	Plugins   struct {
+	Plugins struct {
 		Directory  string `yaml:"directory" json:"directory"`
 		AutoReload bool   `yaml:"auto_reload" json:"auto_reload"`
 	} `yaml:"plugins" json:"plugins"`
-	
+
+	Storage struct {
+		Provider  string `yaml:"provider" json:"provider"`
+		LocalPath string `yaml:"local_path" json:"local_path"`
+	} `yaml:"storage" json:"storage"`
 }
 
 func LoadConfig() Config {

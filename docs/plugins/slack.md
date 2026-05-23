@@ -2,183 +2,138 @@
 icon: fontawesome/brands/slack
 ---
 
-# Slack Integration
+# Slack
 
-The Slack plugin ensures that your engineering teams are instantly notified when a pipeline crashes. Instead of relying on generic CI/CD bot messages that cause "alert fatigue," QA Capsule formats the alert with contextual data, color-coded urgency, and the exact StackTrace.
+<div align="center" class="integration-hero">
+  <img src="../assets/integrations/slack.png" alt="Slack logo">
+</div>
 
-More importantly, thanks to **Dynamic Routing**, a single Slack integration can route Frontend errors to `#alerts-frontend` and Backend errors to `#alerts-backend` automatically.
+Envoie une carte d’alerte formatée dans un canal Slack via **Incoming Webhook** (intégration Go native, sans script shell).
 
----
-
-## Part 1: Slack Workspace Configuration
-
-To send messages to Slack, QA Capsule uses **Incoming Webhooks**. You need to create a lightweight Slack App in your workspace to generate this webhook URL.
-
-### Step 1: Create the Slack App
-1. Navigate to the [Slack API Apps Portal](https://api.slack.com/apps) in your web browser.
-2. Click the **Create New App** button.
-3. Select **From scratch**.
-4. **App Name:** `QA Capsule Bot` (or similar).
-5. **Workspace:** Select your company's Slack workspace.
-6. Click **Create App**.
-
-### Step 2: Enable Incoming Webhooks
-1. In your new App's settings menu (left sidebar), click on **Incoming Webhooks**.
-2. Toggle the switch to **Activate Incoming Webhooks** (turn it On).
-   *(Placeholder: `![Enable Slack Webhooks](../assets/slack-enable-webhook.png)`)*
-3. Scroll down and click **Add New Webhook to Workspace**.
-4. Slack will ask you to pick a channel. Pick any default channel (e.g., `#general` or `#test`). **Do not worry about this choice**—QA Capsule will dynamically override this channel later based on the project routing rules.
-5. Click **Allow**.
-6. **CRITICAL:** Copy the generated **Webhook URL** (it will look like `https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX`).
+| | |
+|---|---|
+| **Manifest** | `plugins/slack/slack-notifier.json` |
+| **Type** | `slack` |
+| **API utilisée** | `POST` JSON sur l’URL Incoming Webhook |
 
 ---
 
-## Part 2: QA Capsule Global Configuration
+=== "Côté QA Capsule"
 
-Now we must provide the global Slack Webhook URL to the QA Capsule Plugin Engine.
+    ## 1. Prérequis rôle
 
-1. Open your **QA Capsule Dashboard**.
-2. Navigate to the **Plugin Engine** tab.
-3. Locate the **Slack Alert Notifier** plugin card.
-4. Click the **Configure** button.
-5. Paste the URL you copied in Step 1 into the `SLACK_WEBHOOK_URL` field.
-6. Click **Save Configuration**.
-7. Ensure the plugin's status switch is toggled to **AUTO-RUN ON**.
+    | Action | Rôle minimum |
+    |--------|----------------|
+    | Configurer secrets / AUTO-RUN | **Manager** ou **Platform Admin** |
+    | Routage canal par pipeline | **Manager** ou **Lead** |
+    | Execute (test) | **Lead** |
 
----
+    ## 2. Variables (serveur Go)
 
-## Part 3: Project-Level Dynamic Routing
+    | Variable | Obligatoire | Où la mettre | Description |
+    |----------|-------------|--------------|-------------|
+    | `SLACK_WEBHOOK_URL` | **Oui** | Env serveur ou Plugin **Configure** | URL `https://hooks.slack.com/services/...` |
+    | `SLACK_CHANNEL` | Non | **CI/CD Gateway** uniquement | Canal par projet (ex. `#alerts-e2e`) |
 
-Because QA Capsule is multi-tenant, you must define which Slack channel receives alerts for which project.
+    ```bash
+    export SLACK_WEBHOOK_URL="https://hooks.slack.com/services/T00/B00/XXXX"
+    ```
 
-1. Navigate to the **CI/CD Gateways** module.
-2. When provisioning a new endpoint (or editing an existing one), locate the **Routing: Slack Channel** field.
+    ## 3. Plugin Engine
 
-3. Enter the exact name of your channel, including the hash (e.g., `#alerts-frontend`).
-   * *Note: If routing to a specific user via Direct Message, use their Member ID (e.g., `@U12345678`).*
-   
-4. Click **Provision Project Endpoint**.
+    1. Ouvrir **Plugin Engine** → carte **Smart Slack Routing**
+    2. **Configure** : laisser `SLACK_WEBHOOK_URL` vide si déjà en env
+    3. **AUTO-RUN** : laisser **OFF** tant que le webhook n’est pas testé
+    4. **Execute** : doit afficher `[SLACK] Delivered to ... (HTTP 200)`
 
-When this specific project fails, QA Capsule will inject `SLACK_CHANNEL="#alerts-frontend"` into the plugin script environment.
+    Manifest actuel :
 
----
-
-## Part 4: The Plugin Script Implementation (`slack.sh`)
-
-For SREs who want to customize the look and feel of the Slack message, here is the underlying Bash script used by the plugin. 
-
-It uses Slack's `attachments` array to create a visually distinct, red-bordered card for critical incidents.
-
-### The `manifest.json`
-```json
-{
-  "name": "Slack Alert Notifier",
-  "description": "Pushes formatted incident alerts to a specific Slack channel.",
-  "version": "1.0.0",
-  "author": "SRE Team",
-  "entrypoint": "slack.sh",
-  "global_env": [
-    "SLACK_WEBHOOK_URL"
-  ],
-  "trigger_on": [
-    "[FATAL]",
-    "CRITICAL"
-  ]
-}
-```
-
-### The `slack.sh` Executable
-
-``` Bash
-#!/bin/bash
-# ==============================================================================
-# QA Capsule Plugin: Slack Notifier
-# ==============================================================================
-
-# 1. Validate Global Authentication
-if [ -z "$SLACK_WEBHOOK_URL" ]; then
-  echo "[ERROR] SLACK_WEBHOOK_URL is not configured globally. Aborting."
-  exit 1
-fi
-
-# 2. Validate Dynamic Routing Context
-if [ -z "$SLACK_CHANNEL" ]; then
-  echo "[SKIP] No SLACK_CHANNEL defined for this project. Skipping Slack notification."
-  exit 0
-fi
-
-echo "[INFO] Formatting Slack payload for channel: $SLACK_CHANNEL..."
-
-# 3. Safely escape multi-line stacktraces and errors using jq
-# This prevents bash injection and malformed JSON errors
-SAFE_ERROR=$(echo "$INCIDENT_ERROR" | jq -R -s '.')
-SAFE_LOGS=$(echo "$INCIDENT_LOGS" | jq -R -s '.')
-SAFE_BROWSER=$(echo "$INCIDENT_BROWSER" | jq -R -s '.')
-
-# Determine color based on Incident Status
-if [ "$INCIDENT_STATUS" == "CRITICAL" ]; then
-  COLOR="#FF0000" # Red
-else
-  COLOR="#FFCC00" # Yellow for warnings
-fi
-
-# 4. Construct the Slack JSON Payload
-# Note: We use the "channel" parameter to dynamically override the webhook's default channel
-JSON_PAYLOAD=$(cat <<EOF
-{
-  "channel": "$SLACK_CHANNEL",
-  "username": "QA Capsule Bot",
-  "icon_emoji": ":rotating_light:",
-  "attachments": [
+    ```json
     {
-      "color": "$COLOR",
-      "pretext": "*New CI/CD Failure Detected*",
-      "title": "$INCIDENT_NAME",
-      "fields": [
-        {
-          "title": "Error Summary",
-          "value": ${SAFE_ERROR},
-          "short": false
-        },
-        {
-          "title": "Environment / Context",
-          "value": ${SAFE_BROWSER},
-          "short": true
-        },
-        {
-          "title": "Status",
-          "value": "$INCIDENT_STATUS",
-          "short": true
-        }
-      ],
-      "text": "*Console Logs & StackTrace:*\n\`\`\`\n${INCIDENT_LOGS:1:-1}\n\`\`\`",
-      "footer": "QA Flight Recorder",
-      "ts": $(date +%s)
+      "integration": "slack",
+      "name": "Smart Slack Routing",
+      "status": "Active",
+      "auto_run": true,
+      "trigger_on": ["CRITICAL", "Timeout", "ECONNREFUSED", "FLAKY"],
+      "config": { "SLACK_WEBHOOK_URL": "" }
     }
-  ]
-}
-EOF
-)
+    ```
 
-# 5. Execute the HTTP Request via cURL
-echo "[INFO] Dispatching to Slack API..."
+    ## 4. CI/CD Gateway (routage dynamique)
 
-HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST -H 'Content-type: application/json' --data "$JSON_PAYLOAD" "$SLACK_WEBHOOK_URL")
+    1. **CI/CD Gateways** → projet pipeline
+    2. **+ Add configuration** → choisir **Smart Slack Routing** (logo Slack)
+    3. Champ **Slack Channel** : `#alerts-frontend` ou ID membre `U01234567`
+    4. Enregistrer le gateway
 
-if [ "$HTTP_STATUS" -eq 200 ]; then
-  echo "[SUCCESS] Alert successfully delivered to $SLACK_CHANNEL."
-  exit 0
-else
-  echo "[ERROR] Failed to send Slack message. HTTP Status: $HTTP_STATUS"
-  exit 1
-fi
-```
-## Part 5: Troubleshooting
+    Au runtime, QA Capsule envoie `"channel": "<valeur gateway>"` dans le JSON Slack.
 
-If you are not receiving Slack messages, check the Stdout Logs terminal in the QA Capsule Plugin Engine UI.
+    ## 5. Payload envoyé par QA Capsule
 
-1. **HTTP 404 Not Found (channel_not_found):** The `SLACK_CHANNEL` specified in your CI/CD Gateways routing does not exist, or it is misspelled.
+    ```json
+    {
+      "channel": "#alerts-frontend",
+      "attachments": [{
+        "color": "#ff4444",
+        "title": "SRE Alert: [Playwright] checkout",
+        "text": "Error detected by QA Capsule.\n\nTimeout 30000ms",
+        "footer": "QA Capsule Remediation Engine"
+      }]
+    }
+    ```
 
-2. **HTTP 403 Forbidden (action_prohibited):** If you are trying to send a message to a Private Channel, the Slack App will fail unless you manually invite the App to that channel first. Go to the private channel in Slack, type /invite `@QA Capsule Bot`, and hit enter.
+    ## 6. Dépannage QA Capsule
 
-3. **HTTP 400 Bad Request:** The payload is malformed. This usually happens if a stacktrace contains massive, unescaped unicode characters that jq struggles with.
+    | Symptôme | Cause | Solution |
+    |----------|-------|----------|
+    | `[ERROR] SLACK_WEBHOOK_URL not configured` | Secret absent | `export` ou Configure |
+    | HTTP 404 | URL révoquée | Recréer webhook côté Slack |
+    | Pas de message | AUTO-RUN OFF ou gateway sans Slack | Activer + Add configuration |
+    | Mauvais canal | `SLACK_CHANNEL` vide | Remplir dans gateway |
+
+=== "Côté fournisseur (Slack)"
+
+    ## 1. Créer une Slack App
+
+    1. [api.slack.com/apps](https://api.slack.com/apps) → **Create New App** → **From scratch**
+    2. Nom : `QA Capsule Bot`
+    3. Workspace : votre entreprise
+
+    ## 2. Activer Incoming Webhooks
+
+    1. Menu app → **Incoming Webhooks** → **On**
+    2. **Add New Webhook to Workspace**
+    3. Choisir un canal par défaut (ex. `#general`) — QA Capsule peut **surcharger** le canal via `SLACK_CHANNEL`
+    4. Copier l’URL : `https://hooks.slack.com/services/T…/B…/…`
+
+    ## 3. Permissions / bonnes pratiques
+
+    | Recommandation | Détail |
+    |----------------|--------|
+    | Canal dédié | `#sre-qa-alerts` par équipe ou produit |
+    | Pas de token dans Git | URL = secret ; rotation si fuite |
+    | Inviter l’app | Le canal cible doit exister ; bot invité si canal privé |
+
+    ## 4. Vérification côté Slack
+
+    Test manuel :
+
+    ```bash
+    curl -X POST -H "Content-Type: application/json" \
+      -d '{"text":"QA Capsule test"}' \
+      "https://hooks.slack.com/services/VOTRE_URL"
+    ```
+
+    Réponse `ok` → Slack accepte le webhook.
+
+    ## 5. Limites Slack
+
+    - Incoming Webhooks : pas de threads avancés sans migrer vers l’API `chat.postMessage` + Bot token (hors scope community)
+    - Rate limits Slack standards ; rafales CI importantes → regrouper côté corrélation QA Capsule
+
+---
+
+## Liens
+
+- [Guide deux côtés](configuration-guide.md)
+- [Catalogue intégrations](integrations-catalog.md)

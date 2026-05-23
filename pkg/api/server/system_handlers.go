@@ -5,11 +5,13 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/QA-Capsule/qa-capsule-community/pkg/core"
+	"github.com/QA-Capsule/qa-capsule-community/pkg/integrations"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/websocket"
 	"gopkg.in/yaml.v3"
 )
@@ -17,23 +19,15 @@ import (
 // registerSystemRoutes binds plugins, system settings, and websocket endpoints
 func registerSystemRoutes(config *core.Config) {
 
-	// Fetch all installed plugins by scanning JSON manifests
+	// List remediation integrations (loaded at startup; no shell scripts).
 	http.HandleFunc("/api/plugins", jwtAuthMiddleware(config, "", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		var pluginList []map[string]interface{}
-		filepath.WalkDir(config.Plugins.Directory, func(path string, d os.DirEntry, err error) error {
-			if err == nil && !d.IsDir() && filepath.Ext(path) == ".json" {
-				fileData, _ := os.ReadFile(path)
-				var pluginData map[string]interface{}
-				if json.Unmarshal(fileData, &pluginData) == nil {
-					relPath, _ := filepath.Rel(config.Plugins.Directory, path)
-					pluginData["file_path"] = relPath
-					pluginList = append(pluginList, pluginData)
-				}
-			}
-			return nil
-		})
-		json.NewEncoder(w).Encode(pluginList)
+		reg := core.RemediationRegistry()
+		if reg == nil {
+			json.NewEncoder(w).Encode([]map[string]interface{}{})
+			return
+		}
+		json.NewEncoder(w).Encode(reg.ToAPIList())
 	}))
 
 	// Execute a specific plugin manually from the UI
@@ -43,7 +37,7 @@ func registerSystemRoutes(config *core.Config) {
 		}
 		json.NewDecoder(r.Body).Decode(&req)
 
-		logs, err := core.RunSinglePlugin(*config, req.FilePath, "MANUAL", nil)
+		logs, err := core.RunSinglePlugin(*config, req.FilePath, "MANUAL", nil) // native Go integration
 
 		w.Header().Set("Content-Type", "application/json")
 		if err != nil {
@@ -53,6 +47,69 @@ func registerSystemRoutes(config *core.Config) {
 		}
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]string{"logs": logs})
+	}))
+
+	// Toggle AUTO-RUN per integration (Manager or Platform Admin)
+	http.HandleFunc("/api/plugins/autorun", jwtAuthMiddleware(config, "", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		authHeader := r.Header.Get("Authorization")
+		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+		claims := &Claims{}
+		jwt.ParseWithClaims(tokenString, claims, func(t *jwt.Token) (interface{}, error) { return jwtKey, nil })
+		if !core.CanManagePluginAutoRun(claims.Role) {
+			writeJSONError(w, "Manager or Platform Admin required", http.StatusForbidden)
+			return
+		}
+		var req struct {
+			FilePath string `json:"file_path"`
+			AutoRun  bool   `json:"auto_run"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid body", http.StatusBadRequest)
+			return
+		}
+		reg := core.RemediationRegistry()
+		if reg == nil {
+			http.Error(w, "Remediation engine not initialized", http.StatusServiceUnavailable)
+			return
+		}
+		if err := reg.UpdateAutoRun(req.FilePath, req.AutoRun); err != nil {
+			writeJSONError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{"status": "ok", "auto_run": req.AutoRun})
+	}))
+
+	// Active integrations for CI/CD gateway routing dropdown
+	http.HandleFunc("/api/plugins/active", jwtAuthMiddleware(config, "", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		reg := core.RemediationRegistry()
+		if reg == nil {
+			json.NewEncoder(w).Encode([]map[string]interface{}{})
+			return
+		}
+		out := make([]map[string]interface{}, 0)
+		for _, m := range reg.List() {
+			if !integrations.IsActiveForRouting(m.Status) {
+				continue
+			}
+			out = append(out, map[string]interface{}{
+				"file_path":      m.FilePath,
+				"integration":    m.Integration,
+				"name":           m.Name,
+				"auto_run":       m.AutoRun,
+				"routing_fields": integrations.RoutingFieldsForIntegration(m.Integration),
+			})
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(out)
 	}))
 
 	// Update Plugin JSON configurations
@@ -67,35 +124,13 @@ func registerSystemRoutes(config *core.Config) {
 			return
 		}
 
-		fullPath := filepath.Join(config.Plugins.Directory, req.FilePath)
-		data, err := os.ReadFile(fullPath)
-		if err != nil {
-			log.Printf("[ERROR] Cannot read plugin file %s: %v", fullPath, err)
-			http.Error(w, "Plugin file not found", http.StatusNotFound)
+		reg := core.RemediationRegistry()
+		if reg == nil {
+			http.Error(w, "Remediation engine not initialized", http.StatusServiceUnavailable)
 			return
 		}
-
-		var p map[string]interface{}
-		if err := json.Unmarshal(data, &p); err != nil {
-			log.Printf("[ERROR] Cannot parse plugin JSON: %v", err)
-			http.Error(w, "Invalid plugin JSON", http.StatusInternalServerError)
-			return
-		}
-
-		if p == nil {
-			p = make(map[string]interface{})
-		}
-
-		p["env"] = req.Env
-
-		newData, err := json.MarshalIndent(p, "", "  ")
-		if err != nil {
-			http.Error(w, "Failed to marshal JSON", http.StatusInternalServerError)
-			return
-		}
-
-		if err := os.WriteFile(fullPath, newData, 0644); err != nil {
-			log.Printf("[ERROR] Cannot write to plugin file %s: %v", fullPath, err)
+		if err := reg.UpdateConfig(req.FilePath, req.Env); err != nil {
+			log.Printf("[ERROR] Cannot update integration config %s: %v", req.FilePath, err)
 			http.Error(w, "Failed to save configuration", http.StatusInternalServerError)
 			return
 		}

@@ -1,16 +1,17 @@
 {
-  "name": "Opsgenie Alert",
-  "version": "1.0.0",
+  "auto_run": false,
+  "config": {
+    "OPSGENIE_API_KEY": "",
+    "OPSGENIE_API_URL": "https://api.opsgenie.com"
+  },
   "description": "Creates an Opsgenie (Jira Service Management ops) alert for on-call SRE teams.",
+  "integration": "opsgenie",
+  "name": "Opsgenie Alert",
   "status": "Active",
-  "command": "opsgenie-action.sh",
   "trigger_on": [
     "CRITICAL",
     "FATAL",
     "[FATAL]"
   ],
-  "env": {
-    "OPSGENIE_API_KEY": "",
-    "OPSGENIE_API_URL": "https://api.opsgenie.com"
-  }
+  "version": "1.0.0"
 }

@@ -9,12 +9,16 @@ import (
 // UnifiedAlert represents the standardized format for all telemetry events
 // ADDED: ErrorLogs to cleanly separate STDOUT from STDERR/Crashes
 type UnifiedAlert struct {
-	Name        string `json:"name"`
-	Error       string `json:"error"`
-	Browser     string `json:"browser,omitempty"`
-	ConsoleLogs string `json:"console_logs"` // Captures standard execution logs (STDOUT)
-	ErrorLogs   string `json:"error_logs"`   // Captures stacktraces and critical errors (STDERR)
-	Status      string `json:"status"`
+	Name            string `json:"name"`
+	Error           string `json:"error"`
+	Browser         string `json:"browser,omitempty"`
+	OS              string `json:"os,omitempty"`
+	Viewport        string `json:"viewport,omitempty"`
+	ConsoleLogs     string `json:"console_logs"`
+	ErrorLogs       string `json:"error_logs"`
+	Status          string `json:"status"`
+	ExecutionTimeMs int64  `json:"execution_time_ms,omitempty"`
+	JiraIssueKey    string `json:"jira_issue_key,omitempty"`
 }
 
 // JUnitTestSuites represents the root of a JUnit XML report (for multiple suites)
@@ -56,12 +60,15 @@ func NormalizePayload(raw map[string]interface{}) UnifiedAlert {
 		reason, _ := raw["failure_reason"].(string)
 		project, _ := raw["project"].(string)
 		return UnifiedAlert{
-			Name:        fmt.Sprintf("[Playwright] %s", title),
-			Error:       reason,
-			Browser:     project,
-			ConsoleLogs: "[INFO] Playwright Worker execution details hidden. Check full logs if needed.",
-			ErrorLogs:   fmt.Sprintf("[FATAL] %s", reason),
-			Status:      "CRITICAL",
+			Name:            fmt.Sprintf("[Playwright] %s", title),
+			Error:           reason,
+			Browser:         stringField(raw, "browser", project),
+			OS:              stringField(raw, "os", ""),
+			Viewport:        stringField(raw, "viewport", ""),
+			ConsoleLogs:     "[INFO] Playwright Worker execution details hidden. Check full logs if needed.",
+			ErrorLogs:       fmt.Sprintf("[FATAL] %s", reason),
+			Status:          stringField(raw, "status", "CRITICAL"),
+			ExecutionTimeMs: int64Field(raw, "execution_time_ms"),
 		}
 
 	case "robotframework":
@@ -81,6 +88,8 @@ func NormalizePayload(raw map[string]interface{}) UnifiedAlert {
 		name, _ := raw["name"].(string)
 		errStr, _ := raw["error"].(string)
 		browser, _ := raw["browser"].(string)
+		osName, _ := raw["os"].(string)
+		viewport, _ := raw["viewport"].(string)
 		status, _ := raw["status"].(string)
 		if status == "" {
 			status = "FAILED"
@@ -96,14 +105,37 @@ func NormalizePayload(raw map[string]interface{}) UnifiedAlert {
 		}
 
 		return UnifiedAlert{
-			Name:        name,
-			Error:       errStr,
-			Browser:     browser,
-			ConsoleLogs: strings.Join(logs, "\n"),
-			ErrorLogs:   errStr, // Fallback error log
-			Status:      status,
+			Name:            name,
+			Error:           errStr,
+			Browser:         browser,
+			OS:              osName,
+			Viewport:        viewport,
+			ConsoleLogs:     strings.Join(logs, "\n"),
+			ErrorLogs:       errStr,
+			Status:          status,
+			ExecutionTimeMs: int64Field(raw, "execution_time_ms"),
+			JiraIssueKey:    stringField(raw, "jira_issue_key", ""),
 		}
 	}
+}
+
+func stringField(raw map[string]interface{}, key, def string) string {
+	if v, ok := raw[key].(string); ok && v != "" {
+		return v
+	}
+	return def
+}
+
+func int64Field(raw map[string]interface{}, key string) int64 {
+	switch v := raw[key].(type) {
+	case float64:
+		return int64(v)
+	case int64:
+		return v
+	case int:
+		return int64(v)
+	}
+	return 0
 }
 
 // ParseJUnitXML parses raw XML bytes and extracts ONLY failed tests into UnifiedAlerts

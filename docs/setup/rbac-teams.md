@@ -10,11 +10,15 @@ QA Capsule uses hierarchical teams and role-based access control (RBAC) to isola
 
 ## Global Roles
 
-| Role | Dashboard | Resolve | Provision CI | Plugins config | IAM | System settings |
-|---|---|---|---|---|---|---|
-| **admin** | All projects | Yes | Yes | Yes | Yes | Yes |
-| **operator** | Team projects | Yes | Yes | No | No | No |
-| **viewer** | Team projects | No | No | No | No | No |
+| Role | Display name | Dashboard | Resolve / delete | Provision CI | Plugins config | IAM | System settings |
+|---|---|---|---|---|---|---|---|
+| **admin** | Platform Admin | All projects | Yes | Yes | Yes | Yes | Yes |
+| **manager** | Manager | All projects | Yes | Yes | No | Limited | No |
+| **lead** | Lead | Team projects | Yes | Yes | Yes | No | No |
+| **observer** | Observer | Team projects | No | No | No | No | No |
+
+!!! note "Legacy role codes"
+    Older databases may still list `operator` / `viewer`; they are migrated automatically to `lead` / `observer` on startup.
 
 Assign roles when provisioning users under **Users (IAM)**.
 
