@@ -11,7 +11,9 @@ jobs:
       CI_PIPELINE_ID: ${{ github.run_id }}
       QA_CAPSULE_EXEC_ENV: STAGING
       QA_CAPSULE_EXEC_TYPE: TEST-RUN
-      SELENIUM_ENABLED: "false"
+      SELENIUM_ENABLED: "true"
+      SELENIUM_BROWSER: headlesschrome
+      UI_BASE_URL: https://example.com
       OUTPUT_DIR: tests/results
 
     steps:
@@ -23,12 +25,16 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Setup Chrome for UI suites
+        uses: browser-actions/setup-chrome@v1
+
       - name: Install curl
         run: sudo apt-get update -qq && sudo apt-get install -y -qq curl
 
-      - name: Run Robot Framework suites
+      - name: Run all Robot Framework suites
         id: robot
         run: |
+          echo "Suites: smoke_tests, api_health, demo_failure (fail), ui_navigation"
           chmod +x scripts/run-tests.sh
           ./scripts/run-tests.sh
         continue-on-error: true

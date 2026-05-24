@@ -11,7 +11,8 @@
 #   CI_PIPELINE_ID        Used as X-Run-Id when set
 #   OUTPUT_DIR            Robot output directory (default: tests/results)
 #   VENV_DIR              Python venv path (default: .venv-robot)
-#   SELENIUM_ENABLED      true to run ui_navigation.robot in CI
+#   ROBOT_SUITES_DIR      Directory scanned for *.robot suites (default: tests/robotframework)
+#   SELENIUM_ENABLED      true to run ui_navigation.robot (default: true in CI when CHROME_BIN set)
 
 set -euo pipefail
 
@@ -48,13 +49,27 @@ python -m pip install -r tests/requirements.txt --quiet
 
 mkdir -p "${OUTPUT_DIR}"
 
+# --- Discover all suite files (*.robot), excluding resources/ ---
+ROBOT_SUITES_DIR="${ROBOT_SUITES_DIR:-tests/robotframework}"
+mapfile -d '' -t ROBOT_SUITE_FILES < <(
+  find "${ROBOT_SUITES_DIR}" -name '*.robot' ! -path '*/resources/*' -print0 | sort -z
+)
+if [[ "${#ROBOT_SUITE_FILES[@]}" -eq 0 ]]; then
+  echo "ERROR: No .robot suite files found under ${ROBOT_SUITES_DIR}"
+  exit 1
+fi
+
+echo "==> Running all Robot suites (${#ROBOT_SUITE_FILES[@]} files):"
+for suite in "${ROBOT_SUITE_FILES[@]}"; do
+  echo "    - ${suite}"
+done
+
 # --- Execute Robot Framework ---
-echo "==> Running Robot Framework suites in tests/robotframework"
 set +e
 robot \
   --outputdir "${OUTPUT_DIR}" \
   --loglevel INFO \
-  tests/robotframework
+  "${ROBOT_SUITE_FILES[@]}"
 ROBOT_EXIT=$?
 set -e
 

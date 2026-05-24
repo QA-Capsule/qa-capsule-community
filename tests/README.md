@@ -80,7 +80,7 @@ Le point d’entrée unique est **`scripts/run-tests.sh`** : il installe les dep
 | `CI_PIPELINE_ID` | Recommandé | ID du job (→ `X-Run-Id`) |
 | `QA_CAPSULE_EXEC_ENV` | Non | `STAGING`, `PROD`, `DEV` |
 | `QA_CAPSULE_EXEC_TYPE` | Non | `TEST-RUN`, `SMOKE`, `NIGHTLY` |
-| `SELENIUM_ENABLED` | Non | `true` seulement si Chrome/WebDriver sur le runner |
+| `SELENIUM_ENABLED` | Non (CI: `true`) | Le workflow GitHub installe Chrome et exécute **tous** les `.robot` (hors `resources/`) |
 
 Sans `QA_CAPSULE_*`, les tests tournent quand même ; l’upload est ignoré (utile pour valider le job avant de brancher les secrets).
 
@@ -93,7 +93,9 @@ Workflow aligné sur **API Pipeline (Pytest)** et **E2E Playwright** : [`.github
 1. **Settings → Secrets and variables → Actions** → ajouter :
    - `QA_CAPSULE_URL` — base URL (sans `/` final), ex. `https://qa-capsule.example.com`
    - `QA_CAPSULE_API_ROBOT_KEY` — clé du projet (ou `QA_CAPSULE_API_KEY`)
-2. Lancer : **Actions → Robot Framework Pipeline → Run workflow** (ou push sur `main`).
+2. Lancer : **Actions → Robot Framework Pipeline → Run workflow**.
+
+Le pipeline exécute **tous** les fichiers suite : `smoke_tests.robot`, `api_health.robot`, `demo_failure.robot` (échec volontaire), `ui_navigation.robot` (pass avec Chrome headless). `resources/common.robot` n’est pas exécuté (fichier ressource partagé).
 
 Même schéma que les autres pipelines du dépôt :
 
