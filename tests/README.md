@@ -60,16 +60,103 @@ export SELENIUM_BROWSER=headlesschrome
 ./scripts/run-tests.sh
 ```
 
-## CI/CD (exemple)
+## Lancer depuis un pipeline CI/CD
 
-Injectez `QA_CAPSULE_URL` et `QA_CAPSULE_API_KEY` comme secrets du pipeline, puis :
+Le point d’entrée unique est **`scripts/run-tests.sh`** : il installe les deps, exécute Robot, convertit en JUnit, puis appelle QA Capsule si les secrets sont présents.
+
+### Prérequis côté QA Capsule
+
+1. Instance QA Capsule **accessible depuis Internet** (ou réseau du runner) — `localhost` ne fonctionne que sur un runner self-hosted.
+2. Dans **CI/CD Gateways** : copier la **clé API** du projet.
+3. URL d’upload : `{QA_CAPSULE_URL}/api/webhooks/upload?framework=RobotFramework`
+
+### Variables d’environnement du pipeline
+
+| Variable | Obligatoire | Exemple |
+|----------|-------------|---------|
+| `QA_CAPSULE_URL` | Oui (pour upload) | `https://qa-capsule.example.com` |
+| `QA_CAPSULE_API_KEY` | Oui (pour upload) | `sk-...` |
+| `CI_PIPELINE_ID` | Recommandé | ID du job (→ `X-Run-Id`) |
+| `QA_CAPSULE_EXEC_ENV` | Non | `STAGING`, `PROD`, `DEV` |
+| `QA_CAPSULE_EXEC_TYPE` | Non | `TEST-RUN`, `SMOKE`, `NIGHTLY` |
+| `SELENIUM_ENABLED` | Non | `true` seulement si Chrome/WebDriver sur le runner |
+
+Sans `QA_CAPSULE_*`, les tests tournent quand même ; l’upload est ignoré (utile pour valider le job avant de brancher les secrets).
+
+---
+
+### GitHub Actions
+
+Un workflow prêt à l’emploi est dans [`.github/workflows/robot-tests.yml`](../.github/workflows/robot-tests.yml).
+
+1. **Settings → Secrets and variables → Actions** → ajouter :
+   - `QA_CAPSULE_URL`
+   - `QA_CAPSULE_API_KEY`
+2. Pousser sur `main` ou lancer **Actions → Robot tests → Run workflow**.
+
+Extrait minimal si vous avez déjà un job :
 
 ```yaml
-- run: chmod +x scripts/run-tests.sh && ./scripts/run-tests.sh
-  env:
-    QA_CAPSULE_URL: ${{ secrets.QA_CAPSULE_URL }}
-    QA_CAPSULE_API_KEY: ${{ secrets.QA_CAPSULE_API_KEY }}
-    CI_PIPELINE_ID: ${{ github.run_id }}
+jobs:
+  robot:
+    runs-on: ubuntu-latest
+    env:
+      QA_CAPSULE_URL: ${{ secrets.QA_CAPSULE_URL }}
+      QA_CAPSULE_API_KEY: ${{ secrets.QA_CAPSULE_API_KEY }}
+      CI_PIPELINE_ID: ${{ github.run_id }}
+      QA_CAPSULE_EXEC_ENV: STAGING
+      QA_CAPSULE_EXEC_TYPE: TEST-RUN
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: chmod +x scripts/run-tests.sh && ./scripts/run-tests.sh
 ```
 
-Les rapports apparaissent dans **Operations → Telemetry Stream** (matrice d’exécution + incidents sur les échecs).
+---
+
+### GitLab CI
+
+Ajoutez un job dans `.gitlab-ci.yml` :
+
+```yaml
+robot-tests:
+  image: python:3.12
+  stage: test
+  variables:
+    QA_CAPSULE_EXEC_ENV: STAGING
+    QA_CAPSULE_EXEC_TYPE: TEST-RUN
+    CI_PIPELINE_ID: $CI_PIPELINE_ID
+    SELENIUM_ENABLED: "false"
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq curl
+  script:
+    - chmod +x scripts/run-tests.sh
+    - ./scripts/run-tests.sh
+  artifacts:
+    when: always
+    paths:
+      - tests/results/
+    expire_in: 7 days
+```
+
+Secrets GitLab : **Settings → CI/CD → Variables** (masquées) :
+
+- `QA_CAPSULE_URL`
+- `QA_CAPSULE_API_KEY`
+
+---
+
+### Azure DevOps / Jenkins (principe identique)
+
+```bash
+export QA_CAPSULE_URL="$(QA_CAPSULE_URL)"
+export QA_CAPSULE_API_KEY="$(QA_CAPSULE_API_KEY)"
+export CI_PIPELINE_ID="$(Build.BuildId)"   # Azure
+# export CI_PIPELINE_ID="$BUILD_NUMBER"    # Jenkins
+chmod +x scripts/run-tests.sh
+./scripts/run-tests.sh
+```
+
+Les résultats apparaissent dans **Operations → Telemetry Stream** (groupe par `pipeline_run_id` = ID du pipeline).

@@ -1,0 +1,61 @@
+# Robot Framework → JUnit → QA Capsule
+#
+# Secrets requis (Settings → Secrets and variables → Actions) :
+#   QA_CAPSULE_URL       ex. https://qa-capsule.mondomaine.com
+#   QA_CAPSULE_API_KEY   clé API du projet (CI/CD Gateway)
+#
+# Déclenchement : push/PR sur main, ou manuel (workflow_dispatch).
+
+name: Robot tests
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'tests/**'
+      - 'scripts/run-tests.sh'
+      - '.github/workflows/robot-tests.yml'
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  robot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      QA_CAPSULE_URL: ${{ secrets.QA_CAPSULE_URL }}
+      QA_CAPSULE_API_KEY: ${{ secrets.QA_CAPSULE_API_KEY }}
+      QA_CAPSULE_EXEC_ENV: STAGING
+      QA_CAPSULE_EXEC_TYPE: TEST-RUN
+      CI_PIPELINE_ID: ${{ github.run_id }}
+      # Tests UI désactivés par défaut en CI (pas de navigateur)
+      SELENIUM_ENABLED: 'false'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: tests/requirements.txt
+
+      - name: Run Robot suite and upload to QA Capsule
+        run: |
+          chmod +x scripts/run-tests.sh
+          ./scripts/run-tests.sh
+
+      - name: Upload Robot artifacts (debug)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: robot-results
+          path: |
+            tests/results/output.xml
+            tests/results/log.html
+            tests/results/report.html
+          if-no-files-found: ignore
