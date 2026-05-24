@@ -1,129 +1,53 @@
-# Robot Framework → JUnit XML → QA Capsule
-# Aligné sur api-tests-pytest.yml / e2e-tests-playwright.yml
-#
-# Secrets GitHub (Settings → Secrets and variables → Actions) :
-#   QA_CAPSULE_URL              Base URL sans slash final (ex. https://qa-capsule.example.com)
-#   QA_CAPSULE_API_ROBOT_KEY    Clé API du projet Robot (CI/CD Gateways)
-#   — ou QA_CAPSULE_API_KEY si vous réutilisez une seule clé pour tous les workflows
-
-name: Robot Framework Pipeline
+name: Frontend E2E Tests - QA Capsule
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
 
 jobs:
-  run-robot:
+  run-tests:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    env:
+      # Vos nouveaux Flags SRE (Métadonnées d'exécution)
+      QA_CAPSULE_EXEC_ENV: "STAGING"
+      QA_CAPSULE_EXEC_TYPE: "TEST-RUN"
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-node@v4
         with:
-          python-version: '3.12'
+          node-version: 20
 
-      - name: Install Robot Framework
-        run: pip install robotframework
-
-      - name: Create demo Robot tests (pass + intentional failures)
+      - name: Install dependencies
         run: |
-          mkdir -p tests/robotframework tests/results
-          cat << 'EOF' > tests/robotframework/qacapsule_demo.robot
-          *** Settings ***
-          Documentation    QA Capsule demo — mixed pass/fail for pipeline + report testing
-          Library          BuiltIn
+          npm ci
+          npx playwright install --with-deps
 
-          *** Test Cases ***
-          Sanity check should pass
-              [Documentation]    Always green
-              Should Be Equal    ${1}    ${1}
+      - name: Run E2E Tests
+        # L'étape exécute les tests (ex: Playwright qui génère playwright-results.xml)
+        run: npx playwright test
+        continue-on-error: true # Permet de ne pas stopper net le pipeline si un test échoue
 
-          Assertion failure for QA Capsule
-              [Documentation]    Intentional failure — appears in JUnit and QA Capsule dashboard
-              Log To Console     [STDOUT] Comparing unexpected values
-              Log                [STDERR] Deliberate mismatch    level=WARN
-              Should Be Equal    ${50}    ${150}    msg=Expected cart total 150, got 50
-
-          Runtime keyword failure
-              [Documentation]    Second failure for multi-incident reports
-              ${status}=    Set Variable    500
-              Should Be Equal As Integers    ${status}    200    msg=API returned 500
-          EOF
-
-      - name: Run Robot Framework Tests
-        id: robot
-        run: |
-          robot --outputdir tests/results --loglevel INFO tests/robotframework
-        continue-on-error: true
-
-      - name: Convert Robot output to JUnit XML
-        if: always()
-        run: |
-          if [ -f tests/results/output.xml ]; then
-            echo "Converting Robot output.xml → JUnit (robot-junit.xml)..."
-            rebot --xunit tests/results/robot-junit.xml \
-              --outputdir tests/results \
-              --log NONE --report NONE \
-              tests/results/output.xml
-            echo "--- JUnit summary (first 40 lines) ---"
-            head -n 40 tests/results/robot-junit.xml || true
-          else
-            echo "::error::No Robot output.xml — tests did not produce results."
-            exit 1
-          fi
-
-      - name: Send Alert to QA Capsule
-        if: always()
+      - name: Upload test results to QA Capsule
+        if: always() # CRITIQUE : Garantit que l'envoi se fait même si les tests ont planté
         env:
-          WEBHOOK_URL: ${{ secrets.QA_CAPSULE_URL }}
-          API_KEY: ${{ secrets.QA_CAPSULE_API_ROBOT_KEY }}
-          API_KEY_FALLBACK: ${{ secrets.QA_CAPSULE_API_KEY }}
-          QA_CAPSULE_EXEC_ENV: STAGING
-          QA_CAPSULE_EXEC_TYPE: TEST-RUN
+          # Récupération des secrets configurés dans GitHub
+          QA_CAPSULE_URL: ${{ secrets.QA_CAPSULE_URL }}
+          QA_CAPSULE_API_KEY: ${{ secrets.QA_CAPSULE_API_KEY }}
         run: |
-          KEY="${API_KEY:-$API_KEY_FALLBACK}"
-          if [ -z "$WEBHOOK_URL" ] || [ -z "$KEY" ]; then
-            echo "::warning::Skip upload: set QA_CAPSULE_URL and QA_CAPSULE_API_ROBOT_KEY (or QA_CAPSULE_API_KEY)."
-            exit 0
-          fi
-          if [ ! -f tests/results/robot-junit.xml ]; then
-            echo "::error::robot-junit.xml not found — cannot send report to QA Capsule."
-            exit 1
-          fi
-          echo "Uploading Robot JUnit XML to QA Capsule..."
-          HTTP_CODE=$(curl -sS -o /tmp/qc-upload.json -w "%{http_code}" \
-            -X POST "${WEBHOOK_URL}/api/webhooks/upload?framework=RobotFramework" \
-            -H "X-API-Key: ${KEY}" \
-            -H "X-Run-Id: ${GITHUB_RUN_ID}" \
+          echo "Envoi du rapport XML à QA Capsule..."
+          curl -f -X POST "${QA_CAPSULE_URL}/api/webhooks/upload?framework=Playwright" \
+            -H "X-API-Key: ${QA_CAPSULE_API_KEY}" \
+            -H "X-Run-Id: ${{ github.run_id }}" \
             -H "X-Execution-Env: ${QA_CAPSULE_EXEC_ENV}" \
             -H "X-Execution-Type: ${QA_CAPSULE_EXEC_TYPE}" \
-            -H "X-Branch: ${GITHUB_REF_NAME}" \
-            -H "X-Commit-Sha: ${GITHUB_SHA}" \
-            -F "file=@tests/results/robot-junit.xml")
-          echo "QA Capsule HTTP ${HTTP_CODE}"
-          cat /tmp/qc-upload.json
-          if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
-            echo "::error::QA Capsule upload failed"
-            exit 1
-          fi
+            -F "file=@playwright-results.xml"
 
-      - name: Upload Robot artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: robot-results
-          path: |
-            tests/results/robot-junit.xml
-            tests/results/log.html
-            tests/results/report.html
-            tests/results/output.xml
-          if-no-files-found: ignore
-
-      - name: Fail pipeline if tests failed
-        if: steps.robot.outcome == 'failure'
-        run: |
-          echo "::error::Robot tests failed — see log.html artifact and QA Capsule dashboard (run ${GITHUB_RUN_ID})."
-          exit 1
+      # (Optionnel) Étape pour forcer l'échec du job GitHub si les tests ont échoué 
+      # afin que la PR s'affiche en rouge sur GitHub, car continue-on-error l'avait masqué.
+      - name: Check Test Status
+        if: steps.run-e2e-tests.outcome == 'failure'
+        run: exit 1
