@@ -40,10 +40,19 @@ jobs:
           API_KEY: ${{ secrets.QA_CAPSULE_API_ROBOT_KEY }}
         run: |
           JUNIT_FILE="tests/results/robot-junit.xml"
+          # Legacy rebot bug: path was doubled under outputdir
+          if [ ! -f "$JUNIT_FILE" ] && [ -f "tests/results/tests/results/robot-junit.xml" ]; then
+            JUNIT_FILE="tests/results/tests/results/robot-junit.xml"
+          fi
           if [ ! -f "$JUNIT_FILE" ]; then
-            echo "::error::JUnit report not found at ${JUNIT_FILE}. Check Robot/rebot logs above."
+            JUNIT_FILE="$(find tests/results -name 'robot-junit.xml' -type f 2>/dev/null | head -1)"
+          fi
+          if [ -z "${JUNIT_FILE}" ] || [ ! -f "$JUNIT_FILE" ]; then
+            echo "::error::JUnit report not found under tests/results/. Check Robot/rebot logs above."
+            ls -laR tests/results 2>/dev/null || true
             exit 1
           fi
+          echo "Using JUnit file: ${JUNIT_FILE}"
           if [ -z "${WEBHOOK_URL}" ] || [ -z "${API_KEY}" ]; then
             echo "::error::Set secrets QA_CAPSULE_URL and QA_CAPSULE_API_ROBOT_KEY in repository settings."
             exit 1

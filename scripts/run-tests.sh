@@ -25,7 +25,9 @@ QA_CAPSULE_API_KEY="${QA_CAPSULE_API_KEY:-${API_KEY:-}}"
 VENV_DIR="${VENV_DIR:-.venv-robot}"
 OUTPUT_DIR="${OUTPUT_DIR:-tests/results}"
 ROBOT_OUTPUT="${OUTPUT_DIR}/output.xml"
-JUNIT_FILE="${JUNIT_FILE:-${OUTPUT_DIR}/robot-junit.xml}"
+# rebot --xunit path is relative to --outputdir (not repo root); use basename only.
+JUNIT_BASENAME="${JUNIT_BASENAME:-robot-junit.xml}"
+JUNIT_FILE="${JUNIT_FILE:-${OUTPUT_DIR}/${JUNIT_BASENAME}}"
 ROBOT_EXIT=0
 
 echo "==> QA Capsule Robot test runner"
@@ -62,7 +64,7 @@ if [[ -f "${ROBOT_OUTPUT}" ]]; then
   echo "==> Converting Robot output to JUnit XML: ${JUNIT_FILE}"
   set +e
   rebot \
-    --xunit "${JUNIT_FILE}" \
+    --xunit "${JUNIT_BASENAME}" \
     --outputdir "${OUTPUT_DIR}" \
     "${ROBOT_OUTPUT}"
   REBOT_EXIT=$?

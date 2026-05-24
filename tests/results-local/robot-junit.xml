@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="Robotframework" tests="10" errors="0" failures="1" skipped="2" time="2.778" timestamp="2026-05-24T18:24:16.920698">
+<testsuite name="Api Health" tests="3" errors="0" failures="0" skipped="0" time="2.180" timestamp="2026-05-24T18:24:16.993072">
+<testcase classname="Robotframework.Api Health" name="GET Resource Returns 200" time="0.538">
+</testcase>
+<testcase classname="Robotframework.Api Health" name="GET Collection Is Non Empty" time="0.547">
+</testcase>
+<testcase classname="Robotframework.Api Health" name="POST Creates Resource" time="0.530">
+</testcase>
+<properties>
+<property name="Documentation" value="HTTP health checks via RequestsLibrary (public httpbin by default)."/>
+</properties>
+</testsuite>
+<testsuite name="Demo Failure" tests="1" errors="0" failures="1" skipped="0" time="0.007" timestamp="2026-05-24T18:24:19.173202">
+<testcase classname="Robotframework.Demo Failure" name="Simulated Payment Gateway Rejection" time="0.003">
+<failure message="Expected HTTP 201 Created, got 400: 400 != 201" type="AssertionError"/>
+</testcase>
+<properties>
+<property name="Documentation" value="Intentional failure for QA Capsule alert demos (CI / manual workflow)."/>
+</properties>
+</testsuite>
+<testsuite name="Smoke Tests" tests="4" errors="0" failures="0" skipped="0" time="0.018" timestamp="2026-05-24T18:24:19.181110">
+<testcase classname="Robotframework.Smoke Tests" name="Python Runtime Is Available" time="0.001">
+</testcase>
+<testcase classname="Robotframework.Smoke Tests" name="Environment Variables Are Readable" time="0.002">
+</testcase>
+<testcase classname="Robotframework.Smoke Tests" name="String And List Operations" time="0.002">
+</testcase>
+<testcase classname="Robotframework.Smoke Tests" name="Numeric Assertions" time="0.001">
+</testcase>
+<properties>
+<property name="Documentation" value="Fast smoke checks — no external services required."/>
+</properties>
+</testsuite>
+<testsuite name="Ui Navigation" tests="2" errors="0" failures="0" skipped="2" time="0.498" timestamp="2026-05-24T18:24:19.199989">
+<testcase classname="Robotframework.Ui Navigation" name="Example Domain Title Is Correct" time="0.002">
+<skipped message="Selenium disabled. Set SELENIUM_ENABLED=true and install a WebDriver locally." type="SkipExecution"/>
+</testcase>
+<testcase classname="Robotframework.Ui Navigation" name="Navigation Link Is Present" time="0.003">
+<skipped message="Selenium disabled. Set SELENIUM_ENABLED=true and install a WebDriver locally." type="SkipExecution"/>
+</testcase>
+<properties>
+<property name="Documentation" value="UI navigation template (Selenium). Disabled in CI unless SELENIUM_ENABLED=true."/>
+</properties>
+</testsuite>
+</testsuite>
