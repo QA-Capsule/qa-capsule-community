@@ -34,14 +34,15 @@ type JUnitTestSuites struct {
 	TestSuites []JUnitTestSuite `xml:"testsuite"`
 }
 
-// JUnitTestSuite represents a group of test cases
+// JUnitTestSuite represents a group of test cases (Robot/rebot may nest suites).
 type JUnitTestSuite struct {
-	Name      string          `xml:"name,attr"`
-	Tests     int             `xml:"tests,attr"`
-	Failures  int             `xml:"failures,attr"`
-	Skipped   int             `xml:"skipped,attr"`
-	Time      float64         `xml:"time,attr"`
-	TestCases []JUnitTestCase `xml:"testcase"`
+	Name       string           `xml:"name,attr"`
+	Tests      int              `xml:"tests,attr"`
+	Failures   int              `xml:"failures,attr"`
+	Skipped    int              `xml:"skipped,attr"`
+	Time       float64          `xml:"time,attr"`
+	TestCases  []JUnitTestCase  `xml:"testcase"`
+	Nested     []JUnitTestSuite `xml:"testsuite"`
 }
 
 // JUnitTestCase represents a single test execution result
@@ -196,6 +197,26 @@ func ParseJUnitXML(data []byte, framework string) []UnifiedAlert {
 	return ParseJUnitReport(data, framework).Failures
 }
 
+// flattenJUnitSuites expands nested Robot/rebot xUnit suites into leaf suites with testcases.
+func flattenJUnitSuites(suites []JUnitTestSuite) []JUnitTestSuite {
+	var out []JUnitTestSuite
+	for _, suite := range suites {
+		out = append(out, collectJUnitSuites(suite)...)
+	}
+	return out
+}
+
+func collectJUnitSuites(suite JUnitTestSuite) []JUnitTestSuite {
+	var out []JUnitTestSuite
+	if len(suite.TestCases) > 0 {
+		out = append(out, suite)
+	}
+	for _, nested := range suite.Nested {
+		out = append(out, collectJUnitSuites(nested)...)
+	}
+	return out
+}
+
 // ParseJUnitReport parses all testcases and builds a unified execution report.
 func ParseJUnitReport(data []byte, framework string) JUnitParseResult {
 	if framework == "" {
@@ -209,6 +230,7 @@ func ParseJUnitReport(data []byte, framework string) JUnitParseResult {
 			suites.TestSuites = []JUnitTestSuite{single}
 		}
 	}
+	flatSuites := flattenJUnitSuites(suites.TestSuites)
 
 	report := UnifiedExecutionReport{
 		SchemaVersion: executionReportSchemaVersion,
@@ -218,7 +240,7 @@ func ParseJUnitReport(data []byte, framework string) JUnitParseResult {
 	}
 	var failures []UnifiedAlert
 
-	for _, suite := range suites.TestSuites {
+	for _, suite := range flatSuites {
 		suiteName := strings.TrimSpace(suite.Name)
 		for _, tc := range suite.TestCases {
 			className := strings.TrimSpace(tc.ClassName)
