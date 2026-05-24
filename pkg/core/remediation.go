@@ -25,6 +25,15 @@ func ReloadRemediationRegistry(pluginsDir string) error {
 	return nil
 }
 
+// MaybeReloadRemediationRegistry reloads from disk only when reloadFromDisk is true (e.g. plugins.auto_reload).
+// When reloadFromDisk is false, a loaded engine is reused so read-only API handlers do not re-scan ./plugins.
+func MaybeReloadRemediationRegistry(pluginsDir string, reloadFromDisk bool) error {
+	if !reloadFromDisk && remediationEngine != nil {
+		return nil
+	}
+	return ReloadRemediationRegistry(pluginsDir)
+}
+
 func requireEngine() (*integrations.Engine, error) {
 	if remediationEngine == nil {
 		return nil, fmt.Errorf("remediation engine not initialized")

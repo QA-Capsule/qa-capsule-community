@@ -9,178 +9,6 @@
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700&display=swap">
     <link rel="stylesheet" href="/style.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/drawflow@0.0.59/dist/drawflow.min.css">
-    <style>
-        #workflow-editor-modal {
-            display: none; position: fixed; inset: 0; z-index: 9999;
-            background: rgba(1, 4, 9, 0.85); align-items: stretch; justify-content: center;
-        }
-        .workflow-editor-shell {
-            display: flex; flex-direction: column; width: min(1200px, 96vw); height: min(820px, 92vh);
-            margin: auto; background: #0d1117; border: 1px solid #30363d; border-radius: 10px; overflow: hidden;
-        }
-        .workflow-editor-toolbar {
-            display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 12px 16px; border-bottom: 1px solid #30363d;            background: #161b22;
-        }
-        .workflow-editor-body { display: flex; flex: 1; min-height: 0; height: 100%; }
-        .workflow-canvas-wrap {
-            flex: 1; min-width: 0; min-height: 420px; position: relative;
-            display: flex; flex-direction: column;
-        }
-        #drawflow {
-            flex: 1; width: 100%; height: 100%; min-height: 420px;
-            position: relative; background: #010409;
-        }
-        #drawflow .drawflow {
-            width: 100% !important; height: 100% !important; min-height: 420px;
-            background-color: #010409;
-            background-image: radial-gradient(#21262d 1px, transparent 1px);
-            background-size: 18px 18px;
-        }
-        #drawflow .drawflow-node {
-            background: #161b22 !important; border: 1px solid #58a6ff !important;
-            border-radius: 8px !important; color: #c9d1d9 !important; min-width: 180px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
-        }
-        #drawflow .drawflow-node:has(.wf-trigger) { border-color: #3fb950 !important; }
-        #drawflow .drawflow-node:has(.wf-condition) { border-color: #d29922 !important; }
-        #drawflow .drawflow-node:has(.wf-action) { border-color: #58a6ff !important; }        #drawflow .drawflow-node.selected { border-color: #3fb950 !important; }
-        #drawflow .drawflow_content_node { width: 100%; }
-        #drawflow .connection .main-path { stroke: #58a6ff; stroke-width: 2px; }
-        #drawflow .drawflow-delete { background: #da3633; color: #fff; border: none; }
-        #workflow-canvas-empty {
-            display: none; position: absolute; inset: 0; align-items: center; justify-content: center;
-            pointer-events: none; color: #8b949e; font-size: 13px; text-align: center; padding: 24px;
-        }
-        #workflow-canvas-empty.visible { display: flex; }
-        #workflow-help-panel {
-            width: 280px; border-left: 1px solid #30363d; background: #161b22; padding: 14px;
-            font-size: 12px; line-height: 1.5; color: #8b949e; overflow-y: auto; display: none;
-        }
-        #workflow-help-panel.open { display: block; }
-        #workflow-readonly-badge {
-            display: none; font-size: 11px; color: #d29922; border: 1px solid #9e6a03;
-            padding: 4px 8px; border-radius: 4px;
-        }
-        .wf-node { padding: 8px; min-width: 140px; }
-        .wf-title { font-weight: 600; font-size: 12px; color: #58a6ff; }
-        .wf-desc { font-size: 10px; color: #8b949e; margin-top: 4px; }
-        .workflow-status-pill {
-            font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
-            padding: 4px 10px; border-radius: 999px; border: 1px solid #30363d; color: #8b949e;
-        }
-        .workflow-status-pill.state-active { color: #3fb950; border-color: #238636; background: rgba(63, 185, 80, 0.12); }
-        .workflow-status-pill.state-draft { color: #d29922; border-color: #9e6a03; background: rgba(210, 153, 34, 0.12); }
-        .workflow-status-pill.state-legacy { color: #8b949e; border-color: #30363d; }
-        .wf-enable-wrap {
-            display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: #c9d1d9;
-            padding: 4px 10px; border: 1px solid #30363d; border-radius: 6px; background: #0d1117;
-            cursor: pointer; user-select: none;
-        }
-        .wf-enable-wrap input { width: auto !important; margin: 0; accent-color: #58a6ff; }
-        .wf-table-badge {
-            display: inline-block; font-size: 10px; font-weight: 600; text-transform: uppercase;
-            padding: 3px 8px; border-radius: 4px; letter-spacing: 0.03em;
-        }
-        .wf-table-badge.active { color: #3fb950; background: rgba(63, 185, 80, 0.15); }
-        .wf-table-badge.draft { color: #d29922; background: rgba(210, 153, 34, 0.15); }
-        .wf-table-badge.legacy { color: #6e7681; background: rgba(110, 118, 129, 0.15); }
-    </style>
-    <style>
-        /* Form Inputs */
-        input, select, textarea {
-            background-color: #161b22 !important;
-            color: #c9d1d9 !important;
-            border: 1px solid #30363d !important;
-            padding: 10px 12px;
-            border-radius: 6px;
-            font-family: inherit;
-            font-size: 14px;
-            width: 100%;
-            box-sizing: border-box;
-            transition: border-color 0.2s ease, box-shadow 0.2s ease;
-        }
-
-        input:focus, select:focus, textarea:focus {
-            outline: none !important;
-            border-color: #58a6ff !important;
-            box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.3) !important;
-        }
-
-        input::placeholder, textarea::placeholder { color: #8b949e !important; }
-
-        /* CI/CD Cards */
-        .ci-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
-        .ci-card {
-            background-color: #ffffff; border: 1px solid #d0d7de; color: #24292f;
-            border-radius: 8px; padding: 15px; text-align: center; cursor: pointer;
-            transition: all 0.2s ease; display: flex; flex-direction: column;
-            align-items: center; justify-content: center; gap: 10px; font-weight: bold;
-        }
-        .ci-card:hover { border-color: #0969da; background-color: #f6f8fa; }
-        .ci-card.active { border-color: #0969da; background-color: rgba(9, 105, 218, 0.1); color: #0969da; box-shadow: 0 0 10px rgba(9, 105, 218, 0.1); }
-        .ci-icon { width: 32px; height: 32px; }
-
-        body[data-theme="dark"] .ci-card { background-color: #161b22; border-color: #30363d; color: #8b949e; }
-        body[data-theme="dark"] .ci-card:hover { border-color: #8b949e; background-color: #21262d; }
-        body[data-theme="dark"] .ci-card.active { border-color: #58a6ff; background-color: rgba(88, 166, 255, 0.1); color: #c9d1d9; box-shadow: 0 0 10px rgba(88, 166, 255, 0.2); }
-
-        /* Tree View Styles */
-        .tree-node { margin-left: 15px; border-left: 1px dashed #30363d; padding-left: 5px; margin-top: 5px; }
-        .tree-item { cursor: pointer; padding: 6px; border-radius: 4px; display: flex; align-items: center; gap: 8px; font-size: 14px; transition: 0.2s; flex-grow: 1; }
-        .tree-item:hover { background-color: #21262d; color: #58a6ff; }
-        .tree-item.active { background-color: rgba(88, 166, 255, 0.1); color: #58a6ff; font-weight: bold; border-left: 3px solid #58a6ff; }
-        .tree-toggle { cursor: pointer; width: 20px; text-align: center; color: #8b949e; user-select: none; font-size: 12px; display: inline-block; transition: transform 0.2s; }
-        .tree-toggle:hover { color: #58a6ff; }
-
-        /* Autocomplete List */
-        .autocomplete-items {
-            position: absolute; border: 1px solid #d0d7de; border-radius: 6px; background-color: #ffffff;
-            z-index: 99; top: 100%; left: 0; right: 0; max-height: 200px; overflow-y: auto; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-        }
-        .autocomplete-items div { padding: 10px; cursor: pointer; border-bottom: 1px solid #d0d7de; font-size: 13px; color: #24292f; }
-        .autocomplete-items div:hover { background-color: #f6f8fa; }
-
-        body[data-theme="dark"] .autocomplete-items { background-color: #161b22; border-color: #30363d; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5); }
-        body[data-theme="dark"] .autocomplete-items div { border-color: #30363d; color: #c9d1d9; }
-        body[data-theme="dark"] .autocomplete-items div:hover { background-color: #21262d; }
-        .autocomplete-item { padding: 10px 12px; cursor: pointer; border-bottom: 1px solid #d0d7de; display: flex; flex-direction: column; gap: 2px; }
-        .autocomplete-item.active, .autocomplete-item:hover { background: #f6f8fa; }
-        .autocomplete-item-label { font-size: 13px; font-weight: 600; color: #24292f; }
-        .autocomplete-item-sub { font-size: 11px; opacity: 0.65; }
-        .autocomplete-empty { padding: 12px; font-size: 12px; opacity: 0.6; text-align: center; }
-        .ac-highlight { background: rgba(88, 166, 255, 0.35); color: inherit; padding: 0 1px; border-radius: 2px; }
-        body[data-theme="dark"] .autocomplete-item { border-color: #30363d; }
-        body[data-theme="dark"] .autocomplete-item.active, body[data-theme="dark"] .autocomplete-item:hover { background: #21262d; }
-        body[data-theme="dark"] .autocomplete-item-label { color: #c9d1d9; }
-        .tree-draggable { cursor: grab; }
-        .tree-draggable:active { cursor: grabbing; }
-        .tree-dragging { opacity: 0.45; }
-        .tree-drop-target { outline: 2px dashed #58a6ff; outline-offset: 2px; background: rgba(88, 166, 255, 0.12) !important; }
-        .org-root-drop {
-            margin-bottom: 12px; padding: 10px; border: 1px dashed #30363d; border-radius: 6px;
-            font-size: 11px; text-align: center; color: #8b949e; min-height: 36px;
-        }
-        .org-root-drop.tree-drop-target { border-color: #58a6ff; color: #58a6ff; background: rgba(88, 166, 255, 0.08); }
-        .ac-wrap { position: relative; flex: 1; }
-
-        .sidebar-logo { width: 36px; height: auto; border-radius: 6px; object-fit: contain; }
-
-        /* Help Center layout: see style.css (#view-about, .about-shell) */
-        .loading-placeholder {
-            text-align: center; padding: 24px; color: #8b949e; font-size: 13px; opacity: 0.7;
-        }
-        .about-doc h2 { margin-top: 0; color: #58a6ff; }
-        .about-lead { font-size: 15px; line-height: 1.6; opacity: 0.9; }
-        .about-table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 13px; }
-        .about-table th, .about-table td { border: 1px solid var(--border-main); padding: 10px 12px; text-align: left; }
-        .about-table th { background: #161b22; color: #8b949e; }
-        /* Formula blocks: see style.css (.formula-block) */
-        .about-dl dt { font-weight: bold; color: #58a6ff; margin-top: 12px; }
-        .about-dl dd { margin: 4px 0 0 0; opacity: 0.85; line-height: 1.5; }
-        .about-callout { background: rgba(88, 166, 255, 0.08); border: 1px solid rgba(88, 166, 255, 0.25); border-radius: 8px; padding: 16px 20px; margin: 16px 0; font-size: 14px; }
-        .finops-kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 24px; }
-        @media (max-width: 1100px) { .finops-kpi-grid { grid-template-columns: repeat(2, 1fr); } .about-layout { grid-template-columns: 1fr; } }
-    </style>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
@@ -268,7 +96,7 @@
         <div id="custom-modal-box" style="background:var(--bg-surface); border:2px solid var(--border-main); padding:30px; width:400px; box-shadow: 10px 10px 0px rgba(0,0,0,0.5);">
             <h3 id="custom-modal-title" style="margin-top:0; text-transform:uppercase; letter-spacing:1px;">Confirm Action</h3>
             <p id="custom-modal-message" style="color:var(--text-main); opacity:0.8; line-height:1.5; font-size:14px; margin-bottom:20px;"></p>
-            <input type="text" id="custom-modal-input" class="login-input" style="display:none; margin-bottom:20px; background:#0d1117;" autocomplete="off">
+            <input type="text" id="custom-modal-input" class="login-input u-hidden" style="margin-bottom:20px;" autocomplete="off">
             <div style="display:flex; justify-content:flex-end; gap:10px;">
                 <button class="btn-secondary" onclick="closeModal()">Cancel</button>
                 <button class="btn-primary" id="custom-modal-confirm">Confirm</button>
@@ -282,19 +110,19 @@
                 <img src="assets/logo.png" alt="Logo" style="width: 200px; height: auto;">
                 <br />
             </div>
-            <p style="opacity: 0.6; font-size: 12px; letter-spacing: 2px; margin-bottom: 30px;">SRE CONTROL PLANE</p>
-            <div id="login-error" class="sre-notification error" style="display: none; margin-bottom: 15px; font-size: 12px; padding: 10px;">AUTHENTICATION FAILED</div>
-            <p id="login-server-hint" style="display: none; color: #d29922; font-size: 11px; margin-bottom: 12px; line-height: 1.4;"></p>
+            <p class="login-tagline">SRE CONTROL PLANE</p>
+            <div id="login-error" class="sre-notification error u-hidden" style="margin-bottom: 15px; font-size: 12px; padding: 10px;">AUTHENTICATION FAILED</div>
+            <p id="login-server-hint" class="login-hint-warn u-hidden" style="font-size: 11px; margin-bottom: 12px; line-height: 1.4;"></p>
             
             <input type="text" id="login-username" class="login-input" placeholder="Username or email" autocomplete="username">
             <br /><br>
             <input type="password" id="login-password" class="login-input" placeholder="Passphrase">
             <br /><br>
-            <button class="btn-primary" style="width: 100%; margin-top: 15px;" onclick="performLogin()">INITIALIZE SESSION</button>
+            <button class="btn-primary login-btn-full" onclick="performLogin()">INITIALIZE SESSION</button>
 
-            <div style="margin-top: 20px; border-top: 1px solid #30363d; padding-top: 20px;">
-                <div id="sso-container" style="display: none;">
-                    <button class="btn-secondary" style="width: 100%; border-color: #58a6ff; color: #58a6ff; display:flex; align-items:center; justify-content:center; gap:10px;" onclick="triggerSSO()">
+            <div class="login-divider">
+                <div id="sso-container" class="u-hidden">
+                    <button class="btn-secondary login-sso-btn" onclick="triggerSSO()">
                         <svg style="width:16px;height:16px;" viewBox="0 0 24 24" fill="currentColor"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
                         Login with Google Workspace
                     </button>
@@ -308,31 +136,31 @@
                         </svg>
                         SSO Login (Requires PRO)
                     </button>
-                    <p style="font-size: 10px; color: #8b949e; margin-top: 8px;">Contact your administrator to install a License Key.</p>
+                    <p class="login-hint">Contact your administrator to install a License Key.</p>
                 </div>
             </div>
         </div>
     </div>
 
     <div id="force-password-screen" class="login-container" style="display: none;">
-        <div class="login-box" style="border-color: #d29922;">
-            <h2 style="color: #d29922; margin-bottom: 10px;">SECURITY PROTOCOL</h2>
+        <div class="login-box force-password-box">
+            <h2>SECURITY PROTOCOL</h2>
             <p style="opacity: 0.8; font-size: 13px; margin-bottom: 25px; line-height: 1.5;">Your identity uses a temporary passphrase. You must secure your account before accessing the Control Plane.</p>
             <input type="password" id="force-new-pass" class="login-input" placeholder="New Secure Passphrase">
             <input type="password" id="force-new-pass-confirm" class="login-input" placeholder="Confirm Passphrase">
-            <button class="btn-primary" style="width: 100%; margin-top: 15px; border-color: #d29922; color: #d29922;" onclick="submitNewPassword()">SECURE IDENTITY</button>
+            <button class="btn-primary force-password-submit" onclick="submitNewPassword()">SECURE IDENTITY</button>
         </div>
     </div>
 
     <div id="user-teams-modal" class="login-container" style="display: none; background: rgba(0,0,0,0.8); z-index: 99998;">
-        <div class="login-box" style="border-color: #58a6ff; width: 550px; max-width: 90vw;">
+        <div class="login-box modal-panel--wide">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                <h2 style="color: #58a6ff; margin: 0; font-size: 1.2rem;">Group Memberships</h2>
-                <button class="btn-secondary" style="border:none; padding:5px; color:#8b949e; cursor:pointer;" onclick="closeUserTeamsModal()">✖</button>
+                <h2 class="modal-panel__title">Group Memberships</h2>
+                <button type="button" class="modal-close-btn" onclick="closeUserTeamsModal()">✖</button>
             </div>
-            <div style="background: #0d1117; padding: 12px; border-radius: 6px; border: 1px solid #30363d; margin-bottom: 20px; text-align: left;">
-                <span style="font-size: 12px; color: #8b949e; display: block;">MANAGING IDENTITY:</span>
-                <strong id="manage-teams-username" style="color: var(--text-main); font-size: 16px;"></strong>
+            <div class="identity-box">
+                <span class="identity-box__label">MANAGING IDENTITY:</span>
+                <strong id="manage-teams-username" style="font-size: 16px;"></strong>
             </div>
             <div style="position: relative; display: flex; gap: 10px; margin-bottom: 20px; text-align: left;">
                 <div style="flex-grow: 1; position: relative;">
@@ -340,10 +168,10 @@
                     <div id="team-autocomplete-list" class="autocomplete-items" style="display:none; text-align: left;"></div>
                 </div>
             </div>
-            <div style="max-height: 250px; overflow-y: auto; border: 1px solid #30363d; border-radius: 6px; background: #0d1117;">
-                <table style="width:100%; border-collapse:collapse; text-align: left;">
+            <div class="identity-scroll">
+                <table class="data-table">
                     <tbody id="user-teams-list">
-                        <tr><td style="text-align:center; padding:20px; opacity:0.5;">Loading...</td></tr>
+                        <tr><td class="table-empty">Loading...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -656,6 +484,7 @@
                             <button type="button" class="exec-side-sheet__close" onclick="closeExecutionSheet()" aria-label="Close">×</button>
                         </header>
                         <div id="exec-sheet-meta" class="exec-side-sheet__meta"></div>
+                        <div id="exec-sheet-rca" class="exec-side-sheet__rca" hidden></div>
                         <pre id="exec-sheet-logs" class="exec-side-sheet__logs"></pre>
                         <div id="exec-sheet-actions" class="exec-side-sheet__actions"></div>
                     </aside>
@@ -663,6 +492,15 @@
                 <button type="button" id="scroll-top-btn" class="scroll-top-btn" onclick="scrollDashboardToTop()" title="Back to top" aria-label="Back to top">↑</button>
             </section>
 
+            <section id="view-unified-report" class="view-section unified-report-view" style="display:none;" aria-label="Unified pipeline report">
+                <div class="unified-report-toolbar">
+                    <button type="button" class="btn btn-secondary" onclick="closeUnifiedReport()">← Back to Dashboard</button>
+                    <span class="unified-report-toolbar-title">Unified execution report</span>
+                </div>
+                <div id="unified-report-root" class="unified-report-root">
+                    <div class="unified-report-loading">Select a pipeline execution and open View Full Report.</div>
+                </div>
+            </section>
 
             <section id="view-plugins" class="view-section">
                 <div class="header-bar">
@@ -694,28 +532,28 @@
                         <p style="margin: 5px 0 0 0; opacity: 0.6; font-size: 14px;">Manage hierarchical teams and granular access control.</p>
                     </div>
                 </div>
-                <div style="display: grid; grid-template-columns: 350px 1fr; gap: 30px;">
-                    <div class="data-card" style="height: 65vh; overflow-y: auto;">
+                <div class="org-layout-grid">
+                    <div class="data-card org-tree-card">
                         <h3 style="margin-top: 0;">Directory Tree</h3>
                         <p style="font-size:0.7rem; opacity:0.6; margin-bottom:15px;">Select a group to manage members. Drag a sub-organization onto another to reparent it, or drop on the zone above the tree for top level.</p>
                         <div id="organization-tree">Loading directory...</div>
                     </div>
                     <div class="data-card" id="org-management-panel" style="display: none;">
-                        <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid var(--border-main); padding-bottom: 15px; margin-bottom: 20px;">
+                        <div class="org-panel-head">
                             <div>
-                                <h2 id="org-selected-name" style="margin: 0; color: #58a6ff;">Select a Group</h2>
-                                <p id="org-selected-id" style="font-size: 12px; opacity: 0.6; margin: 5px 0 0 0;">ID: -</p>
+                                <h2 id="org-selected-name" class="org-panel-title">Select a Group</h2>
+                                <p id="org-selected-id" class="page-subtitle" style="margin: 5px 0 0;">ID: -</p>
                             </div>
-                            <div class="role-workspace" style="display: flex; gap: 10px;">
+                            <div class="role-workspace org-actions">
                                 <button class="btn-primary" onclick="promptCreateSubGroup()">+ Sub-Group</button>
-                                <button class="btn-secondary" style="border-color: #d29922; color: #d29922;" onclick="promptRenameGroup()">Rename</button>
-                                <button class="btn-secondary" style="border-color: #ff7b72; color: #ff7b72;" onclick="promptDeleteGroup()">Delete Branch</button>
+                                <button type="button" class="btn-secondary btn-warn-outline" onclick="promptRenameGroup()">Rename</button>
+                                <button type="button" class="btn-secondary btn-danger-outline" onclick="promptDeleteGroup()">Delete Branch</button>
                             </div>
                         </div>
-                        <div class="role-workspace" style="background: #0d1117; padding: 15px; border-radius: 6px; border: 1px dashed #30363d; margin-bottom: 25px;">
-                            <h4 style="margin: 0 0 15px 0; font-size: 13px; color: #58a6ff; text-transform: uppercase;">Assign Identity to Group</h4>
-                            <div style="display: flex; gap: 10px; position: relative;">
-                                <div style="flex-grow: 1;">
+                        <div class="role-workspace org-workspace">
+                            <h4 class="org-workspace__title">Assign Identity to Group</h4>
+                            <div class="flex-row-gap flex-row-gap--rel">
+                                <div class="flex-grow">
                                     <input type="text" id="org-add-user-email" class="login-input" style="margin: 0;" placeholder="Search user (e.g. name or email)" autocomplete="off">
                                     <div id="user-autocomplete-list" class="autocomplete-items" style="display:none;"></div>
                                 </div>
@@ -727,19 +565,19 @@
                                 <button class="btn-primary" onclick="assignUserToGroup()">Add Member</button>
                             </div>
                         </div>
-                        <h4 style="margin: 0 0 10px 0; font-size: 14px; color: #8b949e; text-transform: uppercase;">Group Members</h4>
-                        <table style="width:100%; border-collapse:collapse; text-align: left;">
+                        <h4 class="org-members-heading">Group Members</h4>
+                        <table class="data-table">
                             <thead>
-                                <tr style="border-bottom: 2px solid var(--border-main); background: #161b22;">
-                                    <th style="padding: 10px; color: #c9d1d9;">Identity</th>
-                                    <th style="padding: 10px; color: #c9d1d9;">Local Role</th>
-                                    <th style="padding: 10px; color: #c9d1d9;">Global Role</th>
-                                    <th style="padding: 10px; text-align: right; color: #c9d1d9;">Action</th>
+                                <tr>
+                                    <th>Identity</th>
+                                    <th>Local Role</th>
+                                    <th>Global Role</th>
+                                    <th class="data-table__actions">Action</th>
                                 </tr>
                             </thead>
                             <tbody id="org-members-list">
                                 <tr>
-                                    <td colspan="4" style="text-align:center; padding:20px;">No members assigned to this group.</td>
+                                    <td colspan="4" class="table-empty">No members assigned to this group.</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -782,18 +620,18 @@
                             <option value="observer">Observer</option>
                         </select>
                     </div>
-                    <table style="width:100%; border-collapse:collapse; text-align: left;">
+                    <table class="data-table">
                         <thead>
-                            <tr style="border-bottom: 2px solid var(--border-main); background: #161b22;">
-                                <th style="padding: 15px 10px; color: #c9d1d9;">Status</th>
-                                <th style="padding: 15px 10px; color: #c9d1d9;">Identity</th>
-                                <th style="padding: 15px 10px; color: #c9d1d9;">Role</th>
-                                <th style="padding: 15px 10px; text-align: right; color: #c9d1d9;">Actions</th>
+                            <tr>
+                                <th>Status</th>
+                                <th>Identity</th>
+                                <th>Role</th>
+                                <th class="data-table__actions">Actions</th>
                             </tr>
                         </thead>
                         <tbody id="user-list-body">
                             <tr>
-                                <td colspan="4" style="text-align:center; padding:20px;">Fetching Identities...</td>
+                                <td colspan="4" class="table-empty">Fetching Identities...</td>
                             </tr>
                         </tbody>
                     </table>
@@ -807,14 +645,14 @@
                         <p style="margin: 5px 0 0 0; opacity: 0.6; font-size: 14px;">Provision dedicated Webhook endpoints to ingest telemetry from external pipelines.</p>
                     </div>
                 </div>
-                <div style="display: flex; gap: 30px;">
-                    <div style="flex: 1; background: var(--bg-surface); padding: 25px; border: 1px solid var(--border-main); border-radius: 6px; position: sticky; top: 0;">
-                        <h3 style="margin-top: 0; font-size: 14px; text-transform: uppercase; color: #8b949e; letter-spacing: 1px; margin-bottom: 20px;">Provision New Endpoint</h3>
+                <div class="ingestion-layout">
+                    <div class="gateway-sticky-panel">
+                        <h3 class="gateway-panel-heading">Provision New Endpoint</h3>
 
-                        <label style="font-size: 12px; font-weight: bold; margin-bottom: 8px; display: block;">1. Target Workspace (Ownership)</label>
+                        <label class="form-label">1. Target Workspace (Ownership)</label>
                         <select id="ci-team-id" class="login-input" style="margin-bottom: 20px;"></select>
 
-                        <label style="font-size: 12px; font-weight: bold; margin-bottom: 8px; display: block;">2. Source System</label>
+                        <label class="form-label">2. Source System</label>
                         <div class="ci-grid" style="margin-bottom: 20px;">
                             <div class="ci-card active" onclick="selectCI('gitlab', this)">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ci-icon" style="color: #fc6d26;">
@@ -838,29 +676,29 @@
                         </div>
 
                         <div id="ci-config-form" style="padding-top: 10px; border-top: 1px solid var(--border-main);">
-                            <label style="font-size: 12px; font-weight: bold; margin-bottom: 8px; display: block; margin-top: 15px;">3. Pipeline Identifier</label>
+                            <label class="form-label" style="margin-top: 15px;">3. Pipeline Identifier</label>
                             <input type="text" id="ci-project-name" class="login-input" placeholder="e.g. payment-api-core" style="margin-bottom: 15px;">
                             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
                                 <div id="dynamic-ci-field" style="grid-column: span 2;">
-                                    <label style="font-size: 12px; font-weight: bold; margin-bottom: 8px; display: block; color: #8b949e;">GitLab Repository Path</label>
+                                    <label class="form-label">GitLab Repository Path</label>
                                     <input type="text" id="ci-specific" class="login-input" placeholder="group/project" style="margin-bottom: 10px;">
                                 </div>
                             </div>
 
-                            <h4 style="margin: 0 0 8px 0; font-size: 13px; color: #58a6ff; text-transform: uppercase; border-top: 1px solid #30363d; padding-top: 20px;">SRE Routing Configuration (Optional)</h4>
-                            <p style="font-size: 11px; color: #8b949e; margin: 0 0 12px; line-height: 1.45;">Add routing only for integrations <strong>enabled for gateways</strong> by your Manager (Configure &amp; Save, or <strong>Enable for gateways</strong> in Plugin Engine). AUTO-RUN is separate and controls automatic webhook triggers.</p>
+                            <h4 class="form-section-title">SRE Routing Configuration (Optional)</h4>
+                            <p class="form-hint">Add routing only for integrations <strong>enabled for gateways</strong> by your Manager (Configure &amp; Save, or <strong>Enable for gateways</strong> in Plugin Engine). AUTO-RUN is separate and controls automatic webhook triggers.</p>
                             <div id="ci-sre-routing-list" style="display: flex; flex-direction: column; gap: 14px; margin-bottom: 12px;"></div>
                             <button type="button" id="ci-add-routing-btn" class="btn-secondary" style="width: 100%; margin-bottom: 10px; font-size: 12px;">+ Add configuration</button>
-                            <p style="font-size: 11px; color: #6e7681; margin: 0 0 16px; line-height: 1.45;">Use <strong>WORKFLOW</strong> in the pipeline table to draw a visual DAG. Toggle <strong>Enable workflow</strong> in the editor to switch between legacy AUTO-RUN and the DAG.</p>
+                            <p class="form-hint form-hint--subtle" style="margin-bottom: 16px;">Use <strong>WORKFLOW</strong> in the pipeline table to draw a visual DAG. Toggle <strong>Enable workflow</strong> in the editor to switch between legacy AUTO-RUN and the DAG.</p>
 
-                            <div style="margin-top: 15px; background: #0d1117; padding: 15px; border-radius: 6px; border: 1px dashed #30363d;">
-                                <label style="font-size: 0.8rem; color: #58a6ff; font-weight: bold;">Generated Webhook URL (Read-Only)</label>
-                                <input type="text" id="ci-webhook-url" class="login-input" value="http://localhost:9000/api/webhooks/gitlab" readonly style="color: #58a6ff; font-family: monospace; border-color: #58a6ff;">
+                            <div class="gateway-credentials">
+                                <label class="form-label--accent">Generated Webhook URL (Read-Only)</label>
+                                <input type="text" id="ci-webhook-url" class="login-input login-input--url" value="http://localhost:9000/api/webhooks/gitlab" readonly>
 
-                                <label style="font-size: 0.8rem; color: #58a6ff; font-weight: bold; margin-top: 10px; display: block;">Generated API Key (Secret)</label>
+                                <label class="form-label--accent" style="margin-top: 10px; display: block;">Generated API Key (Secret)</label>
                                 <div style="display: flex; gap: 10px;">
-                                    <input type="text" id="ci-api-key" class="login-input" value="" readonly style="color: #ff7b72; font-family: monospace; border-color: #ff7b72; flex-grow: 1;">
-                                    <button class="btn-secondary" style="border-color: #ff7b72; color: #ff7b72; padding: 0 15px; display: flex; align-items: center;" onclick="revealApiKey()" title="Reveal Secret">
+                                    <input type="text" id="ci-api-key" class="login-input login-input--secret" value="" readonly>
+                                    <button type="button" class="btn-secondary btn-danger-outline" style="padding: 0 15px; display: flex; align-items: center;" onclick="revealApiKey()" title="Reveal Secret">
                                         <svg style="width:16px;height:16px;stroke:currentColor;fill:none;" viewBox="0 0 24 24" stroke-width="2">
                                             <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
                                             <circle cx="12" cy="12" r="3"></circle>
@@ -872,22 +710,22 @@
                         </div>
                     </div>
 
-                    <div style="flex: 2;">
-                        <div style="background: var(--bg-surface); border: 1px solid var(--border-main); border-radius: 6px;">
-                            <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 14px;">
+                    <div class="ingestion-table-wrap">
+                        <div class="ingestion-table-shell">
+                            <table class="data-table">
                                 <thead>
-                                    <tr style="border-bottom: 2px solid var(--border-main); background: #161b22;">
-                                        <th style="padding: 15px 10px; color: #c9d1d9;">Project Identifier</th>
-                                        <th style="padding: 15px 10px; color: #c9d1d9;">CI System</th>
-                                        <th style="padding: 15px 10px; color: #c9d1d9;">Secret Key Prefix</th>
-                                        <th style="padding: 15px 10px; color: #c9d1d9;">Workflow</th>
-                                        <th style="padding: 15px 10px; text-align: right; color: #c9d1d9;">Manage</th>
+                                    <tr>
+                                        <th>Project Identifier</th>
+                                        <th>CI System</th>
+                                        <th>Secret Key Prefix</th>
+                                        <th>Workflow</th>
+                                        <th class="data-table__actions">Manage</th>
                                     </tr>
                                 </thead>
                                 <tbody id="projects-table-body"></tbody>
                             </table>
                         </div>
-                        <div style="margin-top: 20px; font-size: 12px; color: #8b949e; line-height: 1.5; padding: 15px; background: rgba(88, 166, 255, 0.1); border-left: 4px solid #58a6ff;">
+                        <div class="gateway-callout">
                             <strong>Security Note:</strong> Each provisioned endpoint generates a unique, cryptographically secure Token.
                             This token must be injected into your CI/CD runner environments as a secret and passed in the `X-API-Key` header during HTTP POST requests to the Webhook URL.
                         </div>
@@ -1043,15 +881,20 @@
                     </article>
                 </div>
                 <div class="data-card" style="margin-bottom:16px;">
-                    <h3 style="margin:0 0 12px;font-size:15px;">Deployments vs failures (weekly)</h3>
-                    <canvas id="dora-trend-chart" height="120"></canvas>
+                    <h3 class="form-section-title" style="border-top:none;padding-top:0;margin:0 0 12px;">Deployments vs failures (weekly)</h3>
+                    <div class="chart-canvas-box chart-canvas-box--sm"><canvas id="dora-trend-chart"></canvas></div>
                 </div>
                 <div class="data-card">
-                    <h3 style="margin:0 0 12px;font-size:15px;">Prometheus ↔ incident correlations (±15 min)</h3>
-                    <table style="width:100%;border-collapse:collapse;">
-                        <thead><tr style="border-bottom:2px solid var(--border-main);">
-                            <th style="padding:8px;text-align:left;">Signal</th><th>Incident</th><th>Name</th><th>Fired</th>
-                        </tr></thead>
+                    <h3 class="form-section-title" style="border-top:none;padding-top:0;margin:0 0 12px;">Prometheus ↔ incident correlations (±15 min)</h3>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Signal</th>
+                                <th>Incident</th>
+                                <th>Name</th>
+                                <th>Fired</th>
+                            </tr>
+                        </thead>
                         <tbody id="dora-correlations-body"></tbody>
                     </table>
                 </div>
@@ -1100,7 +943,7 @@
 
                                 <div class="data-card" style="margin-bottom: 24px; display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end;">
                     <div>
-                        <label style="font-size: 11px; color: #8b949e;">Export period</label>
+                        <label class="form-label">Export period</label>
                         <select id="finops-export-period" class="login-input" style="min-width: 140px;">
                             <option value="week">Week</option>
                             <option value="month">Month</option>
@@ -1108,7 +951,7 @@
                         </select>
                     </div>
                     <div>
-                        <label style="font-size: 11px; color: #8b949e;">Gateway (project)</label>
+                        <label class="form-label">Gateway (project)</label>
                         <select id="finops-export-project" class="login-input" style="min-width: 200px;">
                             <option value="all">All gateways</option>
                         </select>
@@ -1119,11 +962,11 @@
                 <div class="finops-bento-grid">
                     <div class="data-card">
                         <h3 style="margin-top: 0; color: var(--accent);">12-week volume &amp; MTTR</h3>
-                        <div style="height: 280px;"><canvas id="finops-evolution-chart"></canvas></div>
+                        <div class="chart-canvas-box"><canvas id="finops-evolution-chart"></canvas></div>
                     </div>
                     <div class="data-card">
                         <h3 style="margin-top: 0; color: var(--log-warn);">12-week FinOps cost evolution</h3>
-                        <div style="height: 280px;"><canvas id="finops-cost-evolution-chart"></canvas></div>
+                        <div class="chart-canvas-box"><canvas id="finops-cost-evolution-chart"></canvas></div>
                     </div>
                 </div>
 
@@ -1131,14 +974,14 @@
                 <div class="finops-bento-wide">
                     <div class="data-card">
                         <h3 style="margin-top: 0;">Weekly pipeline health (last 7 days)</h3>
-                        <table style="width:100%; border-collapse: collapse;">
+                        <table class="data-table">
                             <thead>
-                                <tr style="border-bottom: 2px solid var(--border-main); background: #161b22;">
-                                    <th style="padding: 10px; text-align: left;">Pipeline</th>
-                                    <th style="padding: 10px;">Alerts</th>
-                                    <th style="padding: 10px;">Resolved</th>
-                                    <th style="padding: 10px;">Flaky</th>
-                                    <th style="padding: 10px;">Health %</th>
+                                <tr>
+                                    <th>Pipeline</th>
+                                    <th>Alerts</th>
+                                    <th>Resolved</th>
+                                    <th>Flaky</th>
+                                    <th>Health %</th>
                                 </tr>
                             </thead>
                             <tbody id="finops-weekly-body">
@@ -1148,22 +991,22 @@
                     </div>
                     <div class="data-card">
                         <h3 style="margin-top: 0; font-size: 14px; text-transform: uppercase;">FinOps baseline</h3>
-                        <label style="font-size: 11px; color: #8b949e;">Engineer hourly rate (R<sub>dev</sub>)</label>
+                        <label class="form-label">Engineer hourly rate (R<sub>dev</sub>)</label>
                         <input type="number" step="0.01" id="finops-dev-rate" class="login-input">
-                        <label style="font-size: 11px; color: #8b949e;">CI minute cost (C<sub>ci</sub>)</label>
+                        <label class="form-label">CI minute cost (C<sub>ci</sub>)</label>
                         <input type="number" step="0.0001" id="finops-ci-cost" class="login-input">
-                        <label style="font-size: 11px; color: #8b949e;">Avg. pipeline duration (min)</label>
+                        <label class="form-label">Avg. pipeline duration (min)</label>
                         <input type="number" step="0.1" id="finops-duration" class="login-input">
-                        <label style="font-size: 11px; color: #8b949e;">Avg. investigation time (min)</label>
+                        <label class="form-label">Avg. investigation time (min)</label>
                         <input type="number" step="0.1" id="finops-investigation" class="login-input">
-                        <label style="font-size: 11px; color: #8b949e;">Currency</label>
+                        <label class="form-label">Currency</label>
                         <select id="finops-currency" class="login-input">
                             <option value="USD">USD</option>
                             <option value="EUR">EUR</option>
                             <option value="GBP">GBP</option>
                         </select>
                         <button class="btn-primary" style="width: 100%; margin-top: 12px;" onclick="saveFinOpsBaselines()">Save baseline</button>
-                        <p style="font-size: 11px; opacity: 0.6; margin-top: 12px;">Formulas and theory: <a href="#" onclick="switchView('about', null); showAboutTopic('finops_metrics'); return false;" style="color:#58a6ff;">Help Center → FinOps metrics</a>.</p>
+                        <p class="form-hint" style="margin-top: 12px;">Formulas and theory: <a href="#" class="text-link" onclick="switchView('about', null); showAboutTopic('finops_metrics'); return false;">Help Center → FinOps metrics</a>.</p>
                     </div>
                 </div>
             </section>
@@ -1210,8 +1053,8 @@
                         </div>
                     </div>
 
-                    <div class="data-card" style="background: #0d1117; color: #00ff00;">
-                        <h3 style="margin-top: 0; font-size: 14px; text-transform: uppercase; color: #58a6ff;">Running Configuration State</h3>
+                    <div class="data-card config-state-panel">
+                        <h3>Running Configuration State</h3>
                         <div id="config-container"></div>
                     </div>
                 </div>
@@ -1372,7 +1215,7 @@
                     </div>
                 </div>
                 <aside id="workflow-help-panel" class="open">
-                    <h3 style="margin:0 0 10px;color:#58a6ff;font-size:13px;">Simulate incident</h3>
+                    <h3 class="plugin-config-panel__title" style="margin:0 0 10px;">Simulate incident</h3>
                     <label style="font-size:11px;display:block;margin-bottom:4px;">Test name</label>
                     <input type="text" id="wf-sim-name" class="login-input" value="[FLAKY] checkout payment" style="margin-bottom:8px;font-size:11px;">
                     <label style="font-size:11px;display:block;margin-bottom:4px;">Status</label>
@@ -1388,7 +1231,7 @@
                     <p style="margin-top:10px;"><strong>Example</strong> — Trigger → [FLAKY]? → Slack (yes) / Jira (no).</p>
                     <p><strong>Enable workflow</strong> + Save = DAG live. Unchecked = draft (legacy AUTO-RUN still runs).</p>
                     <p><strong>Simulate</strong> — Dry-run without calling vendors. <strong>Reset</strong> — delete DAG.</p>
-                    <p style="margin-top:12px;font-size:11px;"><a href="#" onclick="openWorkflowHelpTopic();return false;" style="color:#58a6ff;">Full guide in Help Center →</a></p>
+                    <p class="form-hint" style="margin-top:12px;"><a href="#" class="text-link" onclick="openWorkflowHelpTopic();return false;">Full guide in Help Center →</a></p>
                 </aside>
             </div>
         </div>

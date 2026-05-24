@@ -200,6 +200,7 @@ func Start(initialConfig core.Config) {
 	registerDORARoutes(config)
 	registerWebhookRoutes(config)
 	registerExecutionRoutes(config)
+	registerReportRoutes(config)
 	registerIncidentRoutes(config)
 	registerArtifactRoutes(config)
 	registerFinOpsRoutes(config)

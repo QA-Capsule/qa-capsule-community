@@ -61,9 +61,15 @@ type ExecutionSummary struct {
 	DurationMs int64 `json:"duration_ms"`
 }
 
-// TestCaseResult is one entry in the unified test matrix report.
+// UnifiedTestResult is the canonical per-test cell for the execution hub matrix.
+// TestCaseResult is kept as the persisted JSON shape; both types are interchangeable.
+type UnifiedTestResult = TestCaseResult
+
+// TestCaseResult is one entry in the unified test matrix report (stored in report_json).
 type TestCaseResult struct {
 	Name         string `json:"name"`
+	Suite        string `json:"suite,omitempty"`
+	ClassName    string `json:"class_name,omitempty"`
 	Status       string `json:"status"`
 	Fingerprint  string `json:"fingerprint,omitempty"`
 	DurationMs   int64  `json:"duration_ms,omitempty"`
@@ -97,10 +103,11 @@ type PipelineRunRecord struct {
 	FinishedAt    string                  `json:"finished_at,omitempty"`
 }
 
-// PatchExecutionFlagsRequest is the PATCH /api/executions/{id}/flag body.
+// PatchExecutionFlagsRequest is the PATCH /api/executions/{runId}/flag body.
+// Omit env or type to leave that dimension unchanged (partial update).
 type PatchExecutionFlagsRequest struct {
-	Env  string `json:"env"`
-	Type string `json:"type"`
+	Env  string `json:"env,omitempty"`
+	Type string `json:"type,omitempty"`
 }
 
 // IngestExecutionContext accompanies a webhook batch.

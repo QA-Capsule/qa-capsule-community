@@ -31,9 +31,7 @@ func registerSystemRoutes(config *core.Config) {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		if config.Plugins.AutoReload {
-			_ = core.ReloadRemediationRegistry(config.Plugins.Directory)
-		}
+		_ = core.MaybeReloadRemediationRegistry(config.Plugins.Directory, config.Plugins.AutoReload)
 		reg := core.RemediationRegistry()
 		if reg == nil {
 			json.NewEncoder(w).Encode([]map[string]interface{}{})
@@ -147,7 +145,7 @@ func registerSystemRoutes(config *core.Config) {
 			writeJSONError(w, "Lead or Manager role required", http.StatusForbidden)
 			return
 		}
-		_ = core.ReloadRemediationRegistry(config.Plugins.Directory)
+		_ = core.MaybeReloadRemediationRegistry(config.Plugins.Directory, config.Plugins.AutoReload)
 		reg := core.RemediationRegistry()
 		if reg == nil {
 			json.NewEncoder(w).Encode([]map[string]interface{}{})

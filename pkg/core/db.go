@@ -214,15 +214,39 @@ func InitDB(ignoredPath string) {
 }
 
 func runSchemaMigrations() {
-	migrations := []string{
-		`ALTER TABLE user_teams ADD COLUMN inherited_from INTEGER DEFAULT NULL`,
-		`ALTER TABLE incidents ADD COLUMN pipeline_run_id TEXT DEFAULT ''`,
-		`ALTER TABLE finops_settings ADD COLUMN currency TEXT DEFAULT 'USD'`,
-		`ALTER TABLE incidents ADD COLUMN browser TEXT DEFAULT ''`,
-		`ALTER TABLE incidents ADD COLUMN os TEXT DEFAULT ''`,
-		`ALTER TABLE incidents ADD COLUMN viewport TEXT DEFAULT ''`,
-		`ALTER TABLE incidents ADD COLUMN execution_time_ms INTEGER`,
-		`ALTER TABLE incidents ADD COLUMN jira_issue_key TEXT DEFAULT ''`,
+	// Column upgrades (idempotent — skipped when column already exists).
+	columnMigrations := []struct {
+		table  string
+		column string
+		sql    string
+	}{
+		{"user_teams", "inherited_from", `ALTER TABLE user_teams ADD COLUMN inherited_from INTEGER DEFAULT NULL`},
+		{"incidents", "pipeline_run_id", `ALTER TABLE incidents ADD COLUMN pipeline_run_id TEXT DEFAULT ''`},
+		{"incidents", "browser", `ALTER TABLE incidents ADD COLUMN browser TEXT DEFAULT ''`},
+		{"incidents", "os", `ALTER TABLE incidents ADD COLUMN os TEXT DEFAULT ''`},
+		{"incidents", "viewport", `ALTER TABLE incidents ADD COLUMN viewport TEXT DEFAULT ''`},
+		{"incidents", "execution_time_ms", `ALTER TABLE incidents ADD COLUMN execution_time_ms INTEGER`},
+		{"incidents", "jira_issue_key", `ALTER TABLE incidents ADD COLUMN jira_issue_key TEXT DEFAULT ''`},
+		{"projects", "sre_routing_json", `ALTER TABLE projects ADD COLUMN sre_routing_json TEXT DEFAULT '[]'`},
+		{"projects", "sre_workflow_json", `ALTER TABLE projects ADD COLUMN sre_workflow_json TEXT DEFAULT ''`},
+		{"incidents", "rca_status", `ALTER TABLE incidents ADD COLUMN rca_status TEXT DEFAULT ''`},
+		{"incidents", "has_rca", `ALTER TABLE incidents ADD COLUMN has_rca INTEGER DEFAULT 0`},
+		{"pipeline_runs", "outcome", `ALTER TABLE pipeline_runs ADD COLUMN outcome TEXT DEFAULT 'unknown'`},
+		{"pipeline_runs", "finished_at", `ALTER TABLE pipeline_runs ADD COLUMN finished_at DATETIME`},
+		{"pipeline_runs", "execution_env", `ALTER TABLE pipeline_runs ADD COLUMN execution_env TEXT DEFAULT 'UNKNOWN'`},
+		{"pipeline_runs", "execution_type", `ALTER TABLE pipeline_runs ADD COLUMN execution_type TEXT DEFAULT 'REAL'`},
+		{"pipeline_runs", "total_tests", `ALTER TABLE pipeline_runs ADD COLUMN total_tests INTEGER DEFAULT 0`},
+		{"pipeline_runs", "passed_tests", `ALTER TABLE pipeline_runs ADD COLUMN passed_tests INTEGER DEFAULT 0`},
+		{"pipeline_runs", "failed_tests", `ALTER TABLE pipeline_runs ADD COLUMN failed_tests INTEGER DEFAULT 0`},
+		{"pipeline_runs", "skipped_tests", `ALTER TABLE pipeline_runs ADD COLUMN skipped_tests INTEGER DEFAULT 0`},
+		{"pipeline_runs", "duration_ms", `ALTER TABLE pipeline_runs ADD COLUMN duration_ms INTEGER DEFAULT 0`},
+		{"pipeline_runs", "report_json", `ALTER TABLE pipeline_runs ADD COLUMN report_json TEXT DEFAULT '{}'`},
+	}
+	for _, m := range columnMigrations {
+		addColumnIfNotExists(m.table, m.column, m.sql)
+	}
+
+	ddlMigrations := []string{
 		`CREATE TABLE IF NOT EXISTS incident_artifacts (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			incident_id INTEGER NOT NULL,
@@ -245,10 +269,6 @@ func runSchemaMigrations() {
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_test_metrics_fp ON test_execution_metrics(project_name, fingerprint, created_at)`,
-		`ALTER TABLE projects ADD COLUMN sre_routing_json TEXT DEFAULT '[]'`,
-		`ALTER TABLE projects ADD COLUMN sre_workflow_json TEXT DEFAULT ''`,
-		`ALTER TABLE incidents ADD COLUMN rca_status TEXT DEFAULT ''`,
-		`ALTER TABLE incidents ADD COLUMN has_rca INTEGER DEFAULT 0`,
 		`CREATE TABLE IF NOT EXISTS ai_provider_config (
 			id INTEGER PRIMARY KEY CHECK (id = 1),
 			provider TEXT NOT NULL DEFAULT 'disabled',
@@ -296,7 +316,17 @@ func runSchemaMigrations() {
 			pipeline_run_id TEXT NOT NULL,
 			commit_sha TEXT DEFAULT '',
 			branch TEXT DEFAULT '',
+			outcome TEXT DEFAULT 'unknown',
 			started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			finished_at DATETIME,
+			execution_env TEXT DEFAULT 'UNKNOWN',
+			execution_type TEXT DEFAULT 'REAL',
+			total_tests INTEGER DEFAULT 0,
+			passed_tests INTEGER DEFAULT 0,
+			failed_tests INTEGER DEFAULT 0,
+			skipped_tests INTEGER DEFAULT 0,
+			duration_ms INTEGER DEFAULT 0,
+			report_json TEXT DEFAULT '{}',
 			UNIQUE(project_name, pipeline_run_id)
 		)`,
 		`CREATE TABLE IF NOT EXISTS test_stability_stats (
@@ -345,17 +375,6 @@ func runSchemaMigrations() {
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_transitions_fp ON test_state_transitions(project_name, test_identity_fingerprint, created_at)`,
-		`ALTER TABLE pipeline_runs ADD COLUMN branch TEXT DEFAULT ''`,
-		`ALTER TABLE pipeline_runs ADD COLUMN outcome TEXT DEFAULT 'unknown'`,
-		`ALTER TABLE pipeline_runs ADD COLUMN finished_at DATETIME`,
-		`ALTER TABLE pipeline_runs ADD COLUMN execution_env TEXT DEFAULT 'UNKNOWN'`,
-		`ALTER TABLE pipeline_runs ADD COLUMN execution_type TEXT DEFAULT 'REAL'`,
-		`ALTER TABLE pipeline_runs ADD COLUMN total_tests INTEGER DEFAULT 0`,
-		`ALTER TABLE pipeline_runs ADD COLUMN passed_tests INTEGER DEFAULT 0`,
-		`ALTER TABLE pipeline_runs ADD COLUMN failed_tests INTEGER DEFAULT 0`,
-		`ALTER TABLE pipeline_runs ADD COLUMN skipped_tests INTEGER DEFAULT 0`,
-		`ALTER TABLE pipeline_runs ADD COLUMN duration_ms INTEGER DEFAULT 0`,
-		`ALTER TABLE pipeline_runs ADD COLUMN report_json TEXT DEFAULT '{}'`,
 		`CREATE TABLE IF NOT EXISTS external_signals (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			project_name TEXT NOT NULL DEFAULT '',
@@ -384,11 +403,11 @@ func runSchemaMigrations() {
 			FOREIGN KEY(team_id) REFERENCES teams(id) ON DELETE CASCADE
 		)`,
 	}
-	for _, sqlStmt := range migrations {
-		if _, err := DB.Exec(sqlStmt); err != nil {
-			log.Printf("[INFO] Schema migration (may already exist): %v", err)
-		}
+	for _, sqlStmt := range ddlMigrations {
+		execSchemaSQL(sqlStmt)
 	}
+	// Legacy DBs: pipeline_runs created before branch was in CREATE TABLE.
+	addColumnIfNotExists("pipeline_runs", "branch", `ALTER TABLE pipeline_runs ADD COLUMN branch TEXT DEFAULT ''`)
 	migrateGlobalRoleCodes()
 }
 

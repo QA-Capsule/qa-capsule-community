@@ -25,6 +25,18 @@ export function applyTheme(theme) {
     }
     document.documentElement.style.colorScheme = next;
     localStorage.setItem(THEME_STORAGE_KEY, next);
+    if (typeof window.reloadDashboardAnalytics === 'function') {
+        const view = document.getElementById('analytics-view');
+        if (view && view.style.display !== 'none') window.reloadDashboardAnalytics();
+    }
+    if (typeof window.loadFinOpsWeeklyEvolution === 'function') {
+        const finops = document.getElementById('view-finops');
+        if (finops?.classList.contains('active')) window.loadFinOpsWeeklyEvolution();
+    }
+    if (typeof window.refreshDORAMetrics === 'function') {
+        const dora = document.getElementById('view-dora');
+        if (dora?.classList.contains('active')) window.refreshDORAMetrics();
+    }
     return next;
 }
 

@@ -3,6 +3,7 @@
  */
 import { fetchWithAuth, parseApiJson } from './api.js';
 import { CHART_PALETTE } from './chart-palette.js';
+import { getChartTheme, withChartTheme } from './chart-theme.js';
 import { setPremiumKpi } from './kpi-premium.js';
 
 let doraTrendChart = null;
@@ -110,6 +111,7 @@ function renderDORATrend(series) {
     if (!canvas || typeof Chart === 'undefined') return;
     if (doraTrendChart) doraTrendChart.destroy();
     const labels = series.map(s => s.period_start || '');
+    const theme = getChartTheme();
     doraTrendChart = new Chart(canvas.getContext('2d'), {
         type: 'bar',
         data: {
@@ -118,20 +120,24 @@ function renderDORATrend(series) {
                 {
                     label: 'Deployments',
                     data: series.map(s => s.deployments),
-                    backgroundColor: CHART_PALETTE[0]
+                    backgroundColor: CHART_PALETTE.series[0]
                 },
                 {
                     label: 'Failed',
                     data: series.map(s => s.failed_deployments),
-                    backgroundColor: CHART_PALETTE[2]
+                    backgroundColor: CHART_PALETTE.series[2]
                 }
             ]
         },
-        options: {
+        options: withChartTheme({
             responsive: true,
+            maintainAspectRatio: false,
             plugins: { legend: { position: 'bottom' } },
-            scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } }
-        }
+            scales: {
+                x: { stacked: true, grid: { display: false } },
+                y: { stacked: true, beginAtZero: true }
+            }
+        }, theme)
     });
 }
 
@@ -144,10 +150,10 @@ function renderCorrelations(rows) {
     }
     tbody.innerHTML = rows.map(r => `
         <tr>
-            <td style="padding:8px;">${escapeHtml(r.signal_name)}</td>
-            <td style="padding:8px;">#${r.incident_id}</td>
-            <td style="padding:8px;">${escapeHtml(r.incident_name || '')}</td>
-            <td style="padding:8px;">${escapeHtml(r.fired_at || '')}</td>
+            <td>${escapeHtml(r.signal_name)}</td>
+            <td>#${r.incident_id}</td>
+            <td>${escapeHtml(r.incident_name || '')}</td>
+            <td>${escapeHtml(r.fired_at || '')}</td>
         </tr>
     `).join('');
 }

@@ -173,6 +173,18 @@ func int64Field(raw map[string]interface{}, key string) int64 {
 	return 0
 }
 
+func floatField(raw map[string]interface{}, key string) float64 {
+	switch v := raw[key].(type) {
+	case float64:
+		return v
+	case int:
+		return float64(v)
+	case int64:
+		return float64(v)
+	}
+	return 0
+}
+
 // JUnitParseResult contains failure alerts and the full execution report.
 type JUnitParseResult struct {
 	Failures []UnifiedAlert
@@ -207,10 +219,14 @@ func ParseJUnitReport(data []byte, framework string) JUnitParseResult {
 	var failures []UnifiedAlert
 
 	for _, suite := range suites.TestSuites {
+		suiteName := strings.TrimSpace(suite.Name)
 		for _, tc := range suite.TestCases {
+			className := strings.TrimSpace(tc.ClassName)
 			alertName := tc.Name
-			if tc.ClassName != "" {
-				alertName = fmt.Sprintf("%s > %s", tc.ClassName, tc.Name)
+			if className != "" {
+				alertName = fmt.Sprintf("%s > %s", className, tc.Name)
+			} else if suiteName != "" {
+				alertName = fmt.Sprintf("%s > %s", suiteName, tc.Name)
 			}
 			fullName := fmt.Sprintf("[%s] %s", framework, alertName)
 			durationMs := int64(tc.Time * 1000)
@@ -231,6 +247,8 @@ func ParseJUnitReport(data []byte, framework string) JUnitParseResult {
 
 			tcResult := TestCaseResult{
 				Name:       fullName,
+				Suite:      suiteName,
+				ClassName:  className,
 				Status:     normalizeTestMatrixStatus(status, fullName),
 				DurationMs: durationMs,
 			}

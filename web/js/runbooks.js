@@ -13,24 +13,23 @@ export function loadRunbooksView() {
 async function loadRunbookTemplates() {
     const grid = document.getElementById('runbooks-template-grid');
     if (!grid) return;
-    grid.innerHTML = '<p style="opacity:0.6;">Loading templates…</p>';
+    grid.innerHTML = '<p class="runbooks-status">Loading templates…</p>';
     const res = await fetchWithAuth('/api/runbooks/templates');
     const { ok, data } = await parseApiJson(res);
     if (!ok || !data?.templates?.length) {
-        grid.innerHTML = '<p style="opacity:0.6;">No templates available.</p>';
+        grid.innerHTML = '<p class="runbooks-status">No templates available.</p>';
         return;
     }
     grid.innerHTML = '';
     data.templates.forEach(t => {
         const card = document.createElement('div');
-        card.className = 'data-card';
-        card.style.marginBottom = '12px';
+        card.className = 'data-card runbook-card';
         const tags = (t.tags || []).map(x => `<span class="tag-pill">${x}</span>`).join(' ');
         card.innerHTML = `
-            <h3 style="margin:0 0 8px;font-size:16px;">${escapeHtml(t.name)}</h3>
-            <p style="margin:0 0 10px;font-size:13px;opacity:0.75;">${escapeHtml(t.description || '')}</p>
-            <div style="margin-bottom:10px;">${tags}</div>
-            <p style="font-size:11px;opacity:0.55;margin:0 0 12px;">Plugins: ${escapeHtml((t.required_plugins || []).join(', '))}</p>
+            <h3 class="runbook-card__title">${escapeHtml(t.name)}</h3>
+            <p class="runbook-card__desc">${escapeHtml(t.description || '')}</p>
+            <div class="runbook-card__tags">${tags}</div>
+            <p class="runbook-card__plugins">Plugins: ${escapeHtml((t.required_plugins || []).join(', '))}</p>
             <button type="button" class="btn-primary btn-apply-runbook" data-template-id="${escapeHtml(t.id)}">Apply to gateway</button>
         `;
         grid.appendChild(card);

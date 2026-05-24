@@ -10,18 +10,6 @@ name: Robot Framework Pipeline
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main, master]
-    paths:
-      - 'tests/**'
-      - 'scripts/run-tests.sh'
-      - '.github/workflows/robot-tests.yml'
-  pull_request:
-    branches: [main, master]
-    paths:
-      - 'tests/**'
-      - 'scripts/run-tests.sh'
-      - '.github/workflows/robot-tests.yml'
 
 jobs:
   run-robot:
@@ -36,18 +24,38 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-          cache: pip
-          cache-dependency-path: tests/requirements.txt
 
-      - name: Install Dependencies
-        run: pip install -r tests/requirements.txt
+      - name: Install Robot Framework
+        run: pip install robotframework
+
+      - name: Create demo Robot tests (pass + intentional failures)
+        run: |
+          mkdir -p tests/robotframework tests/results
+          cat << 'EOF' > tests/robotframework/qacapsule_demo.robot
+          *** Settings ***
+          Documentation    QA Capsule demo — mixed pass/fail for pipeline + report testing
+          Library          BuiltIn
+
+          *** Test Cases ***
+          Sanity check should pass
+              [Documentation]    Always green
+              Should Be Equal    ${1}    ${1}
+
+          Assertion failure for QA Capsule
+              [Documentation]    Intentional failure — appears in JUnit and QA Capsule dashboard
+              Log To Console     [STDOUT] Comparing unexpected values
+              Log                [STDERR] Deliberate mismatch    level=WARN
+              Should Be Equal    ${50}    ${150}    msg=Expected cart total 150, got 50
+
+          Runtime keyword failure
+              [Documentation]    Second failure for multi-incident reports
+              ${status}=    Set Variable    500
+              Should Be Equal As Integers    ${status}    200    msg=API returned 500
+          EOF
 
       - name: Run Robot Framework Tests
         id: robot
-        env:
-          SELENIUM_ENABLED: 'false'
         run: |
-          mkdir -p tests/results
           robot --outputdir tests/results --loglevel INFO tests/robotframework
         continue-on-error: true
 
@@ -58,9 +66,13 @@ jobs:
             echo "Converting Robot output.xml → JUnit (robot-junit.xml)..."
             rebot --xunit tests/results/robot-junit.xml \
               --outputdir tests/results \
+              --log NONE --report NONE \
               tests/results/output.xml
+            echo "--- JUnit summary (first 40 lines) ---"
+            head -n 40 tests/results/robot-junit.xml || true
           else
-            echo "No Robot output.xml found — skip JUnit conversion."
+            echo "::error::No Robot output.xml — tests did not produce results."
+            exit 1
           fi
 
       - name: Send Alert to QA Capsule
@@ -74,20 +86,29 @@ jobs:
         run: |
           KEY="${API_KEY:-$API_KEY_FALLBACK}"
           if [ -z "$WEBHOOK_URL" ] || [ -z "$KEY" ]; then
-            echo "Skip upload: set QA_CAPSULE_URL and QA_CAPSULE_API_ROBOT_KEY (or QA_CAPSULE_API_KEY)."
+            echo "::warning::Skip upload: set QA_CAPSULE_URL and QA_CAPSULE_API_ROBOT_KEY (or QA_CAPSULE_API_KEY)."
             exit 0
           fi
           if [ ! -f tests/results/robot-junit.xml ]; then
-            echo "Skip upload: robot-junit.xml not found."
-            exit 0
+            echo "::error::robot-junit.xml not found — cannot send report to QA Capsule."
+            exit 1
           fi
           echo "Uploading Robot JUnit XML to QA Capsule..."
-          curl -f -S -X POST "${WEBHOOK_URL}/api/webhooks/upload?framework=RobotFramework" \
+          HTTP_CODE=$(curl -sS -o /tmp/qc-upload.json -w "%{http_code}" \
+            -X POST "${WEBHOOK_URL}/api/webhooks/upload?framework=RobotFramework" \
             -H "X-API-Key: ${KEY}" \
             -H "X-Run-Id: ${GITHUB_RUN_ID}" \
             -H "X-Execution-Env: ${QA_CAPSULE_EXEC_ENV}" \
             -H "X-Execution-Type: ${QA_CAPSULE_EXEC_TYPE}" \
-            -F "file=@tests/results/robot-junit.xml"
+            -H "X-Branch: ${GITHUB_REF_NAME}" \
+            -H "X-Commit-Sha: ${GITHUB_SHA}" \
+            -F "file=@tests/results/robot-junit.xml")
+          echo "QA Capsule HTTP ${HTTP_CODE}"
+          cat /tmp/qc-upload.json
+          if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
+            echo "::error::QA Capsule upload failed"
+            exit 1
+          fi
 
       - name: Upload Robot artifacts
         if: always()
@@ -98,10 +119,11 @@ jobs:
             tests/results/robot-junit.xml
             tests/results/log.html
             tests/results/report.html
+            tests/results/output.xml
           if-no-files-found: ignore
 
       - name: Fail pipeline if tests failed
         if: steps.robot.outcome == 'failure'
         run: |
-          echo "Robot tests failed — see log.html artifact."
+          echo "::error::Robot tests failed — see log.html artifact and QA Capsule dashboard (run ${GITHUB_RUN_ID})."
           exit 1

@@ -160,10 +160,9 @@ export function onExecGroupExpanded(groupId) {
 export async function patchGroupExecFlags(groupId, env, type) {
     const group = window.groupedIncidents && window.groupedIncidents[groupId];
     if (!group || !group.has_real_run) return;
-    const body = {
-        env: env != null ? env : (group.execution_env || 'UNKNOWN'),
-        type: type != null ? type : (group.execution_type || 'REAL')
-    };
+    const body = {};
+    if (env != null) body.env = env;
+    if (type != null) body.type = type;
     const res = await fetchWithAuth(
         `/api/executions/${encodeURIComponent(group.pipeline_run_id)}/flag?project=${encodeURIComponent(group.project_name)}`,
         { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
@@ -217,12 +216,13 @@ export function openExecutionSheetFromIncident(incidentId, event) {
     });
 }
 
-export function openExecutionSheet(detail) {
+export async function openExecutionSheet(detail) {
     const sheet = document.getElementById('exec-side-sheet');
     if (!sheet) return;
     const title = document.getElementById('exec-sheet-title');
     const meta = document.getElementById('exec-sheet-meta');
     const logs = document.getElementById('exec-sheet-logs');
+    const rcaEl = document.getElementById('exec-sheet-rca');
     const actions = document.getElementById('exec-sheet-actions');
     if (!title || !meta || !logs || !actions) return;
 
@@ -236,6 +236,11 @@ export function openExecutionSheet(detail) {
     const logBody = detail.error_logs || detail.error_message || detail.console_logs || 'No logs captured.';
     logs.textContent = logBody;
 
+    if (rcaEl) {
+        rcaEl.hidden = true;
+        rcaEl.innerHTML = '';
+    }
+
     const role = parseJwt(localStorage.getItem('sre-jwt'))?.role;
     let actionHtml = '';
     if (detail.incidentId > 0 && canViewRCA(role)) {
@@ -247,6 +252,19 @@ export function openExecutionSheet(detail) {
     sheet.hidden = false;
     sheet.classList.add('is-open');
     document.body.classList.add('exec-sheet-open');
+
+    if (detail.incidentId > 0 && canViewRCA(role) && rcaEl) {
+        try {
+            const res = await fetchWithAuth(`/api/incidents/${detail.incidentId}/rca`);
+            const rep = await parseApiJson(res);
+            if (res.ok && rep && rep.summary) {
+                rcaEl.hidden = false;
+                rcaEl.innerHTML = `<strong>RCA</strong><p>${escapeHtml(rep.summary)}</p>`;
+            }
+        } catch {
+            /* optional */
+        }
+    }
 }
 
 export function closeExecutionSheet() {

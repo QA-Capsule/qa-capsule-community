@@ -4,6 +4,7 @@
 import { fetchWithAuth, parseApiJson } from './api.js';
 import { notify } from './ui.js';
 import { CHART_PALETTE, defaultWidgetColors } from './chart-palette.js';
+import { getChartTheme, getExportChartTheme } from './chart-theme.js';
 
 export const METRIC_CATALOG = {
     total_incidents: { label: 'Total incidents', hint: 'All failures in range' },
@@ -303,16 +304,7 @@ function formatBucketLabel(raw, bucket) {
     return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-export function getExportChartTheme() {
-    return {
-        legend: '#334155',
-        title: '#0f172a',
-        tick: '#64748b',
-        border: '#ffffff',
-        grid: 'rgba(203, 213, 225, 0.55)',
-        background: '#ffffff'
-    };
-}
+export { getExportChartTheme };
 
 function renderDoughnut(canvas, data, widget, theme, key, { forPdf = false } = {}) {
     const stable = data.stable_failures ?? 0;
@@ -324,7 +316,7 @@ function renderDoughnut(canvas, data, widget, theme, key, { forPdf = false } = {
             datasets: [{
                 data: [stable, flaky],
                 backgroundColor: [widget.color || CHART_PALETTE.doughnut[0], widget.color2 || CHART_PALETTE.doughnut[1]],
-                borderColor: '#ffffff',
+                borderColor: theme.border,
                 borderWidth: 2
             }]
         },
@@ -372,7 +364,7 @@ function renderEvolution(canvas, data, widget, theme, key, { forPdf = false } = 
             datasets: [
                 { label: 'Total', type: 'bar', data: evo.map(e => e.total_failures), backgroundColor: widget.color || 'rgba(59,130,246,0.75)', yAxisID: 'y', borderRadius: forPdf ? 3 : 0 },
                 { label: 'Flaky', type: 'bar', data: evo.map(e => e.flaky_count), backgroundColor: widget.color2 || 'rgba(217,119,6,0.75)', yAxisID: 'y', borderRadius: forPdf ? 3 : 0 },
-                { label: 'MTTR (min)', type: 'line', data: evo.map(e => Math.round(e.mttr)), borderColor: widget.color3 || '#059669', backgroundColor: 'rgba(5,150,105,0.08)', fill: forPdf, tension: 0.35, yAxisID: 'y1', borderWidth: 2.5, pointRadius: forPdf ? 4 : 0, pointHoverRadius: forPdf ? 4 : 5 }
+                { label: 'MTTR (min)', type: 'line', data: evo.map(e => Math.round(e.mttr)), borderColor: widget.color3 || CHART_PALETTE.semantic.success, backgroundColor: 'rgba(5,150,105,0.08)', fill: forPdf, tension: 0.35, yAxisID: 'y1', borderWidth: 2.5, pointRadius: forPdf ? 4 : 0, pointHoverRadius: forPdf ? 4 : 5 }
             ]
         },
         options: {
@@ -412,9 +404,9 @@ function renderEvolution(canvas, data, widget, theme, key, { forPdf = false } = 
                     position: 'right',
                     beginAtZero: true,
                     grace: forPdf ? '8%' : undefined,
-                    ticks: { color: widget.color3 || '#059669', font: { size: forPdf ? 9 : 10 } },
+                    ticks: { color: widget.color3 || CHART_PALETTE.semantic.success, font: { size: forPdf ? 9 : 10 } },
                     grid: { drawOnChartArea: false },
-                    title: forPdf ? { display: true, text: 'MTTR (min)', color: widget.color3 || '#059669', font: { size: 9 } } : undefined
+                    title: forPdf ? { display: true, text: 'MTTR (min)', color: widget.color3 || CHART_PALETTE.semantic.success, font: { size: 9 } } : undefined
                 }
             }
         }
@@ -541,8 +533,9 @@ function getAnalyticsGridElement() {
     return document.getElementById('analytics-grid');
 }
 
-export function renderAnalyticsGrid(metricsData, { isExport = false, theme } = {}) {
+export function renderAnalyticsGrid(metricsData, { isExport = false, theme: themeIn } = {}) {
     lastMetricsData = metricsData;
+    const theme = themeIn || getChartTheme();
     const grid = getAnalyticsGridElement();
     if (!grid) return;
 
@@ -570,7 +563,7 @@ export function renderAnalyticsGrid(metricsData, { isExport = false, theme } = {
         return `<article class="${spanClass(w.span)} analytics-widget analytics-widget-chart" data-id="${w.id}">
             ${editControls}
             <h4>${w.title || 'Chart'}</h4>
-            <div class="analytics-chart-wrap" style="height:${h}px"><canvas id="chart-${w.id}"></canvas></div>
+            <div class="analytics-chart-wrap analytics-chart-wrap--${w.type}"><canvas id="chart-${w.id}"></canvas></div>
         </article>`;
     }).join('');
 

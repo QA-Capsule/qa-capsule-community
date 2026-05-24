@@ -29,6 +29,23 @@ func executionFlagsFromRequest(r *http.Request, raw map[string]interface{}) core
 	return flags
 }
 
+// pipelineOutcomeFromReport marks the run failed when JUnit/XML reports failures, even if incidents were deduplicated.
+func pipelineOutcomeFromReport(processed int, report core.UnifiedExecutionReport) string {
+	if processed > 0 {
+		return "failure"
+	}
+	if report.Summary.Failed > 0 || report.Summary.Flaky > 0 {
+		return "failure"
+	}
+	for _, tc := range report.Tests {
+		st := strings.ToLower(strings.TrimSpace(tc.Status))
+		if st == "fail" || st == "flaky" {
+			return "failure"
+		}
+	}
+	return "success"
+}
+
 func appendIngested(ingested []core.IngestedCase, res core.IngestResult) []core.IngestedCase {
 	if res.IncidentID <= 0 {
 		return ingested
@@ -72,8 +89,10 @@ func registerWebhookRoutes(config *core.Config) {
 		var report core.UnifiedExecutionReport
 		var rawPayload map[string]interface{}
 		framework := r.URL.Query().Get("framework")
+		format := core.DetectReportFormat(r.URL.Path, r.Header.Get("Content-Type"))
 
-		if strings.HasSuffix(r.URL.Path, "/upload") {
+		switch format {
+		case core.ReportFormatJUnitXML:
 			err = r.ParseMultipartForm(10 << 20)
 			if err != nil {
 				http.Error(w, "File upload too large", http.StatusBadRequest)
@@ -90,10 +109,16 @@ func registerWebhookRoutes(config *core.Config) {
 				http.Error(w, "Failed to read file", http.StatusInternalServerError)
 				return
 			}
-			junit := core.ParseJUnitReport(fileBytes, framework)
-			alerts = junit.Failures
-			report = junit.Report
-		} else {
+			flags := executionFlagsFromRequest(r, nil)
+			norm := core.DefaultUnifiedReporter.Normalize(core.IngestPayload{
+				Format:    core.ReportFormatJUnitXML,
+				Framework: framework,
+				Flags:     flags,
+				XML:       fileBytes,
+			})
+			alerts = norm.Failures
+			report = norm.Report
+		default:
 			if err := json.NewDecoder(r.Body).Decode(&rawPayload); err != nil {
 				http.Error(w, "Invalid JSON payload format", http.StatusBadRequest)
 				return
@@ -104,8 +129,14 @@ func registerWebhookRoutes(config *core.Config) {
 				}
 			}
 			flags := executionFlagsFromRequest(r, rawPayload)
-			report = core.BuildReportFromPayload(rawPayload, flags, framework)
-			alerts = core.ParseAlertsFromRaw(rawPayload)
+			norm := core.DefaultUnifiedReporter.Normalize(core.IngestPayload{
+				Format:    core.ReportFormatJSON,
+				Framework: framework,
+				Flags:     flags,
+				JSON:      rawPayload,
+			})
+			report = norm.Report
+			alerts = norm.Failures
 		}
 
 		for i := range alerts {
@@ -172,10 +203,7 @@ func registerWebhookRoutes(config *core.Config) {
 			}
 		}
 
-		outcome := "success"
-		if processed > 0 {
-			outcome = "failure"
-		}
+		outcome := pipelineOutcomeFromReport(processed, report)
 
 		ctx := core.IngestExecutionContext{
 			ProjectName:   projectName,

@@ -71,7 +71,24 @@ func summaryFromMap(m map[string]interface{}) ExecutionSummary {
 
 func testCaseFromPayloadMap(m map[string]interface{}) TestCaseResult {
 	name, _ := m["name"].(string)
+	if name == "" {
+		name = stringField(m, "nodeid", "")
+	}
+	if name == "" {
+		name = stringField(m, "title", "")
+	}
+	suite := stringField(m, "suite", "")
+	className := stringField(m, "classname", "")
+	if className == "" {
+		className = stringField(m, "class_name", "")
+	}
 	status, _ := m["status"].(string)
+	if status == "" {
+		status = stringField(m, "outcome", "")
+	}
+	if status == "" {
+		status = stringField(m, "state", "")
+	}
 	if status == "" {
 		status = "failed"
 	}
@@ -79,10 +96,24 @@ func testCaseFromPayloadMap(m map[string]interface{}) TestCaseResult {
 	if errStr == "" {
 		errStr, _ = m["error_message"].(string)
 	}
+	if errStr == "" {
+		errStr = stringField(m, "longrepr", "")
+	}
+	if errStr == "" {
+		errStr = stringField(m, "failure_reason", "")
+	}
+	durationMs := int64Field(m, "execution_time_ms")
+	if durationMs == 0 {
+		if sec := floatField(m, "duration"); sec > 0 {
+			durationMs = int64(sec * 1000)
+		}
+	}
 	tc := TestCaseResult{
 		Name:         name,
+		Suite:        suite,
+		ClassName:    className,
 		Status:       normalizeTestMatrixStatus(status, name),
-		DurationMs:   int64Field(m, "execution_time_ms"),
+		DurationMs:   durationMs,
 		ErrorMessage: errStr,
 	}
 	if logs, ok := m["console_logs"].(string); ok {

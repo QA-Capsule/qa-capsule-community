@@ -52,12 +52,16 @@ func handleExecutionFlagPatch(w http.ResponseWriter, r *http.Request, project, r
 		writeJSONError(w, "Invalid JSON payload", http.StatusBadRequest)
 		return
 	}
-	flags := core.ExecutionFlags{
-		Env:  core.NormalizeExecutionEnv(req.Env),
-		Type: core.NormalizeExecutionType(req.Type),
+	existing, err := core.LoadPipelineRun(project, runID)
+	if err != nil {
+		existing = &core.PipelineRunRecord{Flags: core.ExecutionFlags{Env: core.ExecutionEnvUnknown, Type: core.ExecutionTypeReal}}
 	}
-	if flags.Env == core.ExecutionEnvUnknown && strings.TrimSpace(req.Env) == "" {
-		flags.Env = core.ExecutionEnvUnknown
+	flags := existing.Flags
+	if strings.TrimSpace(req.Env) != "" {
+		flags.Env = core.NormalizeExecutionEnv(req.Env)
+	}
+	if strings.TrimSpace(req.Type) != "" {
+		flags.Type = core.NormalizeExecutionType(req.Type)
 	}
 	if flags.Type == core.ExecutionTypeUnknown {
 		flags.Type = core.ExecutionTypeReal

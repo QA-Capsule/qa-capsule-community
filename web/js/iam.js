@@ -20,6 +20,12 @@ function escapeAttr(s) {
     return String(s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
+function teamRolePillClass(role) {
+    if (role === 'team_admin') return 'role-pill role-pill--admin';
+    if (role === 'team_operator') return 'role-pill role-pill--operator';
+    return 'role-pill role-pill--member';
+}
+
 function fetchUsersDirectory() {
     if (allUsers.length) return Promise.resolve(allUsers);
     return fetchWithAuth(`/api/users?_ts=${Date.now()}`)
@@ -143,14 +149,14 @@ export function initIamUserSearchAutocomplete() {
 
 function renderTreeNode(node, canDrag) {
     const hasChildren = node.children && node.children.length > 0;
-    const toggleIcon = hasChildren ? `<span class="tree-toggle" onclick="toggleTree(event, 'tree-children-${node.id}')">▼</span>` : `<span style="width:20px; display:inline-block;"></span>`;
+    const toggleIcon = hasChildren ? `<span class="tree-toggle" onclick="toggleTree(event, 'tree-children-${node.id}')">▼</span>` : `<span class="tree-spacer"></span>`;
     const draggable = canDrag && node.id !== 1;
     const dragAttrs = draggable ? `draggable="true" ondragstart="orgDragStart(event, ${node.id})" ondragend="orgDragEnd(event)"` : '';
     const dropAttrs = canDrag ? `ondragover="orgDragOver(event)" ondragleave="orgDragLeave(event)" ondrop="orgDropOnNode(event, ${node.id})"` : '';
 
     let html = `
-    <div class="tree-node" id="node-container-${node.id}" style="${!node.parent_id ? 'margin-left: 0; border-left: none; padding-left: 0;' : ''}">
-        <div style="display:flex; align-items:center;">
+    <div class="tree-node${!node.parent_id ? ' tree-node--root' : ''}" id="node-container-${node.id}">
+        <div class="tree-row">
             ${toggleIcon}
             <div class="tree-item ${draggable ? 'tree-draggable' : ''}" id="org-node-${node.id}"
                 data-org-id="${node.id}" data-org-name="${escapeAttr(node.name)}"
@@ -161,7 +167,7 @@ function renderTreeNode(node, canDrag) {
         </div>`;
 
     if (hasChildren) {
-        html += `<div id="tree-children-${node.id}" style="display:block;">` + node.children.map(child => renderTreeNode(child, canDrag)).join('') + `</div>`;
+        html += `<div id="tree-children-${node.id}" class="tree-children">` + node.children.map(child => renderTreeNode(child, canDrag)).join('') + `</div>`;
     }
     html += `</div>`;
     return html;
@@ -282,21 +288,20 @@ export function loadOrgMembers(orgId) {
         .then(members => {
             const tbody = document.getElementById('org-members-list');
             if (!members || members.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:20px; opacity:0.5;">No members assigned.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="4" class="table-empty">No members assigned.</td></tr>';
                 return;
             }
             tbody.innerHTML = members.map(m => {
-                let roleColor = m.team_role === 'team_admin' ? '#d33833' : (m.team_role === 'team_operator' ? '#d29922' : '#58a6ff');
                 const inheritedTag = m.inherited
                     ? '<span class="member-inherited-tag" title="Inherited from parent group — remove to opt out">inherited</span>'
                     : '';
                 return `
-                <tr style="border-bottom:1px solid var(--border-main);">
-                    <td style="padding:12px 10px;"><strong>${m.fullname}</strong> ${inheritedTag}<br><small style="opacity:0.6;">${m.username}</small></td>
-                    <td><span style="border: 1px solid ${roleColor}; color: ${roleColor}; padding: 3px 8px; border-radius: 12px; font-size: 10px; font-weight: bold; text-transform:uppercase;">${m.team_role.replace('team_', '')}</span></td>
-                    <td><span style="opacity:0.5; font-size: 11px; text-transform:uppercase;">${m.global_role}</span></td>
-                    <td style="text-align:right;">
-                        <button class="btn-secondary" style="font-size:10px; padding:3px 6px; color:#ff7b72; border-color:#ff7b72;" onclick="window.removeUserFromOrg('${m.username}', ${orgId})">REMOVE</button>
+                <tr>
+                    <td><strong>${m.fullname}</strong> ${inheritedTag}<br><small class="text-subtle-sm">${m.username}</small></td>
+                    <td><span class="${teamRolePillClass(m.team_role)}">${m.team_role.replace('team_', '')}</span></td>
+                    <td><span class="text-subtle-sm" style="font-size:11px;text-transform:uppercase;">${m.global_role}</span></td>
+                    <td class="data-table__actions">
+                        <button type="button" class="btn-secondary btn-sm btn-danger-outline" onclick="window.removeUserFromOrg('${m.username}', ${orgId})">REMOVE</button>
                     </td>
                 </tr>`;
             }).join('');
@@ -415,20 +420,17 @@ export function refreshUserTeamsModal() {
         .then(teams => {
             const tbody = document.getElementById('user-teams-list');
             if (!teams || teams.length === 0) {
-                tbody.innerHTML = '<tr><td style="text-align:center; padding:20px; opacity:0.5; color:#8b949e;">User is not assigned to any groups.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="3" class="table-empty">User is not assigned to any groups.</td></tr>';
                 return;
             }
-            tbody.innerHTML = teams.map(t => {
-                let roleColor = t.role === 'team_admin' ? '#d33833' : (t.role === 'team_operator' ? '#d29922' : '#58a6ff');
-                return `
-            <tr style="border-bottom:1px solid #30363d;">
-                <td style="padding:10px 15px; font-size:14px; font-weight:bold; color:#c9d1d9;">${t.name}</td>
-                <td style="padding:10px 15px;"><span style="border: 1px solid ${roleColor}; color: ${roleColor}; padding: 2px 6px; border-radius: 12px; font-size: 9px; font-weight: bold; text-transform:uppercase;">${t.role.replace('team_', '')}</span></td>
-                <td style="padding:10px 15px; text-align:right;">
-                    <button class="btn-secondary" style="font-size:10px; padding:4px 8px; color:#ff7b72; border-color:#ff7b72;" onclick="window.removeUserFromTeamModal(${t.id})">REMOVE</button>
+            tbody.innerHTML = teams.map(t => `
+            <tr>
+                <td><strong>${t.name}</strong></td>
+                <td><span class="${teamRolePillClass(t.role)} role-pill--sm">${t.role.replace('team_', '')}</span></td>
+                <td class="data-table__actions">
+                    <button type="button" class="btn-secondary btn-sm btn-danger-outline" onclick="window.removeUserFromTeamModal(${t.id})">REMOVE</button>
                 </td>
-            </tr>`;
-            }).join('');
+            </tr>`).join('');
         });
 }
 
@@ -470,17 +472,18 @@ export function renderUserTable(users) {
     if (!tbody) return;
 
     const currentUser = parseJwt(localStorage.getItem('sre-jwt')).username;
-    if (users.length === 0) { tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">No identities found.</td></tr>'; return; }
+    if (users.length === 0) { tbody.innerHTML = '<tr><td colspan="4" class="table-empty">No identities found.</td></tr>'; return; }
 
     tbody.innerHTML = users.map(u => {
         const isMe = u.username === currentUser;
-        const disabledState = isMe ? 'disabled style="opacity:0.4; cursor:not-allowed;" title="You cannot modify yourself"' : '';
+        const disabledState = isMe ? 'disabled class="is-self-disabled" title="You cannot modify yourself"' : '';
+        const statusClass = u.is_active ? 'user-status--active' : 'user-status--disabled';
         return `
-            <tr style="border-bottom:1px solid var(--border-main);">
-                <td style="padding:15px 10px; color:${u.is_active ? 'var(--log-pass)' : 'var(--log-fatal)'}; font-weight:bold;">${u.is_active ? '● ACTIVE' : '○ DISABLED'}</td>
-                <td><strong>${u.fullname || 'N/A'}</strong> ${isMe ? '<small>(YOU)</small>' : ''}<br><small style="opacity:0.6;">${u.username}</small></td>
-                <td><small>${roleLabel(u.role)}</small><br><small style="opacity:0.5;"><code>${u.role}</code></small></td>
-                <td style="text-align:right;">
+            <tr>
+                <td class="${statusClass}">${u.is_active ? '● ACTIVE' : '○ DISABLED'}</td>
+                <td><strong>${u.fullname || 'N/A'}</strong> ${isMe ? '<small>(YOU)</small>' : ''}<br><small class="text-subtle-sm">${u.username}</small></td>
+                <td><small>${roleLabel(u.role)}</small><br><small class="text-subtle-sm"><code>${u.role}</code></small></td>
+                <td class="data-table__actions">
                     <div class="btn-action-group">
                     <button type="button" class="btn btn-secondary btn-sm btn-info" onclick="window.openUserTeamsModal('${u.username}')">TEAMS</button>
                     <button type="button" class="btn btn-secondary btn-sm" onclick="window.adminResetPassword('${u.username}')" ${disabledState}>RESET PWD</button>

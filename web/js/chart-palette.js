@@ -1,28 +1,29 @@
 /**
  * QA Capsule chart color system — use for analytics widgets and Chart.js series.
  */
+/** Chart series colors — aligned with Indigo Enterprise tokens in style.css */
 export const CHART_PALETTE = {
-    brand: '#2563eb',
+    brand: '#4f46e5',
     series: [
-        '#2563eb', // blue
-        '#059669', // emerald
-        '#d97706', // amber
-        '#dc2626', // red
-        '#7c3aed', // violet
-        '#0891b2', // cyan
-        '#ea580c', // orange
-        '#4f46e5'  // indigo
+        '#4f46e5',
+        '#059669',
+        '#d97706',
+        '#dc2626',
+        '#7c3aed',
+        '#0891b2',
+        '#ea580c',
+        '#818cf8'
     ],
     semantic: {
-        info: '#2563eb',
+        info: '#4f46e5',
         success: '#059669',
         warning: '#d97706',
         danger: '#dc2626',
         neutral: '#64748b'
     },
-    doughnut: ['#dc2626', '#d97706', '#2563eb', '#059669'],
+    doughnut: ['#dc2626', '#d97706', '#4f46e5', '#059669'],
     metricPresets: [
-        { label: 'Blue', value: '#2563eb' },
+        { label: 'Indigo', value: '#4f46e5' },
         { label: 'Emerald', value: '#059669' },
         { label: 'Amber', value: '#d97706' },
         { label: 'Red', value: '#dc2626' },

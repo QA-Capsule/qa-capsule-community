@@ -177,6 +177,7 @@ export function defaultViewForRole(role) {
 export function canAccessView(role, viewId) {
     switch (viewId) {
         case 'dashboard':
+        case 'unified-report':
             return canAccessOperations(role);
         case 'about':
         case 'profile':

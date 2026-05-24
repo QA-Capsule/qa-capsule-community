@@ -6,6 +6,7 @@ import { fetchWithAuth, parseJwt, parseApiJson, asArray, describeApiFailure, per
 import { notify, showConfirmModal, showPromptModal } from './ui.js';
 import { canManagePluginAutoRun } from './roles.js';
 import * as analyticsLayout from './analytics-layout.js';
+import { applyChartThemeDefaults, getChartTheme } from './chart-theme.js';
 
 export let allProjects = [];
 let editingProjectId = null;
@@ -26,24 +27,7 @@ export const currencySymbols = {
     'SGD': 'S$', 'NZD': 'NZ$'
 };
 
-// --- GLOBAL CHART.JS DESIGN DEFAULTS ---
-Chart.defaults.font.family = "'DM Sans', system-ui, -apple-system, sans-serif";
-
-function getChartTheme() {
-    const dark = document.body.getAttribute('data-theme') === 'dark';
-    return {
-        legend: dark ? '#c9d1d9' : '#334155',
-        title: dark ? '#94a3b8' : '#475569',
-        tick: dark ? '#8b949e' : '#64748b',
-        border: dark ? '#111827' : '#ffffff',
-        grid: dark ? 'rgba(48, 54, 61, 0.45)' : 'rgba(203, 213, 225, 0.9)',
-    };
-}
-
-function applyChartThemeDefaults() {
-    const t = getChartTheme();
-    Chart.defaults.color = t.tick;
-}
+// Chart.js defaults applied via chart-theme.js (see loadAnalytics)
 
 export function setSelectedCurrency(val) { selectedCurrency = val; }
 
@@ -136,19 +120,20 @@ export function loadGatewaysData() {
                 return;
             }
             if (allProjects.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px; opacity:0.5;">No pipelines provisioned yet.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5" class="table-empty">No pipelines provisioned yet.</td></tr>';
                 return;
             }
             tbody.innerHTML = allProjects.map(p => `
-                <tr style="border-bottom: 1px solid var(--border-main);">
-                    <td style="padding: 10px;"><strong>${escapePluginHtml(p.name)}</strong></td>
-                    <td style="padding: 10px; text-transform: uppercase;">${escapePluginHtml(p.ci_system)}</td>
-                    <td style="padding: 10px;"><code style="color: #ff7b72; font-family: monospace;">••••••••••••</code></td>
-                    <td style="padding: 10px;">${workflowTableBadge(p)}</td>
-                    <td style="padding: 10px; text-align: right;">
-                        <button type="button" class="btn btn-secondary btn-sm btn-open-workflow" style="margin-right:6px;" data-project-id="${escapePluginHtml(String(p.id))}" data-project-name="${escapePluginHtml(p.name)}" title="Visual remediation DAG">WORKFLOW</button>
+                <tr>
+                    <td><strong>${escapePluginHtml(p.name)}</strong></td>
+                    <td class="ci-system-cell">${escapePluginHtml(p.ci_system)}</td>
+                    <td><code class="secret-mask">••••••••••••</code></td>
+                    <td>${workflowTableBadge(p)}</td>
+                    <td class="data-table__actions">
+                        <button type="button" class="btn btn-secondary btn-sm btn-open-workflow gateway-actions__workflow" data-project-id="${escapePluginHtml(String(p.id))}" data-project-name="${escapePluginHtml(p.name)}" title="Visual remediation DAG">WORKFLOW</button>
                         <button type="button" class="btn btn-secondary btn-sm btn-info btn-edit-project" data-project-id="${escapePluginHtml(String(p.id))}">EDIT</button>
-                        <button type="button" class="btn btn-secondary btn-sm btn-danger btn-delete-project" data-project-id="${escapePluginHtml(String(p.id))}">DELETE</button>                    </td>
+                        <button type="button" class="btn btn-secondary btn-sm btn-danger btn-delete-project" data-project-id="${escapePluginHtml(String(p.id))}">DELETE</button>
+                    </td>
                 </tr>
             `).join('');
         })
@@ -212,8 +197,7 @@ export function editProject(projectId) {
     const btn = document.getElementById('save-ci-btn');
     if (btn) {
         btn.innerText = "Update Project Endpoint";
-        btn.style.borderColor = "#58a6ff";
-        btn.style.color = "#58a6ff";
+        btn.classList.add('btn-edit-mode');
     }
 
     document.getElementById('ci-project-name').focus();
@@ -273,8 +257,7 @@ export function saveCIConfig() {
             const btn = document.getElementById('save-ci-btn');
             if (btn) {
                 btn.innerText = "Provision Project Endpoint";
-                btn.style.borderColor = "";
-                btn.style.color = "";
+                btn.classList.remove('btn-edit-mode');
             }
             loadGatewaysData();
             if (window.loadDashboardFilters) window.loadDashboardFilters();
@@ -858,12 +841,12 @@ export function renderSRERoutingList() {
     }
 
     if (!activePluginsForRouting.length) {
-        container.innerHTML = '<p style="font-size:12px;color:#8b949e;margin:0;">No integrations enabled for gateways yet. Open <strong>Plugin Engine</strong> (sidebar → Infrastructure), find Jira/Slack/etc., click <strong>Enable for gateways</strong> or <strong>Configure → Save</strong>, then refresh this page (Ctrl+F5).</p>';
+        container.innerHTML = '<p class="sre-routing-hint">No integrations enabled for gateways yet. Open <strong>Plugin Engine</strong> (sidebar → Infrastructure), find Jira/Slack/etc., click <strong>Enable for gateways</strong> or <strong>Configure → Save</strong>, then refresh this page (Ctrl+F5).</p>';
         return;
     }
 
     if (!ciSRERoutingRows.length) {
-        container.innerHTML = '<p style="font-size:12px;color:#6e7681;margin:0;">No routing configured. Click <strong>Add configuration</strong> to bind Slack, Jira, Teams, etc.</p>';
+        container.innerHTML = '<p class="sre-routing-hint--subtle">No routing configured. Click <strong>Add configuration</strong> to bind Slack, Jira, Teams, etc.</p>';
         return;
     }
 
@@ -880,17 +863,17 @@ export function renderSRERoutingList() {
         const fieldInputs = fields.map(f => {
             const val = row.values?.[f.key] || '';
             const type = f.input_type === 'url' ? 'url' : 'text';
-            return `<div><label style="font-size:11px;color:#8b949e;">${escapePluginHtml(f.label)}</label>
+            return `<div class="sre-routing-field"><label>${escapePluginHtml(f.label)}</label>
                 <input type="${type}" class="login-input sre-route-field" data-row="${idx}" data-key="${escapePluginHtml(f.key)}"
-                placeholder="${escapePluginHtml(f.placeholder || '')}" value="${escapePluginHtml(val)}" style="margin:4px 0 0;"></div>`;
+                placeholder="${escapePluginHtml(f.placeholder || '')}" value="${escapePluginHtml(val)}"></div>`;
         }).join('');
-        return `<div class="sre-routing-card" data-row-idx="${idx}" style="background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:14px;">
-            <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
-                <img src="${logo}" alt="" style="width:32px;height:32px;object-fit:contain;border-radius:6px;background:#161b22;" onerror="this.style.display='none'">
-                <select class="login-input sre-route-plugin-select" data-row="${idx}" style="margin:0;flex:1;" onchange="window.onSRERoutingPluginChange(${idx}, this.value)">${options}</select>
-                <button type="button" class="btn-secondary" style="padding:6px 10px;color:#ff7b72;border-color:#ff7b72;" onclick="window.removeSRERoutingRow(${idx})" title="Remove">×</button>
+        return `<div class="sre-routing-card" data-row-idx="${idx}">
+            <div class="sre-routing-card__head">
+                <img src="${logo}" alt="" class="sre-routing-card__logo" onerror="this.style.display='none'">
+                <select class="login-input sre-route-plugin-select sre-routing-card__select" data-row="${idx}" onchange="window.onSRERoutingPluginChange(${idx}, this.value)">${options}</select>
+                <button type="button" class="btn-secondary btn-sm btn-danger-outline" onclick="window.removeSRERoutingRow(${idx})" title="Remove">×</button>
             </div>
-            <div style="display:flex;flex-direction:column;gap:10px;">${fieldInputs || '<p style="font-size:11px;color:#8b949e;margin:0;">No routing fields for this integration.</p>'}</div>
+            <div class="sre-routing-card__fields">${fieldInputs || '<p class="sre-routing-hint">No routing fields for this integration.</p>'}</div>
         </div>`;
     }).join('');
 }
@@ -1054,16 +1037,16 @@ function renderPluginList(plugins, query = '', category = 'all') {
 
     const q = (query || '').trim().toLowerCase();
     if (!plugins || plugins.length === 0) {
-        listEl.innerHTML = "<div style='text-align:center; padding:40px; opacity:0.5;'>No modules detected in the plugins directory.</div>";
+        listEl.innerHTML = '<div class="empty-state">No modules detected in the plugins directory.</div>';
         updatePluginSearchMeta(0, 0, q, category);
         return;
     }
 
-    const configIcon = `<svg style="width:14px;height:14px;margin-right:5px;vertical-align:middle;stroke:currentColor;fill:none;" viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>`;
-    const runIcon = `<svg style="width:14px;height:14px;margin-right:5px;vertical-align:middle;stroke:currentColor;fill:none;" viewBox="0 0 24 24" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>`;
-    const saveIcon = `<svg style="width:14px;height:14px;margin-right:5px;vertical-align:middle;stroke:currentColor;fill:none;" viewBox="0 0 24 24" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>`;
-    const consoleIcon = `<svg style="width:12px;height:12px;margin-right:5px;vertical-align:middle;stroke:currentColor;fill:none;" viewBox="0 0 24 24" stroke-width="2"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>`;
-    const pluginIconSVG = `<svg style="width:24px;height:24px;stroke:#8b949e;fill:none;" viewBox="0 0 24 24" stroke-width="1.5"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>`;
+    const configIcon = `<svg class="plugin-btn-icon" viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>`;
+    const runIcon = `<svg class="plugin-btn-icon" viewBox="0 0 24 24" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>`;
+    const saveIcon = `<svg class="plugin-btn-icon" viewBox="0 0 24 24" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>`;
+    const consoleIcon = `<svg class="plugin-btn-icon plugin-btn-icon--sm" viewBox="0 0 24 24" stroke-width="2"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>`;
+    const pluginIconSVG = `<svg class="plugin-icon-svg" viewBox="0 0 24 24" stroke-width="1.5"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>`;
 
     const groupedPlugins = {};
     plugins.forEach(p => {
@@ -1087,7 +1070,7 @@ function renderPluginList(plugins, query = '', category = 'all') {
         const visible = groupedPlugins[folder].filter(p => pluginMatchesFilters(p, folder, folderLabel, q, category));
         if (visible.length === 0) continue;
 
-        html += `<h3 class="plugin-category-heading" data-folder="${escapePluginHtml(folder.toLowerCase())}" style="margin: 30px 0 15px 0; padding-bottom: 8px; border-bottom: 1px solid var(--border-main); color: var(--text-main); font-size: 14px; letter-spacing: 1px; text-transform: uppercase; opacity: 0.8;">${escapePluginHtml(folderLabel)} <span style="font-weight:400; opacity:0.65;">(${visible.length})</span></h3>`;
+        html += `<h3 class="plugin-category-heading" data-folder="${escapePluginHtml(folder.toLowerCase())}">${escapePluginHtml(folderLabel)} <span class="plugin-category-heading__count">(${visible.length})</span></h3>`;
 
         visible.forEach(p => {
             shown++;
@@ -1095,7 +1078,7 @@ function renderPluginList(plugins, query = '', category = 'all') {
             const envKeys = Object.keys(p.env || {});
             let envs = '';
             envKeys.forEach(k => {
-                envs += `<div style="margin-bottom: 12px;"><label style="font-size:11px; color:#8b949e; display:block; margin-bottom:5px; text-transform:uppercase; font-weight:bold; letter-spacing:0.5px;">${escapePluginHtml(k)}</label><input type="text" id="env-${globalIdx}-${k}" class="login-input" style="padding:10px; margin:0; width:100%; box-sizing:border-box; background:#0d1117;" value="${escapePluginHtml(p.env[k])}"></div>`;
+                envs += `<div class="plugin-env-field"><label>${escapePluginHtml(k)}</label><input type="text" id="env-${globalIdx}-${k}" class="login-input" value="${escapePluginHtml(p.env[k])}"></div>`;
             });
             const desc = p.description || 'No description provided.';
             const logoUrl = `/assets/${folder.toLowerCase()}.png`;
@@ -1105,49 +1088,49 @@ function renderPluginList(plugins, query = '', category = 'all') {
             const autoOn = p.auto_run !== false && String(p.status).toLowerCase() === 'active';
             const gatewayOn = isPluginRoutingEligible(p);
             const autoBadge = autoOn
-                ? '<span style="font-size:10px; color:#3fb950; border:1px solid #3fb950; padding:2px 6px; border-radius:4px;">AUTO-RUN ON</span>'
-                : '<span style="font-size:10px; color:#8b949e; border:1px solid #484f58; padding:2px 6px; border-radius:4px;">AUTO-RUN OFF</span>';
+                ? '<span class="plugin-badge plugin-badge--auto-on">AUTO-RUN ON</span>'
+                : '<span class="plugin-badge">AUTO-RUN OFF</span>';
             const gatewayBadge = gatewayOn
-                ? '<span style="font-size:10px; color:#58a6ff; border:1px solid #58a6ff; padding:2px 6px; border-radius:4px;">GATEWAYS ON</span>'
-                : '<span style="font-size:10px; color:#8b949e; border:1px solid #484f58; padding:2px 6px; border-radius:4px;">GATEWAYS OFF</span>';
+                ? '<span class="plugin-badge plugin-badge--gateway-on">GATEWAYS ON</span>'
+                : '<span class="plugin-badge">GATEWAYS OFF</span>';
             const autoToggleBtn = canToggleAuto
-                ? `<button type="button" class="btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="window.togglePluginAutoRun('${safePath}', ${!autoOn})">${autoOn ? 'Disable auto-run' : 'Enable auto-run'}</button>`
+                ? `<button type="button" class="btn-secondary plugin-btn-compact" onclick="window.togglePluginAutoRun('${safePath}', ${!autoOn})">${autoOn ? 'Disable auto-run' : 'Enable auto-run'}</button>`
                 : '';
             const gatewayToggleBtn = canToggleAuto
-                ? `<button type="button" class="btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="window.togglePluginGatewayRouting('${safePath}', ${!gatewayOn})">${gatewayOn ? 'Disable for gateways' : 'Enable for gateways'}</button>`
+                ? `<button type="button" class="btn-secondary plugin-btn-compact" onclick="window.togglePluginGatewayRouting('${safePath}', ${!gatewayOn})">${gatewayOn ? 'Disable for gateways' : 'Enable for gateways'}</button>`
                 : '';
             const envKeysAttr = envKeys.join(',');
 
             html += `
-                <div class="data-card plugin-card" data-plugin-idx="${globalIdx}" data-folder="${escapePluginHtml(folder.toLowerCase())}" style="border-left: 4px solid #58a6ff; margin-bottom: 20px; padding: 20px; transition: all 0.2s ease;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap: wrap; gap: 20px;">
-                        <div style="display:flex; align-items:center; gap: 15px; flex-grow: 1;">
-                            <div style="position:relative; width:50px; height:50px; flex-shrink:0;">
-                                <div style="position:absolute; top:0; left:0; width:100%; height:100%; border-radius:10px; background:#21262d; border:1px solid #30363d; display:flex; align-items:center; justify-content:center; z-index:1;">${pluginIconSVG}</div>
-                                <img src="${logoUrl}" onerror="this.style.display='none'" alt="" style="position:absolute; top:0; left:0; width:100%; height:100%; object-fit:contain; border-radius:10px; background:#0d1117; padding:5px; border:1px solid #30363d; box-sizing:border-box; z-index:2;" />
+                <div class="data-card plugin-card" data-plugin-idx="${globalIdx}" data-folder="${escapePluginHtml(folder.toLowerCase())}">
+                    <div class="plugin-card__row">
+                        <div class="plugin-card__main">
+                            <div class="plugin-card__media">
+                                <div class="plugin-card__icon-bg">${pluginIconSVG}</div>
+                                <img src="${logoUrl}" onerror="this.style.display='none'" alt="" class="plugin-card__logo" />
                             </div>
                             <div>
-                                <h3 style="margin:0 0 5px 0; color:var(--text-main); font-size: 16px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-                                    ${escapePluginHtml(p.name)} <span style="font-size:10px; background:#238636; color:white; padding:3px 8px; border-radius:12px;">v${escapePluginHtml(p.version || '1.0')}</span>
+                                <h3 class="plugin-card__title">
+                                    ${escapePluginHtml(p.name)} <span class="plugin-card__version">v${escapePluginHtml(p.version || '1.0')}</span>
                                     ${gatewayBadge} ${autoBadge} ${gatewayToggleBtn} ${autoToggleBtn}
                                 </h3>
-                                <p style="font-size:13px; color:#8b949e; margin:0 0 4px; line-height: 1.4;">${escapePluginHtml(desc)}</p>
-                                ${triggers ? `<p style="font-size:11px; color:#6e7681; margin:0;">Triggers: ${escapePluginHtml(triggers)}</p>` : ''}
+                                <p class="plugin-card__desc">${escapePluginHtml(desc)}</p>
+                                ${triggers ? `<p class="plugin-card__triggers">Triggers: ${escapePluginHtml(triggers)}</p>` : ''}
                             </div>
                         </div>
-                        <div style="display:flex; gap:12px; flex-shrink: 0;">
-                            <button type="button" class="btn-secondary" style="display:flex; align-items:center; padding: 8px 16px;" onclick="window.togglePluginConfig('config-${globalIdx}')">${configIcon} Configure</button>
-                            <button type="button" class="btn-primary" id="btn-run-${globalIdx}" onclick="window.runPlugin('${safePath}', ${globalIdx})" style="background-color:#58a6ff; border-color:#58a6ff; color: #0d1117; font-weight: bold; padding: 8px 16px; display:flex; align-items:center; justify-content:center; min-width: 120px;">${runIcon} Execute</button>
+                        <div class="plugin-card__actions">
+                            <button type="button" class="btn-secondary" onclick="window.togglePluginConfig('config-${globalIdx}')">${configIcon} Configure</button>
+                            <button type="button" class="btn-primary" id="btn-run-${globalIdx}" onclick="window.runPlugin('${safePath}', ${globalIdx})">${runIcon} Execute</button>
                         </div>
                     </div>
-                    <div id="config-${globalIdx}" style="display:none; margin-top:20px; background:var(--bg-main); padding:20px; border-radius:8px; border:1px solid var(--border-main);">
-                        <h4 style="margin:0 0 15px 0; font-size:13px; text-transform:uppercase; color:#58a6ff; letter-spacing:1px;">Environment Variables</h4>
-                        ${envs || '<p style="font-size:13px; color:#8b949e;">No external variables required.</p>'}
-                        ${envs ? `<button type="button" class="btn-primary" style="font-size:12px; width:100%; margin-top:15px; padding:10px; display:flex; align-items:center; justify-content:center;" onclick="window.savePluginConfig('${safePath}', ${globalIdx}, '${envKeysAttr}')">${saveIcon} Save</button>` : ''}
+                    <div id="config-${globalIdx}" class="plugin-config-panel">
+                        <h4 class="plugin-config-panel__title">Environment Variables</h4>
+                        ${envs || '<p class="form-hint">No external variables required.</p>'}
+                        ${envs ? `<button type="button" class="btn-primary plugin-save-fullwidth" onclick="window.savePluginConfig('${safePath}', ${globalIdx}, '${envKeysAttr}')">${saveIcon} Save</button>` : ''}
                     </div>
-                    <div id="logs-container-${globalIdx}" style="display:none; margin-top:20px;">
-                        <div style="font-size:12px; color:#8b949e; margin-bottom:8px; text-transform:uppercase; font-weight:bold; display:flex; align-items:center;">${consoleIcon} STDOUT Console</div>
-                        <pre id="logs-${globalIdx}" style="background:#0d1117; color:#00ff00; padding:15px; border-radius:8px; border:1px solid #30363d; font-family:monospace; font-size:13px; overflow-x:auto; white-space:pre-wrap; margin:0; max-height:400px; overflow-y:auto;"></pre>
+                    <div id="logs-container-${globalIdx}" class="plugin-logs">
+                        <div class="plugin-logs__label">${consoleIcon} STDOUT Console</div>
+                        <pre id="logs-${globalIdx}" class="plugin-console plugin-console--pending"></pre>
                     </div>
                 </div>`;
             globalIdx++;
@@ -1155,9 +1138,9 @@ function renderPluginList(plugins, query = '', category = 'all') {
     }
 
     if (!html) {
-        html = `<div style="text-align:center; padding:48px 24px; opacity:0.65;">
-            <p style="margin:0 0 8px; font-size:15px;">No plugins match your search.</p>
-            <p style="margin:0; font-size:13px;">Try another keyword or reset filters.</p>
+        html = `<div class="empty-state--lg">
+            <p>No plugins match your search.</p>
+            <p>Try another keyword or reset filters.</p>
         </div>`;
     }
 
@@ -1198,7 +1181,7 @@ export function loadPlugins() {
                     ? 'Cannot reach server. Start: go run ./cmd/qacapsule'
                     : (data?.error || describeApiFailure(status, offline));
                 if (listEl) {
-                    listEl.innerHTML = `<div style="text-align:center;padding:40px;opacity:0.7;"><p style="margin:0 0 8px;">Failed to load plugins.</p><p style="margin:0;font-size:13px;">${escapePluginHtml(msg)}</p></div>`;
+                    listEl.innerHTML = `<div class="empty-state--lg"><p>Failed to load plugins.</p><p>${escapePluginHtml(msg)}</p></div>`;
                 }
                 if (meta) meta.textContent = 'Load failed.';
                 if (status === 401) performLogout();
@@ -1219,7 +1202,10 @@ export function loadPlugins() {
         });
 }
 
-export function togglePluginConfig(id) { const el = document.getElementById(id); el.style.display = el.style.display === 'none' ? 'block' : 'none'; }
+export function togglePluginConfig(id) {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle('is-open');
+}
 
 export function savePluginConfig(path, idx, keysStr) {
     const env = {};
@@ -1244,8 +1230,11 @@ export function runPlugin(path, idx) {
     const logsEl = document.getElementById(`logs-${idx}`);
 
     btn.innerHTML = `Running...`;
-    btn.disabled = true; btn.style.opacity = '0.7';
-    logsContainer.style.display = 'block'; logsEl.style.color = '#8b949e'; logsEl.innerHTML = 'Init...';
+    btn.disabled = true;
+    btn.style.opacity = '0.7';
+    logsContainer.classList.add('is-visible');
+    logsEl.className = 'plugin-console plugin-console--pending';
+    logsEl.innerHTML = 'Init...';
 
     fetchWithAuth('/api/plugins/run', { method: 'POST', body: JSON.stringify({ file_path: path }) }).then(async (res) => {
         const data = await res.json();
@@ -1256,10 +1245,10 @@ export function runPlugin(path, idx) {
         btn.style.opacity = '1';
         if (failed) {
             notify('Plugin execution failed — see console output.', 'error');
-            logsEl.style.color = '#ff7b72';
+            logsEl.className = 'plugin-console plugin-console--error';
         } else {
             notify('Plugin executed successfully.', 'success');
-            logsEl.style.color = '#00ff00';
+            logsEl.className = 'plugin-console plugin-console--success';
         }
         logsEl.innerText = logs;
     });
@@ -1275,7 +1264,7 @@ export function loadConfig() {
             document.getElementById('smtp-pass').value = c.smtp.password || "";
             document.getElementById('smtp-from').value = c.smtp.from || "";
         }
-        document.getElementById('config-container').innerHTML = `<pre style="font-size:11px; opacity:0.5;">${JSON.stringify(c, null, 2)}</pre>`;
+        document.getElementById('config-container').innerHTML = `<pre class="config-json-preview">${JSON.stringify(c, null, 2)}</pre>`;
     });
 }
 
@@ -1367,11 +1356,11 @@ export function checkSSOStatus() {
 
             if (ssoContainer && ssoLocked) {
                 if (data.enterprise_active) {
-                    ssoContainer.style.display = 'block';
-                    ssoLocked.style.display = 'none';
+                    ssoContainer.classList.remove('u-hidden');
+                    ssoLocked.classList.add('u-hidden');
                 } else {
-                    ssoContainer.style.display = 'none';
-                    ssoLocked.style.display = 'block';
+                    ssoContainer.classList.add('u-hidden');
+                    ssoLocked.classList.remove('u-hidden');
                 }
             }
         }).catch(err => console.log("Enterprise check failed"));

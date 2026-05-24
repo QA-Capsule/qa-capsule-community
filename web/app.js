@@ -14,6 +14,7 @@ import * as about from './js/about.js';
 import * as analyticsLayout from './js/analytics-layout.js';
 import { applyRoleVisibility, canAccessFinOps, canAccessPlugins, canResolveIncidents, canDeleteIncidents, hasMinRole, roleLabel, canManageTeams, canManageIAM, isAdmin, canAccessView, accessDeniedMessage, defaultViewForRole, canManagePluginAutoRun, canPatchExecutionFlags } from './js/roles.js';
 import * as executionHub from './js/execution-hub.js';
+import * as reportViewer from './js/report-viewer.js';
 import * as workflowEditor from './js/workflow-editor.js';
 import * as rca from './js/rca.js';
 import * as quarantine from './js/quarantine.js';
@@ -60,6 +61,9 @@ for (const [key, value] of Object.entries(dora)) {
     if (typeof value === 'function') window[key] = value;
 }
 for (const [key, value] of Object.entries(executionHub)) {
+    if (typeof value === 'function') window[key] = value;
+}
+for (const [key, value] of Object.entries(reportViewer)) {
     if (typeof value === 'function') window[key] = value;
 }
 // ==========================================
@@ -1050,6 +1054,7 @@ window.renderIncidentsList = function () {
                 </div>
                 <div class="pipeline-exec-toolbar">
                     ${resolvedBadge}
+                    ${group.has_real_run ? `<button type="button" class="btn btn-primary btn-sm ur-open-report-btn" onclick="openReport('${group.id}', event)">View Full Report</button>` : ''}
                     ${actionDropdown}
                     <button type="button" class="btn btn-secondary btn-sm" onclick="toggleSubAlerts('${group.id}', event)">
                         ${group.incidents.length} Alert(s) <span id="toggle-icon-${group.id}" style="display: inline-block;">${iconChevron}</span>

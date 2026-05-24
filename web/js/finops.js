@@ -11,6 +11,7 @@ import { notify } from './ui.js';
 import { currencySymbols } from './settings.js';
 
 import { CHART_PALETTE } from './chart-palette.js';
+import { getChartTheme, withChartTheme } from './chart-theme.js';
 import { setPremiumKpi } from './kpi-premium.js';
 
 
@@ -311,26 +312,19 @@ export function loadFinOpsWeeklyTable() {
 
             if (rows.length === 0) {
 
-                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;opacity:0.5;">No incidents in the selected time range.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5" class="table-empty">No incidents in the selected time range.</td></tr>';
 
                 return;
 
             }
 
             tbody.innerHTML = rows.map(r => `
-
-                <tr style="border-bottom:1px solid var(--border-main);">
-
-                    <td style="padding:10px;"><strong>${r.pipeline}</strong></td>
-
-                    <td style="padding:10px;">${r.total_alerts}</td>
-
-                    <td style="padding:10px;color:#3fb950;">${r.resolved_alerts}</td>
-
-                    <td style="padding:10px;color:#d97706;">${r.flaky_tests}</td>
-
-                    <td style="padding:10px;">${r.health_score}%</td>
-
+                <tr>
+                    <td><strong>${r.pipeline}</strong></td>
+                    <td>${r.total_alerts}</td>
+                    <td class="metric-cell--success">${r.resolved_alerts}</td>
+                    <td class="metric-cell--warn">${r.flaky_tests}</td>
+                    <td>${r.health_score}%</td>
                 </tr>`).join('');
 
         })
@@ -398,41 +392,27 @@ function renderFinOpsMetricsChart(series, bucket = 'week') {
     if (!canvas || !series.length) return;
     if (finopsWeeklyChart) finopsWeeklyChart.destroy();
 
+    const theme = getChartTheme();
     finopsWeeklyChart = new Chart(canvas.getContext('2d'), {
         type: 'bar',
         data: {
             labels: series.map(s => formatFinOpsLabel(s.week_start, bucket)),
-
             datasets: [
-
                 { label: 'Incidents', data: series.map(s => s.total_incidents), backgroundColor: CHART_PALETTE.series[0] },
-
                 { label: 'Flaky', data: series.map(s => s.flaky_count), backgroundColor: CHART_PALETTE.series[2] },
-
-                { label: 'MTTR (min)', type: 'line', data: series.map(s => Math.round(s.mttr_minutes)), borderColor: CHART_PALETTE.series[1], yAxisID: 'y1', tension: 0.3 }
-
+                { label: 'MTTR (min)', type: 'line', data: series.map(s => Math.round(s.mttr_minutes)), borderColor: CHART_PALETTE.semantic.success, yAxisID: 'y1', tension: 0.3 }
             ]
-
         },
-
-        options: {
-
+        options: withChartTheme({
             responsive: true,
-
             maintainAspectRatio: false,
-
             plugins: { legend: { position: 'top' } },
-
             scales: {
-
+                x: { grid: { display: false } },
                 y: { position: 'left', beginAtZero: true },
-
                 y1: { position: 'right', grid: { drawOnChartArea: false }, beginAtZero: true }
-
             }
-
-        }
-
+        }, theme)
     });
 
 }
@@ -450,23 +430,25 @@ function renderFinOpsCostChart(series, bucket = 'week') {
 
     const sym = finopsCurrencySymbol();
 
+    const theme = getChartTheme();
     finopsMetricsChart = new Chart(canvas.getContext('2d'), {
         type: 'line',
         data: {
             labels: series.map(s => formatFinOpsLabel(s.week_start, bucket)),
-
             datasets: [
-
                 { label: `Total cost (${sym})`, data: series.map(s => s.estimated_cost_usd), borderColor: CHART_PALETTE.series[0], backgroundColor: 'rgba(37,99,235,0.12)', fill: true, tension: 0.35 },
-
                 { label: `Flaky waste (${sym})`, data: series.map(s => s.flaky_cost_usd), borderColor: CHART_PALETTE.series[2], tension: 0.35 }
-
             ]
-
         },
-
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } } }
-
+        options: withChartTheme({
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: 'top' } },
+            scales: {
+                x: { grid: { display: false } },
+                y: { beginAtZero: true }
+            }
+        }, theme)
     });
 
 }
