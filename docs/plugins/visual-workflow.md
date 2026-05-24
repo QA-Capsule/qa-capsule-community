@@ -10,6 +10,19 @@ Observers use the Operations dashboard only; they do not access CI/CD Gateways o
 
 ---
 
+## Design schema
+
+```mermaid
+flowchart LR
+    T[Trigger<br/>on ingest] --> C{Condition<br/>e.g. FLAKY?}
+    C -->|true| A1[Action<br/>Slack]
+    C -->|false| A2[Action<br/>Jira]
+```
+
+See full diagrams: [Design Schemas & Diagrams](../guides/design-diagrams.md) §8–9, §17.
+
+---
+
 ## Concepts
 
 | Node type | Purpose |
@@ -107,3 +120,75 @@ Actions never run shell commands. Only manifests known to `pkg/integrations/regi
 - **?** opens the in-editor Help Center.
 - **Save** persists canonical JSON + Drawflow layout in `ui`.
 - **Reset** clears the DAG and restores legacy AUTO-RUN for the project.
+
+---
+
+## Toolbar reference
+
+| Button | Role | Description |
+|--------|------|-------------|
+| **?** | All | Toggle help / simulate panel |
+| **Example** | Lead+ | Load sample flaky → Slack/Jira DAG |
+| **+ Trigger / Condition / Action** | Lead+ | Add node types |
+| **Simulate** | Lead+ | Dry-run with side-panel sample incident |
+| **Fit** | All | Re-center canvas zoom |
+| **Reset** | Lead+ | Delete DAG (confirm) |
+| **Save** | Lead+ | Persist to `sre_workflow_json` |
+| **Enable workflow** | Lead+ | When saved checked, DAG is live |
+
+---
+
+## Simulation API
+
+```http
+POST /api/projects/{projectId}/workflow/simulate
+Authorization: Bearer <jwt>
+Content-Type: application/json
+
+{
+  "name": "[FLAKY] checkout payment",
+  "status": "CRITICAL",
+  "error": "timeout waiting for upstream",
+  "workflow": { ... optional canvas DAG ... }
+}
+```
+
+Response:
+
+```json
+{
+  "sample": { "name": "...", "status": "...", "error": "..." },
+  "plan": {
+    "visited": ["n_start:trigger", "n_flaky:condition", "n_slack:action"],
+    "actions": ["slack/slack-notifier.json"],
+    "skipped": []
+  }
+}
+```
+
+If `workflow` is omitted, the server uses the last **saved** DAG from the database.
+
+---
+
+## Allowed plugins semantics
+
+| `allowed` map | Runtime behavior |
+|---------------|------------------|
+| `null` (no routing rows) | Legacy: all routing-active plugins may run |
+| `{}` empty | Explicit deny: **no** workflow actions execute |
+| `{ "slack/...": true, ... }` | Only listed `file_path` values run |
+
+Validation on **Save** (when enabled) rejects paths not on the gateway or inactive in registry.
+
+---
+
+## Troubleshooting
+
+| Issue | Resolution |
+|-------|------------|
+| Action never runs | Check gateway routing matrix includes plugin; enable workflow; verify branch `when` |
+| Second action skipped | Expected if first action not allowed — engine **continues** branch (does not stop) |
+| Save returns 400 | Cycle in graph, unknown `file_path`, or plugin not routing-enabled |
+| Legacy still fires | Workflow `enabled: false` or empty — only draft saved |
+
+See also [Platform User Guide](../guides/platform-user-guide.md) §5.

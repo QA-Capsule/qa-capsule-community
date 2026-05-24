@@ -33,10 +33,9 @@ func requireEngine() (*integrations.Engine, error) {
 	return remediationEngine, nil
 }
 
-// EvaluateAlertRules runs native Go integrations when triggers match (no shell).
-// When a visual workflow DAG is enabled for the project, it takes precedence over legacy linear auto-trigger.
-// allowedPluginPaths limits auto-run to plugins configured on the project gateway (nil = all auto_run plugins).
-func EvaluateAlertRules(config Config, projectName string, alert UnifiedAlert, projectContext map[string]string, allowedPluginPaths map[string]bool) {
+// RunPostIngestRemediation runs remediation after an incident is stored.
+// Visual workflow DAG takes precedence when enabled on the project; otherwise legacy AUTO-RUN plugins run.
+func RunPostIngestRemediation(config Config, projectName string, alert UnifiedAlert, projectContext map[string]string, allowedPluginPaths map[string]bool) {
 	engine, err := requireEngine()
 	if err != nil {
 		return
@@ -49,24 +48,31 @@ func EvaluateAlertRules(config Config, projectName string, alert UnifiedAlert, p
 		Status:      alert.Status,
 		Action:      "AUTO_EVENT:" + alert.Name,
 	}
-	if doc := LoadProjectWorkflow(projectName); integrations.IsWorkflowActive(doc) {
-		wctx := integrations.WorkflowContext{
-			Incident: inc,
-			Tags:     integrations.DeriveTags(alert.Name),
-			Allowed:  allowedPluginPaths,
-		}
-<<<<<<< HEAD
-		go func() {
+	wctx := integrations.WorkflowContext{
+		Incident: inc,
+		Tags:     integrations.DeriveTags(alert.Name),
+		Allowed:  allowedPluginPaths,
+	}
+
+	doc := LoadProjectWorkflow(projectName)
+	if integrations.IsWorkflowActive(doc) {
+		docCopy := doc
+		integrations.RunRemediationAsync(func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 			defer cancel()
-			integrations.NewWorkflowEngine(engine).Execute(ctx, doc, wctx, routing)
-		}()
-=======
-		go integrations.NewWorkflowEngine(engine).Execute(context.Background(), doc, wctx, routing)
->>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
+			integrations.NewWorkflowEngine(engine).Execute(ctx, docCopy, wctx, routing)
+		})
 		return
 	}
-	engine.EvaluateAlertRules(alert.Name, alert.Error, alert.ConsoleLogs, alert.Status, routing, allowedPluginPaths)
+
+	integrations.RunRemediationAsync(func() {
+		engine.EvaluateAlertRules(alert.Name, alert.Error, alert.ConsoleLogs, alert.Status, routing, allowedPluginPaths)
+	})
+}
+
+// EvaluateAlertRules is an alias kept for callers outside ingest; prefer RunPostIngestRemediation.
+func EvaluateAlertRules(config Config, projectName string, alert UnifiedAlert, projectContext map[string]string, allowedPluginPaths map[string]bool) {
+	RunPostIngestRemediation(config, projectName, alert, projectContext, allowedPluginPaths)
 }
 
 // RunSinglePlugin executes an integration by manifest path (API name kept for compatibility).

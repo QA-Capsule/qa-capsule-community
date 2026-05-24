@@ -8,7 +8,7 @@ icon: material/chart-line
   <img src="../assets/integrations/datadog.png" alt="Datadog logo">
 </div>
 
-Publie un **Event** Datadog (`alert_type: error`) sur l’API Events v1.
+Publishes a Datadog **Event** (`alert_type: error`) to the Events API v1.
 
 | | |
 |---|---|
@@ -17,34 +17,34 @@ Publie un **Event** Datadog (`alert_type: error`) sur l’API Events v1.
 
 ---
 
-=== "Côté QA Capsule"
+=== "QA Capsule Side"
 
-    | Variable | Obligatoire | Description |
+    | Variable | Required | Description |
     |----------|-------------|-------------|
-    | `DD_API_KEY` | **Oui** | Clé API Datadog |
-    | `DD_SITE` | Non | Défaut `datadoghq.com` (EU : `datadoghq.eu`) |
+    | `DD_API_KEY` | **Yes** | Datadog API key |
+    | `DD_SITE` | No | Default `datadoghq.com` (EU: `datadoghq.eu`) |
 
-    Gateway : **Datadog Tags** optionnel (ex. `env:ci,team:checkout`) — enrichissement futur côté event.
+    Gateway: optional **Datadog Tags** (e.g. `env:ci,team:checkout`) — future event enrichment.
 
-    URL appelée : `https://api.{DD_SITE}/api/v1/events` avec header `DD-API-KEY`.
+    URL called: `https://api.{DD_SITE}/api/v1/events` with header `DD-API-KEY`.
 
-=== "Côté fournisseur (Datadog)"
+=== "Provider Side (Datadog)"
 
-    ## 1. Clé API
+    ## 1. API key
 
     1. Datadog → **Organization Settings** → **API Keys**
-    2. Créer une clé dédiée `qa-capsule-integration`
+    2. Create a dedicated key `qa-capsule-integration`
 
-    ## 2. Site / région
+    ## 2. Site / region
 
-    | Région | `DD_SITE` |
+    | Region | `DD_SITE` |
     |--------|-----------|
     | US | `datadoghq.com` |
     | EU | `datadoghq.eu` |
 
     ## 3. Dashboards & monitors
 
-    Les events apparaissent dans **Event Stream** ; optionnel : créer un monitor sur `source:qa-capsule`.
+    Events appear in **Event Stream**; optional: create a monitor on `source:qa-capsule`.
 
     ## 4. Test
 
@@ -56,4 +56,4 @@ Publie un **Event** Datadog (`alert_type: error`) sur l’API Events v1.
 
 ---
 
-- [Catalogue](integrations-catalog.md)
+- [Catalog](integrations-catalog.md)

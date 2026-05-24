@@ -6,7 +6,9 @@ export const ROLE_LEVEL = { observer: 1, lead: 2, manager: 3, admin: 4 };
 const LEGACY_ROLE_MAP = { operator: 'lead', viewer: 'observer' };
 
 export function normalizeRole(role) {
-    return LEGACY_ROLE_MAP[role] || role;
+    if (!role) return '';
+    const key = String(role).trim().toLowerCase();
+    return LEGACY_ROLE_MAP[key] || key;
 }
 
 export const ROLE_LABELS = {
@@ -68,7 +70,6 @@ export function canManageWorkflow(role) {
     return hasMinRole(role, 'lead');
 }
 
-<<<<<<< HEAD
 export function canViewRCA(role) {
     const r = normalizeRole(role);
     return r === 'lead' || r === 'manager' || r === 'observer';
@@ -95,8 +96,6 @@ export function canAccessDORA(role) {
     return normalizeRole(role) === 'manager';
 }
 
-=======
->>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
 export function canAccessPlugins(role) {
     const r = normalizeRole(role);
     return r === 'manager' || r === 'lead';

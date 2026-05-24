@@ -8,7 +8,7 @@ icon: material/bell-alert
   <img src="../assets/integrations/opsgenie.png" alt="Opsgenie logo">
 </div>
 
-Crée une alerte via `POST /v2/alerts` (header `Authorization: GenieKey …`).
+Creates an alert via `POST /v2/alerts` (header `Authorization: GenieKey …`).
 
 | | |
 |---|---|
@@ -17,28 +17,28 @@ Crée une alerte via `POST /v2/alerts` (header `Authorization: GenieKey …`).
 
 ---
 
-=== "Côté QA Capsule"
+=== "QA Capsule Side"
 
-    | Variable | Obligatoire | Défaut |
+    | Variable | Required | Default |
     |----------|-------------|--------|
-    | `OPSGENIE_API_KEY` | **Oui** | — |
-    | `OPSGENIE_API_URL` | Non | `https://api.opsgenie.com` |
+    | `OPSGENIE_API_KEY` | **Yes** | — |
+    | `OPSGENIE_API_URL` | No | `https://api.opsgenie.com` |
 
-    Gateway : **Opsgenie Team** (optionnel, métadonnée future).
+    Gateway: **Opsgenie Team** (optional, future metadata).
 
-    Priorité envoyée : `P1`. Message = résumé incident + description = erreur test.
+    Priority sent: `P1`. Message = incident summary + description = test error.
 
-=== "Côté fournisseur (Opsgenie)"
+=== "Provider Side (Opsgenie)"
 
-    ## 1. Clé API
+    ## 1. API key
 
     1. Opsgenie → **Settings** → **Integrations** → **API**
-    2. Créer une clé avec droit **Create and Update Alerts**
-    3. Copier la clé `GenieKey …`
+    2. Create a key with **Create and Update Alerts** permission
+    3. Copy the `GenieKey …` key
 
-    ## 2. Équipes et routage
+    ## 2. Teams and routing
 
-    Associer la clé à l’équipe on-call ; définir politiques d’escalade dans Opsgenie.
+    Associate the key with the on-call team; define escalation policies in Opsgenie.
 
     ## 3. Test
 
@@ -51,4 +51,4 @@ Crée une alerte via `POST /v2/alerts` (header `Authorization: GenieKey …`).
 
 ---
 
-- [Catalogue](integrations-catalog.md)
+- [Catalog](integrations-catalog.md)

@@ -20,23 +20,20 @@ const NODE_TEMPLATES = {
     },
     condition: {
         html: `<div class="wf-node wf-condition"><div class="wf-title">Condition</div>
-<<<<<<< HEAD
             <div class="wf-branch-hint"><span class="true">●</span> top = true · <span class="false">●</span> bottom = false</div>
-=======
->>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
-            <select class="wf-cond-op login-input" style="margin-top:6px;font-size:11px;width:100%;">
-                <option value="tag:prefix:[FLAKY]">Tag: [FLAKY]</option>
-                <option value="tag:prefix:[PERF]">Tag: [PERF]</option>
-                <option value="status:eq:CRITICAL">Status: CRITICAL</option>
-                <option value="status:eq:PERF_DEGRADATION">Status: PERF</option>
-<<<<<<< HEAD
-                <option value="text:contains:timeout">Error contains timeout</option>
-                <option value="text:contains:502">Error contains 502</option>
-                <option value="text:contains:oom">Error contains OOM</option>
-=======
-                <option value="text:contains:timeout">Text contains timeout</option>
->>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
-            </select></div>`,
+            <div class="wf-condition-fields" style="display:flex;flex-direction:column;gap:6px;margin-top:6px;">
+                <label class="wf-cond-label">Field</label>
+                <select class="wf-cond-field login-input" style="font-size:11px;width:100%;margin:0;">
+                    <option value="tag">Tag (incident name)</option>
+                    <option value="status">Status</option>
+                    <option value="error">Error message</option>
+                    <option value="console">Console logs</option>
+                </select>
+                <label class="wf-cond-label">Operator</label>
+                <select class="wf-cond-match login-input" style="font-size:11px;width:100%;margin:0;"></select>
+                <label class="wf-cond-label">Value</label>
+                <input type="text" class="wf-cond-value login-input" style="font-size:11px;width:100%;margin:0;box-sizing:border-box;" placeholder="e.g. [FLAKY], CRITICAL, timeout">
+            </div></div>`,
         inputs: 1,
         outputs: 2,
         data: { label: 'Condition', nodeType: 'condition', when: { op: 'tag', match: 'prefix', value: '[FLAKY]', field: 'incident.name' } }
@@ -69,13 +66,9 @@ export function openWorkflowEditor(projectId, projectName) {
         titleEl.textContent = `Visual Workflow — ${projectName || projectId}`;
     }
     modal.style.display = 'flex';
-<<<<<<< HEAD
     document.body.classList.add('workflow-modal-open');
     bindWorkflowToolbar();
     bindWorkflowModalKeys();
-=======
-    bindWorkflowToolbar();
->>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
     requestAnimationFrame(() => {
         requestAnimationFrame(() => {
             void loadWorkflow(projectId).catch((err) => {
@@ -97,15 +90,11 @@ function bindWorkflowToolbar() {
 export function closeWorkflowEditor() {
     const modal = document.getElementById('workflow-editor-modal');
     if (modal) modal.style.display = 'none';
-<<<<<<< HEAD
     document.body.classList.remove('workflow-modal-open');
-=======
->>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
     destroyDrawflowEditor();
     currentProjectId = null;
 }
 
-<<<<<<< HEAD
 let workflowModalKeysBound = false;
 
 function bindWorkflowModalKeys() {
@@ -127,9 +116,6 @@ function bindWorkflowModalKeys() {
         });
     }
 }
-
-=======
->>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
 function destroyDrawflowEditor() {
     const container = document.getElementById('drawflow');
     if (container) {
@@ -152,17 +138,12 @@ function initDrawflow() {
     editor = new Drawflow(container);
     editor.reroute = true;
     editor.reroute_fix_curvature = true;
-<<<<<<< HEAD
     editor.curvature = 0.45;
     editor.zoom_max = 1.6;
     editor.zoom_min = 0.4;
     editor.editor_mode = canEditWorkflow ? 'edit' : 'fixed';
     editor.start();
     bindDrawflowEvents();
-=======
-    editor.editor_mode = canEditWorkflow ? 'edit' : 'fixed';
-    editor.start();
->>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
 
     const canvas = container.querySelector('.drawflow');
     if (canvas) {
@@ -174,13 +155,13 @@ function initDrawflow() {
     return editor;
 }
 
-<<<<<<< HEAD
 function bindDrawflowEvents() {
     if (!editor || editor._qaCapsuleBound) return;
     editor._qaCapsuleBound = true;
     const refresh = () => {
         populateActionSelects();
         bindNodeControls();
+        scheduleSyncControlsFromNodeData();
         updateCanvasEmptyState();
         requestAnimationFrame(() => refreshDrawflowViewport());
     };
@@ -191,9 +172,6 @@ function bindDrawflowEvents() {
         editor.on('connectionRemoved', () => updateCanvasEmptyState());
     }
 }
-
-=======
->>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
 function refreshDrawflowViewport() {
     if (!editor) return;
     requestAnimationFrame(() => {
@@ -313,19 +291,44 @@ function applyEditorRBAC() {
     }
 }
 
+function setSelectValue(sel, value) {
+    if (!sel || value == null || value === '') return;
+    const path = String(value);
+    if (![...sel.options].some(o => o.value === path)) {
+        const plug = workflowCatalog.find(p => p.file_path === path);
+        const opt = document.createElement('option');
+        opt.value = path;
+        opt.textContent = plug?.name || path;
+        sel.appendChild(opt);
+    }
+    sel.value = path;
+}
+
 function populateActionSelects() {
     const options = workflowCatalog.map(p =>
         `<option value="${escapeAttr(p.file_path)}">${escapeHtml(p.name || p.file_path)}</option>`
     ).join('');
-    document.querySelectorAll('.wf-action-path').forEach(sel => {
-        const cur = sel.value;
-        sel.innerHTML = `<option value="">Select integration…</option>${options}`;
-        if (cur) sel.value = cur;
-        if (!canEditWorkflow) sel.disabled = true;
-    });
-    document.querySelectorAll('.wf-cond-op').forEach(sel => {
-        if (!canEditWorkflow) sel.disabled = true;
-    });
+    const optionHtml = `<option value="">Select integration…</option>${options}`;
+
+    if (editor?.drawflow?.drawflow?.Home?.data) {
+        Object.values(editor.drawflow.drawflow.Home.data).forEach((node) => {
+            if (node.data?.nodeType !== 'action' && node.name !== 'action') return;
+            const el = getDrawflowNodeEl(node.id);
+            const sel = el?.querySelector('.wf-action-path');
+            if (!sel) return;
+            const path = node.data?.file_path || editor.getNodeFromId(node.id)?.data?.file_path || sel.value;
+            sel.innerHTML = optionHtml;
+            if (path) setSelectValue(sel, path);
+            if (!canEditWorkflow) sel.disabled = true;
+        });
+    } else {
+        document.querySelectorAll('.wf-action-path').forEach(sel => {
+            const cur = sel.value;
+            sel.innerHTML = optionHtml;
+            if (cur) setSelectValue(sel, cur);
+            if (!canEditWorkflow) sel.disabled = true;
+        });
+    }
 }
 
 function importWorkflowToCanvas(workflow, ui) {
@@ -344,7 +347,7 @@ function importWorkflowToCanvas(workflow, ui) {
 
     if (imported) {
         bindNodeControls();
-        syncControlsFromNodeData();
+        scheduleSyncControlsFromNodeData();
         updateCanvasEmptyState();
         return;
     }
@@ -362,7 +365,6 @@ function drawflowImportHasNodes(ui) {
     return data && Object.keys(data).length > 0;
 }
 
-<<<<<<< HEAD
 function layoutWorkflowPositions(workflow, entryId) {
     const positions = {};
     const queue = [{ id: entryId, depth: 0 }];
@@ -402,29 +404,14 @@ function buildCanvasFromCanonical(workflow) {
         const tpl = NODE_TEMPLATES[node.type];
         if (!tpl) continue;
         const pos = positions[cid] || { x: 80, y: 80 };
-=======
-function buildCanvasFromCanonical(workflow) {
-    const idMap = {};
-    let y = 80;
-    let x = 80;
-    for (const [cid, node] of Object.entries(workflow.nodes)) {
-        const tpl = NODE_TEMPLATES[node.type];
-        if (!tpl) continue;
->>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
         const data = { ...tpl.data, label: node.label || tpl.data.label, nodeType: node.type };
         if (node.type === 'condition' && node.when) data.when = node.when;
         if (node.type === 'action') {
             data.file_path = node.file_path || '';
             data.integration = node.integration || '';
         }
-<<<<<<< HEAD
         const numId = addDrawflowNode(node.type, pos.x, pos.y, data, tpl.html);
         if (numId != null) idMap[cid] = numId;
-=======
-        const numId = addDrawflowNode(node.type, x, y, data, tpl.html);
-        idMap[cid] = numId;
-        y += 130;
->>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
     }
     (workflow.edges || []).forEach((e) => {
         const from = idMap[e.from];
@@ -432,23 +419,16 @@ function buildCanvasFromCanonical(workflow) {
         if (!from || !to) return;
         let outPort = 'output_1';
         if (e.when === 'false') outPort = 'output_2';
-<<<<<<< HEAD
         try {
             editor.addConnection(from, to, outPort, 'input_1');
         } catch (err) {
             console.warn('[workflow] connection failed', e, err);
         }
-=======
-        editor.addConnection(from, to, outPort, 'input_1');
->>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
     });
     bindNodeControls();
-    syncControlsFromNodeData();
+    scheduleSyncControlsFromNodeData();
     updateCanvasEmptyState();
-<<<<<<< HEAD
     refreshDrawflowViewport();
-=======
->>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
 }
 
 function addDefaultStarterGraph() {
@@ -468,41 +448,143 @@ function addDefaultStarterGraph() {
         if (c && a) editor.addConnection(c, a, 'output_1', 'input_1');
     }
     bindNodeControls();
-    syncControlsFromNodeData();
+    scheduleSyncControlsFromNodeData();
     updateCanvasEmptyState();
 }
 
-function syncControlsFromNodeData() {
-    if (!editor) return;
-    Object.values(editor.drawflow.drawflow.Home.data).forEach((node) => {
-        const id = node.id;
-        const d = node.data || {};
-        const el = document.querySelector(`#node-${id}`);
-        if (!el) return;
-        if (d.nodeType === 'condition' && d.when) {
-            const sel = el.querySelector('.wf-cond-op');
-            if (sel) sel.value = conditionToPreset(d.when);
-        }
-        if (d.nodeType === 'action' && d.file_path) {
-            const sel = el.querySelector('.wf-action-path');
-            if (sel) sel.value = d.file_path;
-        }
+const CONDITION_MATCH_OPTIONS = {
+    tag: [
+        { value: 'prefix', label: 'Starts with' },
+        { value: 'equals', label: 'Equals' },
+        { value: 'in', label: 'In list (comma-separated)' }
+    ],
+    status: [
+        { value: 'equals', label: 'Equals' },
+        { value: 'in', label: 'In list (comma-separated)' }
+    ],
+    error: [
+        { value: 'contains', label: 'Contains' },
+        { value: 'equals', label: 'Equals' }
+    ],
+    console: [
+        { value: 'contains', label: 'Contains' },
+        { value: 'equals', label: 'Equals' }
+    ]
+};
+
+function getDrawflowNodeEl(nodeId) {
+    return document.getElementById(`node-${nodeId}`);
+}
+
+function scheduleSyncControlsFromNodeData() {
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => syncControlsFromNodeData());
     });
 }
 
-function conditionToPreset(when) {
-    if (!when) return 'tag:prefix:[FLAKY]';
-    const { op, match, value, field } = when;
-    if (op === 'tag') return `tag:${match || 'prefix'}:${value || '[FLAKY]'}`;
-    if (op === 'status') return `status:${match || 'eq'}:${value || 'CRITICAL'}`;
-    if (op === 'text') return `text:${match || 'contains'}:${value || 'timeout'}`;
-    return 'tag:prefix:[FLAKY]';
+function syncControlsFromNodeData() {
+    if (!editor?.drawflow?.drawflow?.Home?.data) return;
+    Object.values(editor.drawflow.drawflow.Home.data).forEach((node) => {
+        syncOneNodeControls(node.id, node.data || {}, 0);
+    });
+}
+
+function syncOneNodeControls(nodeId, data, attempt) {
+    const el = getDrawflowNodeEl(nodeId);
+    if (!el) {
+        if (attempt < 10) {
+            requestAnimationFrame(() => syncOneNodeControls(nodeId, data, attempt + 1));
+        }
+        return;
+    }
+    if (data.nodeType === 'condition') {
+        applyConditionToControls(el, data.when || NODE_TEMPLATES.condition.data.when);
+    }
+    if (data.nodeType === 'action') {
+        const sel = el.querySelector('.wf-action-path');
+        const path = data.file_path || editor.getNodeFromId(nodeId)?.data?.file_path;
+        if (sel && path) setSelectValue(sel, path);
+    }
+}
+
+function conditionUiField(when) {
+    if (!when) return 'tag';
+    const op = (when.op || '').toLowerCase();
+    const field = (when.field || '').toLowerCase();
+    if (op === 'status') return 'status';
+    if (op === 'text') {
+        if (field.includes('console')) return 'console';
+        return 'error';
+    }
+    return 'tag';
+}
+
+function populateMatchOptions(matchSel, uiField, selectedMatch) {
+    if (!matchSel) return;
+    const opts = CONDITION_MATCH_OPTIONS[uiField] || CONDITION_MATCH_OPTIONS.tag;
+    matchSel.innerHTML = opts.map(o =>
+        `<option value="${escapeAttr(o.value)}">${escapeHtml(o.label)}</option>`
+    ).join('');
+    const match = selectedMatch || opts[0]?.value || 'prefix';
+    if ([...matchSel.options].some(o => o.value === match)) {
+        matchSel.value = match;
+    } else {
+        matchSel.value = opts[0]?.value || '';
+    }
+}
+
+function applyConditionToControls(nodeEl, when) {
+    const fieldSel = nodeEl.querySelector('.wf-cond-field');
+    const matchSel = nodeEl.querySelector('.wf-cond-match');
+    const valueInp = nodeEl.querySelector('.wf-cond-value');
+    if (!fieldSel || !matchSel || !valueInp) return;
+
+    const uiField = conditionUiField(when);
+    fieldSel.value = uiField;
+    populateMatchOptions(matchSel, uiField, when?.match);
+    valueInp.value = when?.value != null ? String(when.value) : '';
+    if (!valueInp.value && uiField === 'tag') valueInp.value = '[FLAKY]';
+}
+
+function buildConditionExpr(uiField, match, value) {
+    const v = String(value ?? '').trim();
+    switch (uiField) {
+        case 'status':
+            return { op: 'status', match: match || 'equals', value: v || 'CRITICAL' };
+        case 'error':
+            return { op: 'text', match: match || 'contains', field: 'incident.error', value: v };
+        case 'console':
+            return { op: 'text', match: match || 'contains', field: 'incident.console', value: v };
+        case 'tag':
+        default:
+            return { op: 'tag', match: match || 'prefix', field: 'incident.name', value: v || '[FLAKY]' };
+    }
 }
 
 function bindNodeControls() {
-    document.querySelectorAll('.wf-cond-op').forEach(sel => {
-        sel.onchange = () => syncConditionData(sel);
-        if (!canEditWorkflow) sel.disabled = true;
+    document.querySelectorAll('.wf-cond-field').forEach(fieldSel => {
+        fieldSel.onchange = () => {
+            const nodeEl = fieldSel.closest('.drawflow-node');
+            if (!nodeEl) return;
+            const matchSel = nodeEl.querySelector('.wf-cond-match');
+            populateMatchOptions(matchSel, fieldSel.value, null);
+            syncConditionDataFromNodeEl(nodeEl);
+        };
+        if (!canEditWorkflow) fieldSel.disabled = true;
+    });
+    document.querySelectorAll('.wf-cond-match').forEach(matchSel => {
+        matchSel.onchange = () => {
+            const nodeEl = matchSel.closest('.drawflow-node');
+            if (nodeEl) syncConditionDataFromNodeEl(nodeEl);
+        };
+        if (!canEditWorkflow) matchSel.disabled = true;
+    });
+    document.querySelectorAll('.wf-cond-value').forEach(inp => {
+        inp.oninput = () => {
+            const nodeEl = inp.closest('.drawflow-node');
+            if (nodeEl) syncConditionDataFromNodeEl(nodeEl);
+        };
+        if (!canEditWorkflow) inp.disabled = true;
     });
     document.querySelectorAll('.wf-action-path').forEach(sel => {
         sel.onchange = () => syncActionData(sel);
@@ -510,14 +592,27 @@ function bindNodeControls() {
     });
 }
 
-function syncConditionData(sel) {
-    const nodeEl = sel.closest('.drawflow-node');
+function syncConditionDataFromNodeEl(nodeEl) {
     if (!nodeEl || !editor) return;
     const id = nodeEl.id.replace('node-', '');
-    const when = parseConditionPreset(sel.value);
+    const uiField = nodeEl.querySelector('.wf-cond-field')?.value || 'tag';
+    const match = nodeEl.querySelector('.wf-cond-match')?.value || 'prefix';
+    const value = nodeEl.querySelector('.wf-cond-value')?.value ?? '';
+    const when = buildConditionExpr(uiField, match, value);
     const data = editor.getNodeFromId(id)?.data || {};
     data.when = when;
+    data.nodeType = 'condition';
     editor.updateNodeDataFromId(id, data);
+}
+
+/** Legacy preset strings (imported workflows) → structured when. */
+function whenFromLegacyPreset(val) {
+    const [op, match, ...rest] = String(val || '').split(':');
+    const value = rest.join(':');
+    if (op === 'tag') return { op: 'tag', match, value, field: 'incident.name' };
+    if (op === 'status') return { op: 'status', match: match || 'equals', value };
+    if (op === 'text') return { op: 'text', match: match || 'contains', field: 'incident.error', value };
+    return null;
 }
 
 function syncActionData(sel) {
@@ -534,16 +629,7 @@ function syncActionData(sel) {
 }
 
 function parseConditionPreset(val) {
-    const [op, match, ...rest] = val.split(':');
-    const value = rest.join(':');
-    if (op === 'tag') return { op: 'tag', match, value, field: 'incident.name' };
-    if (op === 'status') return { op: 'status', match, value };
-<<<<<<< HEAD
-    if (op === 'text') return { op: 'text', match: match || 'contains', field: 'incident.error', value };
-=======
-    if (op === 'text') return { op: 'text', match, field: 'incident.name', value };
->>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
-    return { op: 'tag', match: 'prefix', value: '[FLAKY]', field: 'incident.name' };
+    return whenFromLegacyPreset(val) || NODE_TEMPLATES.condition.data.when;
 }
 
 export function addWorkflowNode(type) {
@@ -553,12 +639,14 @@ export function addWorkflowNode(type) {
     addDrawflowNode(type, 200, y, {}, null);
     populateActionSelects();
     bindNodeControls();
+    scheduleSyncControlsFromNodeData();
     updateCanvasEmptyState();
 }
 
-<<<<<<< HEAD
 function flushAllNodeDataBeforeExport() {
-    document.querySelectorAll('.wf-cond-op').forEach(sel => syncConditionData(sel));
+    document.querySelectorAll('.drawflow-node').forEach(nodeEl => {
+        if (nodeEl.querySelector('.wf-cond-field')) syncConditionDataFromNodeEl(nodeEl);
+    });
     document.querySelectorAll('.wf-action-path').forEach(sel => syncActionData(sel));
 }
 
@@ -586,10 +674,6 @@ function validateWorkflowDoc(doc, enabled) {
 export async function saveWorkflow() {
     if (!canEditWorkflow || !currentProjectId || !editor) return;
     flushAllNodeDataBeforeExport();
-=======
-export async function saveWorkflow() {
-    if (!canEditWorkflow || !currentProjectId || !editor) return;
->>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
     const enabled = isWorkflowEnabled();
     const exported = editor.export();
     let doc = canonicalFromDrawflow(exported);
@@ -609,15 +693,11 @@ export async function saveWorkflow() {
         };
     }
 
-<<<<<<< HEAD
     const validationErr = validateWorkflowDoc(doc, enabled);
     if (validationErr) {
         notify(validationErr, 'error');
         return;
     }
-
-=======
->>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
     doc.ui = exported;
     doc.enabled = enabled;
     doc.version = 1;
@@ -703,7 +783,6 @@ function canonicalFromDrawflow(exported) {
         Object.entries(outs).forEach(([outKey, out]) => {
             const conns = out.connections || [];
             conns.forEach(c => {
-<<<<<<< HEAD
                 const target = idMap[String(c.node)];
                 if (!target) return;
                 let when = '';
@@ -713,16 +792,6 @@ function canonicalFromDrawflow(exported) {
                 edges.push({
                     from: idMap[numId],
                     to: target,
-=======
-                let when = '';
-                if (outKey === 'output_2') when = 'false';
-                if (outKey === 'output_1' && (node.name === 'condition' || node.data?.nodeType === 'condition')) {
-                    when = 'true';
-                }
-                edges.push({
-                    from: idMap[numId],
-                    to: idMap[String(c.node)],
->>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
                     when
                 });
             });
@@ -743,7 +812,6 @@ export function toggleWorkflowHelp() {
     const panel = document.getElementById('workflow-help-panel');
     if (panel) panel.classList.toggle('open');
 }
-<<<<<<< HEAD
 
 export function fitWorkflowCanvas() {
     refreshDrawflowViewport();
@@ -813,10 +881,8 @@ export function loadFlakyExampleWorkflow() {
     if (c && a2) editor.addConnection(c, a2, 'output_2', 'input_1');
     populateActionSelects();
     bindNodeControls();
-    syncControlsFromNodeData();
+    scheduleSyncControlsFromNodeData();
     updateCanvasEmptyState();
     refreshDrawflowViewport();
     notify('Flaky example loaded — true→Slack, false→Jira.', 'success');
 }
-=======
->>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb

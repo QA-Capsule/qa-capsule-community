@@ -2,33 +2,33 @@
 icon: material/webhook
 ---
 
-# Webhook HTTP personnalisé
+# Custom HTTP Webhook
 
 <div align="center" class="integration-hero">
   <img src="../assets/integrations/webhook.png" alt="Webhook">
 </div>
 
-`POST` JSON générique vers votre API interne (ServiceNow, runbook, orchestrateur maison).
+Generic JSON `POST` to your internal API (ServiceNow, runbook, custom orchestrator).
 
 | | |
 |---|---|
 | **Manifest** | `plugins/webhook/custom-webhook.json` |
 | **Type** | `webhook` |
 
-Utilisé aussi pour **QA flaky report**, **TestRail**, **Zephyr**, **Xray** (même runner HTTP).
+Also used for **QA flaky report**, **TestRail**, **Zephyr**, **Xray** (same HTTP runner).
 
 ---
 
-=== "Côté QA Capsule"
+=== "QA Capsule Side"
 
-    | Variable | Obligatoire | Description |
+    | Variable | Required | Description |
     |----------|-------------|-------------|
-    | `WEBHOOK_URL` | **Oui** | URL HTTPS cible |
-    | `WEBHOOK_AUTH_HEADER` | Non | Ex. `Bearer xxx` (header Authorization) |
+    | `WEBHOOK_URL` | **Yes** | Target HTTPS URL |
+    | `WEBHOOK_AUTH_HEADER` | No | E.g. `Bearer xxx` (Authorization header) |
 
-    **Gateway** : **Custom Webhook URL** par projet.
+    **Gateway**: **Custom Webhook URL** per project.
 
-    ## Payload par défaut
+    ## Default payload
 
     ```json
     {
@@ -41,19 +41,19 @@ Utilisé aussi pour **QA flaky report**, **TestRail**, **Zephyr**, **Xray** (mê
     }
     ```
 
-    Votre API doit répondre **2xx** pour un succès côté Plugin Engine.
+    Your API must respond **2xx** for success on the Plugin Engine side.
 
-=== "Côté fournisseur (votre API)"
+=== "Provider Side (your API)"
 
-    ## 1. Endpoint récepteur
+    ## 1. Receiver endpoint
 
-    - Méthode **POST**, `Content-Type: application/json`
-    - TLS recommandé (HTTPS)
-    - Auth : API key, mTLS, ou IP allowlist du serveur QA Capsule
+    - Method **POST**, `Content-Type: application/json`
+    - TLS recommended (HTTPS)
+    - Auth: API key, mTLS, or IP allowlist for the QA Capsule server
 
     ## 2. Idempotence
 
-    Prévoir `fingerprint` ou `incident_id` dans une évolution custom pour éviter doublons.
+    Plan for `fingerprint` or `incident_id` in a custom extension to avoid duplicates.
 
     ## 3. Test
 
@@ -65,4 +65,4 @@ Utilisé aussi pour **QA flaky report**, **TestRail**, **Zephyr**, **Xray** (mê
 
 ---
 
-- [Catalogue](integrations-catalog.md)
+- [Catalog](integrations-catalog.md)

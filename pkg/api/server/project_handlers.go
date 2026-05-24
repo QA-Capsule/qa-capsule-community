@@ -32,11 +32,7 @@ func registerProjectRoutes(config *core.Config) {
 
 		if claims.Role == "admin" || claims.Role == "manager" {
 			rows, err = core.DB.Query(`
-<<<<<<< HEAD
 				SELECT id, name, ci_system, repo_path, team_id, api_key, slack_channel, jira_project_key, teams_webhook, sre_routing_json, sre_workflow_json
-=======
-				SELECT id, name, ci_system, repo_path, team_id, api_key, slack_channel, jira_project_key, teams_webhook, sre_routing_json, sre_workflow_json 
->>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
 				FROM projects`)
 		} else {
 			query := `
@@ -69,11 +65,7 @@ func registerProjectRoutes(config *core.Config) {
 			}
 
 			entries := core.ParseSRERoutingJSON(sreRouting.String)
-<<<<<<< HEAD
 			wfSummary := core.WorkflowSummaryFromJSON(sreWorkflow.String)
-=======
-			wf := core.WorkflowSummaryFromJSON(sreWorkflow.String)
->>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
 			projects = append(projects, map[string]interface{}{
 				"id":        id,
 				"name":      name,
@@ -85,13 +77,8 @@ func registerProjectRoutes(config *core.Config) {
 				"jira_project_key": jiraKey.String,
 				"teams_webhook":    teamsHook.String,
 				"sre_routing":      entries,
-<<<<<<< HEAD
 				"has_workflow":     wfSummary.HasWorkflow,
 				"workflow_enabled": wfSummary.Enabled,
-=======
-				"has_workflow":     wf.HasWorkflow,
-				"workflow_enabled": wf.Enabled,
->>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
 				"routing": map[string]string{
 					"slack_channel":    slackChan.String,
 					"jira_project_key": jiraKey.String,

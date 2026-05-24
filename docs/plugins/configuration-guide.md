@@ -2,27 +2,27 @@
 icon: material/tune
 ---
 
-# Guide de configuration (deux côtés)
+# Configuration Guide (two sides)
 
-Chaque intégration QA Capsule se configure en **deux endroits** : la plateforme QA Capsule et le **fournisseur** (Slack, Jira, PagerDuty, etc.).
+Each QA Capsule integration is configured in **two places**: the QA Capsule platform and the **provider** (Slack, Jira, PagerDuty, etc.).
 
 <div align="center" class="integration-hero">
-  <img src="../assets/integrations/slack.png" alt="Slack" title="Exemple logo">
+  <img src="../assets/integrations/slack.png" alt="Slack" title="Example logo">
   <img src="../assets/integrations/jira.png" alt="Jira" style="margin-left:12px">
   <img src="../assets/integrations/pagerduty.png" alt="PagerDuty" style="margin-left:12px">
 </div>
 
 ---
 
-## Vue d’ensemble
+## Overview
 
 ```mermaid
 flowchart LR
-  subgraph provider [Fournisseur]
-    API[Compte / API / Webhook]
+  subgraph provider [Provider]
+    API[Account / API / Webhook]
   end
   subgraph qac [QA Capsule]
-    ENV[Secrets serveur]
+    ENV[Server secrets]
     PE[Plugin Engine]
     GW[CI/CD Gateway routing]
     WH[Webhook ingestion]
@@ -34,37 +34,37 @@ flowchart LR
   provider --> ENV
 ```
 
-| Côté | Qui configure | Où | Quoi |
+| Side | Who configures | Where | What |
 |------|---------------|-----|------|
-| **Fournisseur** | Admin outil (Slack, Atlassian, …) | Console du fournisseur | Compte service, token, webhook URL, clés API |
-| **QA Capsule** | Manager / Lead | UI + variables d’environnement | Secrets globaux, AUTO-RUN, routage par pipeline |
+| **Provider** | Tool admin (Slack, Atlassian, …) | Provider console | Service account, token, webhook URL, API keys |
+| **QA Capsule** | Manager / Lead | UI + environment variables | Global secrets, AUTO-RUN, per-pipeline routing |
 
 ---
 
-## Côté QA Capsule (détail)
+## QA Capsule Side (detail)
 
-### 1. Secrets globaux (recommandé)
+### 1. Global secrets (recommended)
 
-Sur le **processus Go** qui exécute QA Capsule :
+On the **Go process** running QA Capsule:
 
 ```bash
 export SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
 export JIRA_API_TOKEN=...
 ```
 
-Priorité : **variable d’environnement** > champ `env` dans le manifest JSON.
+Priority: **environment variable** > `env` field in the manifest JSON.
 
-Ne commitez **jamais** de tokens dans Git.
+**Never** commit tokens to Git.
 
 ### 2. Plugin Engine
 
-| Action | Rôle | Description |
+| Action | Role | Description |
 |--------|------|-------------|
-| **Configure** | Manager / Lead | Valeurs par défaut dans `plugins/.../*.json` (non secrets en prod) |
-| **AUTO-RUN ON/OFF** | Manager / Admin | Si OFF : aucun déclenchement auto sur échec CI |
-| **Execute** | Lead+ | Test manuel sans attendre un incident |
+| **Configure** | Manager / Lead | Default values in `plugins/.../*.json` (non-secrets in prod) |
+| **AUTO-RUN ON/OFF** | Manager / Admin | If OFF: no auto-trigger on CI failure |
+| **Execute** | Lead+ | Manual test without waiting for an incident |
 
-Manifest exemple :
+Example manifest:
 
 ```json
 {
@@ -79,15 +79,15 @@ Manifest exemple :
 
 ### 3. CI/CD Gateway — SRE Routing
 
-Pour chaque **pipeline** :
+For each **pipeline**:
 
 1. **Add configuration**
-2. Choisir une intégration **Active** (logo dans la liste)
-3. Remplir les champs projet (ex. `#alerts-checkout`, clé Jira `PAY`)
+2. Choose an **Active** integration (logo in the list)
+3. Fill in project fields (e.g. `#alerts-checkout`, Jira key `PAY`)
 
-Seules les intégrations listées sur ce gateway sont déclenchées automatiquement (si AUTO-RUN est ON).
+Only integrations listed on this gateway are triggered automatically (if AUTO-RUN is ON).
 
-Exemple stocké en base (`sre_routing_json` sur le projet) :
+Example stored in the database (`sre_routing_json` on the project):
 
 ```json
 [
@@ -106,64 +106,64 @@ Exemple stocké en base (`sre_routing_json` sur le projet) :
 ]
 ```
 
-L’UI **Add configuration** remplit `integration`, `file_path`, `name` et les `values` selon le schéma ci-dessous.
+The **Add configuration** UI fills `integration`, `file_path`, `name`, and `values` according to the schema below.
 
-### 4. Champs dynamiques du gateway (par intégration)
+### 4. Dynamic gateway fields (per integration)
 
-Ces champs apparaissent dans l’UI après sélection d’un plugin **Active** (avec logo). Ils sont injectés dans `ProjectRouting.Values` au moment du run.
+These fields appear in the UI after selecting an **Active** plugin (with logo). They are injected into `ProjectRouting.Values` at run time.
 
-| Logo | Type `integration` | Clé technique | Libellé UI | Obligatoire |
+| Logo | `integration` type | Technical key | UI label | Required |
 |:----:|------------------|---------------|------------|-------------|
-| ![Slack](../assets/integrations/slack.png){ width="22" } | `slack` | `SLACK_CHANNEL` | Slack Channel | Recommandé |
-| ![Teams](../assets/integrations/teams.png){ width="22" } | `teams` | `TEAMS_WEBHOOK_URL` | MS Teams Webhook URL | Oui si pas d’env global |
-| ![Jira](../assets/integrations/jira.png){ width="22" } | `jira` | `JIRA_PROJECT_KEY` | Jira Project Key | Oui |
-| ![PagerDuty](../assets/integrations/pagerduty.png){ width="22" } | `pagerduty` | `PAGERDUTY_ROUTING_KEY` | PagerDuty Routing Key | Oui* |
-| ![Opsgenie](../assets/integrations/opsgenie.png){ width="22" } | `opsgenie` | `OPSGENIE_TEAM` | Opsgenie Team | Non |
-| ![VictorOps](../assets/integrations/victorops.png){ width="22" } | `victorops` | `VICTOROPS_ROUTING_URL` | VictorOps Routing URL | Oui* |
-| ![Datadog](../assets/integrations/datadog.png){ width="22" } | `datadog` | `DATADOG_TAGS` | Datadog Tags | Non |
-| ![Webhook](../assets/integrations/webhook.png){ width="22" } | `webhook` | `WEBHOOK_URL` | Custom Webhook URL | Oui* |
-| ![GitHub](../assets/integrations/github.png){ width="22" } | `github` | `GITHUB_OWNER`, `GITHUB_REPO`, `GITHUB_WORKFLOW_ID` | Owner / Repo / Workflow | Oui |
-| ![Email](../assets/integrations/email.png){ width="22" } | `sendgrid` | `SENDGRID_TO` | Alert Email To | Oui |
-| ![Email](../assets/integrations/email.png){ width="22" } | `smtp` | `SMTP_TO` | SMTP Alert To | Oui |
-| ![TestRail](../assets/integrations/testrail.png){ width="22" } | `testrail` / `zephyr` / `xray` | `WEBHOOK_URL` | Webhook URL | Oui |
+| ![Slack](../assets/integrations/slack.png){ width="22" } | `slack` | `SLACK_CHANNEL` | Slack Channel | Recommended |
+| ![Teams](../assets/integrations/teams.png){ width="22" } | `teams` | `TEAMS_WEBHOOK_URL` | MS Teams Webhook URL | Yes if no global env |
+| ![Jira](../assets/integrations/jira.png){ width="22" } | `jira` | `JIRA_PROJECT_KEY` | Jira Project Key | Yes |
+| ![PagerDuty](../assets/integrations/pagerduty.png){ width="22" } | `pagerduty` | `PAGERDUTY_ROUTING_KEY` | PagerDuty Routing Key | Yes* |
+| ![Opsgenie](../assets/integrations/opsgenie.png){ width="22" } | `opsgenie` | `OPSGENIE_TEAM` | Opsgenie Team | No |
+| ![VictorOps](../assets/integrations/victorops.png){ width="22" } | `victorops` | `VICTOROPS_ROUTING_URL` | VictorOps Routing URL | Yes* |
+| ![Datadog](../assets/integrations/datadog.png){ width="22" } | `datadog` | `DATADOG_TAGS` | Datadog Tags | No |
+| ![Webhook](../assets/integrations/webhook.png){ width="22" } | `webhook` | `WEBHOOK_URL` | Custom Webhook URL | Yes* |
+| ![GitHub](../assets/integrations/github.png){ width="22" } | `github` | `GITHUB_OWNER`, `GITHUB_REPO`, `GITHUB_WORKFLOW_ID` | Owner / Repo / Workflow | Yes |
+| ![Email](../assets/integrations/email.png){ width="22" } | `sendgrid` | `SENDGRID_TO` | Alert Email To | Yes |
+| ![Email](../assets/integrations/email.png){ width="22" } | `smtp` | `SMTP_TO` | SMTP Alert To | Yes |
+| ![TestRail](../assets/integrations/testrail.png){ width="22" } | `testrail` / `zephyr` / `xray` | `WEBHOOK_URL` | Webhook URL | Yes |
 | ![K8s](../assets/integrations/k8s.png){ width="22" } | `k8s` | `WEBHOOK_URL` | GitOps Webhook URL | Roadmap |
 
-\* Peut être fourni uniquement en variable d’environnement serveur ; le champ gateway **surcharge** la valeur globale pour ce pipeline.
+\* May be provided only as a server environment variable; the gateway field **overrides** the global value for that pipeline.
 
-### 5. Priorité des secrets et paramètres
+### 5. Secret and parameter priority
 
 ```mermaid
 flowchart TB
-  ENV["1. Env serveur Go\n(os.Getenv)"]
+  ENV["1. Go server env\n(os.Getenv)"]
   GW["2. CI/CD Gateway\n(sre_routing + legacy)"]
   MF["3. Manifest plugins/*.json\n(config / env)"]
-  RUN["Runner HTTP"]
+  RUN["HTTP Runner"]
   ENV --> RUN
   GW --> RUN
   MF --> RUN
 ```
 
-| Exemple | Où le mettre côté QA Capsule | Où le mettre côté fournisseur |
+| Example | Where to set on QA Capsule side | Where to set on provider side |
 |---------|------------------------------|-------------------------------|
-| URL webhook Slack | `SLACK_WEBHOOK_URL` en env | Slack → Incoming Webhooks → URL |
-| Canal par équipe | Gateway **Slack Channel** | Créer le canal `#alerts-*` dans le workspace |
-| Token Jira | `JIRA_API_TOKEN` en env | Atlassian → API token (compte technique) |
-| Clé projet Jira | Gateway **Jira Project Key** | Projet Jira existant (`PAY`, `SCRUM`, …) |
+| Slack webhook URL | `SLACK_WEBHOOK_URL` in env | Slack → Incoming Webhooks → URL |
+| Channel per team | Gateway **Slack Channel** | Create the `#alerts-*` channel in the workspace |
+| Jira token | `JIRA_API_TOKEN` in env | Atlassian → API token (service account) |
+| Jira project key | Gateway **Jira Project Key** | Existing Jira project (`PAY`, `SCRUM`, …) |
 
-### 6. Déclenchement
+### 6. Triggering
 
-- Ingestion : `POST /api/webhooks/` avec `X-API-Key`
-- Moteur Go : match `trigger_on` + fingerprint + `auto_run`
-- Pas de script shell (sécurité RCE)
-- Timeout HTTP : **30 secondes** par appel intégration
+- Ingestion: `POST /api/webhooks/` with `X-API-Key`
+- Go engine: match `trigger_on` + fingerprint + `auto_run`
+- No shell scripts (RCE security)
+- HTTP timeout: **30 seconds** per integration call
 
 ---
 
-## Côté fournisseur (détail)
+## Provider Side (detail)
 
-Dépend de chaque outil — voir la page dédiée :
+Depends on each tool — see the dedicated page:
 
-| Logo | Intégration | Page |
+| Logo | Integration | Page |
 |------|-------------|------|
 | ![Slack](../assets/integrations/slack.png){ width="28" } | Slack | [slack.md](slack.md) |
 | ![Teams](../assets/integrations/teams.png){ width="28" } | Microsoft Teams | [teams.md](teams.md) |
@@ -174,7 +174,7 @@ Dépend de chaque outil — voir la page dédiée :
 | ![Datadog](../assets/integrations/datadog.png){ width="28" } | Datadog | [datadog.md](datadog.md) |
 | ![GitHub](../assets/integrations/github.png){ width="28" } | GitHub Actions | [github.md](github.md) |
 | ![Email](../assets/integrations/email.png){ width="28" } | SendGrid / SMTP | [email.md](email.md) |
-| ![Webhook](../assets/integrations/webhook.png){ width="28" } | Webhook HTTP | [webhook.md](webhook.md) |
+| ![Webhook](../assets/integrations/webhook.png){ width="28" } | HTTP Webhook | [webhook.md](webhook.md) |
 | ![TestRail](../assets/integrations/testrail.png){ width="28" } | TestRail | [test-management.md](test-management.md) |
 | ![Zephyr](../assets/integrations/zephyr.png){ width="28" } | Zephyr | [test-management.md](test-management.md) |
 | ![Xray](../assets/integrations/xray.png){ width="28" } | Xray | [test-management.md](test-management.md) |
@@ -182,11 +182,11 @@ Dépend de chaque outil — voir la page dédiée :
 
 ---
 
-## Checklist de mise en production
+## Production Checklist
 
-- [ ] Compte / app créé chez le fournisseur
-- [ ] Token ou URL copié dans les secrets serveur QA Capsule
-- [ ] **Execute** réussi dans Plugin Engine
-- [ ] AUTO-RUN activé uniquement quand prêt
-- [ ] Routage ajouté sur le bon gateway CI/CD
-- [ ] Test webhook réel depuis la pipeline
+- [ ] Service account / app created with the provider
+- [ ] Token or URL copied into QA Capsule server secrets
+- [ ] Successful **Execute** in Plugin Engine
+- [ ] AUTO-RUN enabled only when ready
+- [ ] Routing added on the correct CI/CD gateway
+- [ ] Real webhook test from the pipeline

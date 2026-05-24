@@ -32,7 +32,12 @@ When a pipeline fails, engineers typically:
 | **Test Artifacts** | Upload trace zips, screenshots, videos per incident (`POST /api/incidents/{id}/artifacts`). |
 | **Native Integrations** | Go HTTP engine (Slack, Jira, Teams, PagerDuty, Opsgenie, webhooks, email) — **no shell scripts**. |
 | **Plugin Engine** | JSON manifests under `plugins/`; loaded once at startup; manual test from UI. |
-| **FinOps & Analytics** | MTTR, CI minutes lost, flaky cost, QCL charts, PDF export. |
+| **Visual Workflow DAG** | Per-gateway Drawflow editor; conditions + native actions; simulate before save. |
+| **AI RCA** | OpenAI / Ollama async root-cause summaries per incident. |
+| **Smart Quarantine** | Auto/manual deny-list; CI API to skip quarantined tests. |
+| **Runbooks** | One-click apply validated workflow templates (502, flaky, OOM, …). |
+| **DORA metrics** | Deployment frequency, lead time, CFR, MTTR + Prometheus signals. |
+| **FinOps & Analytics** | MTTR, CI minutes lost, flaky cost, customizable dashboard charts, PDF export. |
 | **Developer CLI** | `qacapsule run` wraps local tests and warns on known flaky fingerprints. |
 | **Playwright Reporter** | Real-time failure POST + optional trace zip upload. |
 | **Multi-Tenancy & RBAC** | Teams, project-scoped visibility, roles: Platform Admin, Manager, Lead, Observer. |
@@ -47,22 +52,26 @@ flowchart LR
     CI[CI/CD Pipeline] -->|JSON or JUnit XML| WH[Webhook API]
     PW[Playwright Reporter] -->|Fire-and-forget| WH
     CLI[qacapsule CLI] -->|check-flaky| API[Incidents API]
-    WH --> ING[Ingestion Service]
+    WH --> ING[Ingestion + Quarantine gate]
     ING --> DB[(SQLite)]
-    ING --> MET[test_execution_metrics]
-    WH --> ART[Artifact Upload]
-    ART --> STORE[(data/artifacts)]
+    ING --> WF{Workflow DAG?}
+    WF -->|yes| WFE[WorkflowEngine]
+    WF -->|no| LEG[Legacy AUTO-RUN]
+    WFE --> PLG[Go Integration Engine]
+    LEG --> PLG
+    ING --> HOOK[RCA + Quarantine hooks]
     DB --> UI[Dashboard]
-    ING --> PLG[Go Integration Engine]
-    PLG --> Slack[Slack]
-    PLG --> Jira[Jira]
+    PLG --> Slack[Slack / Jira / …]
 ```
+
+See the full breakdown in [System Architecture](guides/architecture.md).
 
 1. **Ingestion** — `POST /api/webhooks/` (JSON) or `POST /api/webhooks/upload` (JUnit XML).
 2. **Enrichment** — Dimensions, Jira tags, execution time, perf regression, flaky tagging.
 3. **Correlation** — Fingerprint + `pipeline_run_id` anti-spam per run.
-4. **Remediation** — Native Go integrations (async); secrets via env vars preferred over JSON.
-5. **Artifacts** — Multipart upload; local storage (S3 stub for future enterprise).
+4. **Remediation** — Visual workflow DAG **or** legacy AUTO-RUN plugins (async, bounded concurrency).
+5. **Super-App hooks** — AI RCA and quarantine stats (async, non-blocking).
+6. **Artifacts** — Multipart upload; local storage (S3 stub for future enterprise).
 
 ---
 
@@ -88,6 +97,9 @@ go build -o bin/qacapsule-cli ./cmd/cli
 
 | Section | What you will learn |
 |---|---|
+| [Design Schemas & Diagrams](guides/design-diagrams.md) | **C4, ER, sequences, state machines, RBAC, deployment** (18 diagrams) |
+| [System Architecture](guides/architecture.md) | Packages, data flows, remediation modes, concurrency |
+| [Platform User Guide](guides/platform-user-guide.md) | Every feature step-by-step (dashboard → DORA) |
 | [Docker Deployment](setup/docker.md) | Production-ready container setup |
 | [System Configuration](setup/config.md) | SMTP, storage, security policy |
 | [RBAC & Teams](setup/rbac-teams.md) | Roles, teams, project access |
@@ -99,9 +111,12 @@ go build -o bin/qacapsule-cli ./cmd/cli
 | [Incident Lifecycle](guides/incident-lifecycle.md) | Correlation, flaky, perf alerts |
 | [Artifacts & CLI](guides/artifacts-and-cli.md) | Upload, storage, local wrapper |
 | [Plugin Engine](plugins/overview.md) | Native Go integrations (manifests) |
+| [Visual Workflow Builder](plugins/visual-workflow.md) | DAG editor, simulate API, enable/draft/legacy modes |
 | [Plugin configuration guide](plugins/configuration-guide.md) | Two-sided setup (QA Capsule + vendor) with logos |
 | [Integrations catalog](plugins/integrations-catalog.md) | All plugins — Slack, Jira, PagerDuty, Datadog, TestRail, … |
 | [Dashboard Guide](guides/dashboard-operations.md) | Filters, resolve, exports |
+| [AI RCA & Quarantine](guides/intelligence-quarantine.md) | LLM summaries, deny-list, CI API |
+| [Runbooks & DORA](guides/runbooks-dora.md) | Templates, metrics, Prometheus |
 
 ---
 

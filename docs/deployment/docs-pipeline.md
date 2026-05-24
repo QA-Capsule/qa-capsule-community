@@ -60,6 +60,10 @@ mkdocs build --strict
 
 Fix any broken links or missing files before pushing to `main`.
 
+### Mermaid diagrams show as raw code
+
+MkDocs Material only renders ` ```mermaid ` blocks when `mkdocs.yml` configures `pymdownx.superfences` with a `mermaid` custom fence (`class: mermaid`). This repo includes that setting. After changing `mkdocs.yml`, restart `mkdocs serve` and hard-refresh the browser (Ctrl+F5). Requires `mkdocs-material>=9.5`.
+
 ---
 
 ## Project Structure

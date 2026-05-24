@@ -6,7 +6,7 @@
     <title>QA Flight Recorder | Control Plane</title>
     <link rel="icon" href="/assets/logo.png" type="image/png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&display=swap">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700&display=swap">
     <link rel="stylesheet" href="/style.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/drawflow@0.0.59/dist/drawflow.min.css">
     <style>
@@ -19,12 +19,7 @@
             margin: auto; background: #0d1117; border: 1px solid #30363d; border-radius: 10px; overflow: hidden;
         }
         .workflow-editor-toolbar {
-<<<<<<< HEAD
-            display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 12px 16px; border-bottom: 1px solid #30363d;
-=======
-            display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid #30363d;
->>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
-            background: #161b22;
+            display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 12px 16px; border-bottom: 1px solid #30363d;            background: #161b22;
         }
         .workflow-editor-body { display: flex; flex: 1; min-height: 0; height: 100%; }
         .workflow-canvas-wrap {
@@ -43,19 +38,12 @@
         }
         #drawflow .drawflow-node {
             background: #161b22 !important; border: 1px solid #58a6ff !important;
-<<<<<<< HEAD
             border-radius: 8px !important; color: #c9d1d9 !important; min-width: 180px;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
         }
         #drawflow .drawflow-node:has(.wf-trigger) { border-color: #3fb950 !important; }
         #drawflow .drawflow-node:has(.wf-condition) { border-color: #d29922 !important; }
-        #drawflow .drawflow-node:has(.wf-action) { border-color: #58a6ff !important; }
-=======
-            border-radius: 8px !important; color: #c9d1d9 !important; min-width: 160px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
-        }
->>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
-        #drawflow .drawflow-node.selected { border-color: #3fb950 !important; }
+        #drawflow .drawflow-node:has(.wf-action) { border-color: #58a6ff !important; }        #drawflow .drawflow-node.selected { border-color: #3fb950 !important; }
         #drawflow .drawflow_content_node { width: 100%; }
         #drawflow .connection .main-path { stroke: #58a6ff; stroke-width: 2px; }
         #drawflow .drawflow-delete { background: #da3633; color: #fff; border: none; }
@@ -442,13 +430,13 @@
                 </svg><span class="nav-text">Help Center</span>
             </div>
 
-            <div class="nav-section-label role-lead" style="margin-top: 10px;">INFRASTRUCTURE</div>
-            <div class="nav-item role-lead" onclick="switchView('ingestion', this)" data-tooltip="CI/CD Gateways">
+            <div class="nav-section-label role-hide-observer" style="margin-top: 10px;">INFRASTRUCTURE</div>
+            <div class="nav-item role-hide-observer" onclick="switchView('ingestion', this)" data-tooltip="CI/CD Gateways">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
                 </svg><span class="nav-text">CI/CD Gateways</span>
             </div>
-            <div class="nav-item role-lead" onclick="switchView('plugins', this)" data-tooltip="Plugin Engine">
+            <div class="nav-item role-hide-observer" onclick="switchView('plugins', this)" data-tooltip="Plugin Engine">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
                 </svg><span class="nav-text">Plugin Engine</span>
@@ -1002,6 +990,7 @@
                 <div class="finops-page-head">
                     <h1>FinOps Intelligence</h1>
                     <p>Weekly cost evolution, flaky waste, and CI spend — executive view.</p>
+                    <p id="finops-range-hint" class="finops-range-hint"></p>
                 </div>
 
                 <div class="finops-bento-metrics">
@@ -1087,7 +1076,7 @@
                 <div class="header-bar">
                     <div>
                         <h1 style="margin: 0; font-size: 24px;">Help Center</h1>
-                        <p style="margin: 5px 0 0 0; opacity: 0.6; font-size: 14px;">Product documentation, roles, FinOps theory, and Metrics (QCL) reference — available to all users.</p>
+                        <p style="margin: 5px 0 0 0; opacity: 0.6; font-size: 14px;">Product documentation, workflows, Super-App features, roles, and FinOps — available to all users.</p>
                     </div>
                 </div>
                 <div class="about-shell">
@@ -1133,38 +1122,86 @@
 
             </section>
 
-            <section id="view-profile" class="view-section">
+            <section id="view-profile" class="view-section profile-view">
                 <div class="header-bar">
                     <div>
                         <h1 style="margin: 0; font-size: 24px;">My Account</h1>
-                        <p style="margin: 5px 0 0 0; opacity: 0.6; font-size: 14px;">Personal profile and dashboard preferences.</p>
+                        <p class="profile-subtitle">Personal profile, time range defaults, and workspace preferences.</p>
                     </div>
                 </div>
 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
-                    <div class="data-card">
-                        <h3 style="margin-top: 0; font-size: 14px; text-transform: uppercase;">Identity</h3>
-                        <p style="font-size: 12px; opacity: 0.7; margin-bottom: 15px;">
-                            <strong>Email:</strong> <span id="profile-username">—</span><br>
-                            <strong>Role:</strong> <span id="profile-role" style="text-transform: uppercase;">—</span>
-                        </p>
-                        <label style="font-size: 11px; color: #8b949e; display: block; margin-bottom: 5px;">Display name</label>
-                        <input type="text" id="profile-fullname" class="login-input" placeholder="Your full name">
+                <div class="profile-header data-card">
+                    <div class="profile-avatar" aria-hidden="true">
+                        <span id="profile-avatar-initials">?</span>
+                    </div>
+                    <div class="profile-header-meta">
+                        <h2 id="profile-display-name" class="profile-display-name">—</h2>
+                        <p class="profile-email-line"><span id="profile-username">—</span></p>
+                        <span id="profile-role-badge" class="profile-role-badge role-observer">—</span>
+                        <span id="profile-role" class="sr-only">—</span>
+                    </div>
+                </div>
+
+                <div class="profile-settings-grid">
+                    <div class="data-card form-panel">
+                        <h3 class="form-panel-title">Identity</h3>
+                        <div class="form-field">
+                            <label for="profile-fullname">Display name</label>
+                            <input type="text" id="profile-fullname" class="login-input" placeholder="Your full name">
+                        </div>
                     </div>
 
-                    <div class="data-card">
-                        <h3 style="margin-top: 0; font-size: 14px; text-transform: uppercase;">Dashboard preferences</h3>
-                        <label style="font-size: 11px; color: #8b949e; display: block; margin-bottom: 5px;">Theme</label>
-                        <select id="pref-theme" class="login-input" style="margin-bottom: 15px;">
-                            <option value="dark">Dark</option>
-                            <option value="light">Light</option>
-                        </select>
-                        <label style="font-size: 11px; color: #8b949e; display: block; margin-bottom: 5px;">Default incident filter</label>
-                        <select id="pref-status-filter" class="login-input" style="margin-bottom: 15px;">
-                            <option value="all">All</option>
-                            <option value="active">Active only</option>
-                            <option value="resolved">Resolved only</option>
-                        </select>
+                    <div class="data-card form-panel">
+                        <h3 class="form-panel-title">Workspace preferences</h3>
+                        <div class="form-field">
+                            <label for="pref-theme">Theme</label>
+                            <select id="pref-theme" class="login-input">
+                                <option value="dark">Dark</option>
+                                <option value="light">Light</option>
+                            </select>
+                        </div>
+                        <div class="form-field">
+                            <label for="pref-default-range">Preferred default window</label>
+                            <select id="pref-default-range" class="login-input">
+                                <option value="5m">Last 5 minutes</option>
+                                <option value="15m" selected>Last 15 minutes</option>
+                                <option value="30m">Last 30 minutes</option>
+                                <option value="1h">Last 1 hour</option>
+                                <option value="6h">Last 6 hours</option>
+                                <option value="24h">Last 24 hours</option>
+                                <option value="7d">Last 7 days</option>
+                                <option value="30d">Last 30 days</option>
+                                <option value="today">Today</option>
+                                <option value="yesterday">Yesterday</option>
+                                <option value="all">All time (1 year)</option>
+                            </select>
+                            <p class="form-field-hint">Used on first visit when no session time range is saved yet.</p>
+                        </div>
+                        <div class="form-field">
+                            <label for="pref-status-filter">Default incident filter</label>
+                            <select id="pref-status-filter" class="login-input">
+                                <option value="all">All</option>
+                                <option value="active">Active only</option>
+                                <option value="resolved">Resolved only</option>
+                            </select>
+                        </div>
+                        <div class="form-field">
+                            <label for="pref-currency">Application currency</label>
+                            <select id="pref-currency" class="login-input" onchange="onProfileCurrencyChange()">
+                                <option value="USD">USD ($)</option>
+                                <option value="EUR">EUR (€)</option>
+                                <option value="GBP">GBP (£)</option>
+                                <option value="JPY">JPY (¥)</option>
+                                <option value="AUD">AUD (A$)</option>
+                                <option value="CAD">CAD (C$)</option>
+                                <option value="CHF">CHF (Fr)</option>
+                                <option value="INR">INR (₹)</option>
+                                <option value="CNY">CNY (¥)</option>
+                                <option value="MXN">MXN ($)</option>
+                                <option value="SGD">SGD (S$)</option>
+                                <option value="NZD">NZD (NZ$)</option>
+                            </select>
+                        </div>
                         <label class="pref-toggle-card" for="pref-analytics-expanded">
                             <input type="checkbox" id="pref-analytics-expanded">
                             <span class="pref-toggle-text">
@@ -1172,20 +1209,38 @@
                                 <small>Show the analytics section expanded when you open the dashboard.</small>
                             </span>
                         </label>
+                        <label class="pref-toggle-card" for="pref-alert-sounds">
+                            <input type="checkbox" id="pref-alert-sounds">
+                            <span class="pref-toggle-text">
+                                <strong>Browser in-app sounds</strong>
+                                <small>Play a short tone when a new active incident appears.</small>
+                            </span>
+                        </label>
                     </div>
                 </div>
 
-                <div class="data-card" style="margin-top: 20px;">
-                    <h3 style="margin-top: 0; font-size: 14px; text-transform: uppercase;">Change password</h3>
+                <div class="data-card form-panel profile-password-card">
+                    <h3 class="form-panel-title">Change password</h3>
                     <div class="password-fields-stack">
-                        <input type="password" id="profile-current-password" class="login-input" placeholder="Current password" autocomplete="current-password">
-                        <input type="password" id="profile-new-password" class="login-input" placeholder="New password (min. 8 characters)" autocomplete="new-password">
-                        <input type="password" id="profile-confirm-password" class="login-input" placeholder="Confirm new password" autocomplete="new-password">
+                        <div class="form-field">
+                            <label for="profile-current-password">Current password</label>
+                            <input type="password" id="profile-current-password" class="login-input" placeholder="Current password" autocomplete="current-password">
+                        </div>
+                        <div class="form-field">
+                            <label for="profile-new-password">New password</label>
+                            <input type="password" id="profile-new-password" class="login-input" placeholder="Min. 8 characters" autocomplete="new-password">
+                        </div>
+                        <div class="form-field">
+                            <label for="profile-confirm-password">Confirm password</label>
+                            <input type="password" id="profile-confirm-password" class="login-input" placeholder="Confirm new password" autocomplete="new-password">
+                        </div>
                     </div>
-                    <button class="btn-secondary" style="margin-top: 14px;" onclick="changeOwnPassword()">Update password</button>
+                    <button type="button" class="btn-secondary profile-password-btn" onclick="changeOwnPassword()">Update password</button>
                 </div>
 
-                <button class="btn-primary" style="margin-top: 20px; width: 100%; max-width: 320px;" onclick="saveProfile()">Save profile</button>
+                <div class="profile-save-row">
+                    <button type="button" class="btn-primary" onclick="saveProfile()">Save profile</button>
+                </div>
             </section>
         </main>
         </div>
@@ -1201,20 +1256,13 @@
                     <span>Enable workflow</span>
                 </label>
                 <span id="workflow-readonly-badge">Read-only (Observer)</span>
-                <button type="button" class="btn-secondary" onclick="toggleWorkflowHelp()" title="Help">?</button>
-<<<<<<< HEAD
+                <button type="button" class="btn-secondary" onclick="openWorkflowHelpTopic()" title="Open Help Center — Visual Workflows">?</button>
                 <button type="button" class="btn-secondary wf-edit-only" onclick="loadFlakyExampleWorkflow()">Example</button>
                 <button type="button" class="btn-secondary wf-edit-only" onclick="addWorkflowNode('trigger')">+ Trigger</button>
                 <button type="button" class="btn-secondary wf-edit-only" onclick="addWorkflowNode('condition')">+ Condition</button>
                 <button type="button" class="btn-secondary wf-edit-only" onclick="addWorkflowNode('action')">+ Action</button>
                 <button type="button" class="btn-secondary wf-edit-only" onclick="simulateWorkflow()">Simulate</button>
-                <button type="button" class="btn-secondary" onclick="fitWorkflowCanvas()">Fit</button>
-=======
-                <button type="button" class="btn-secondary wf-edit-only" onclick="addWorkflowNode('trigger')">+ Trigger</button>
-                <button type="button" class="btn-secondary wf-edit-only" onclick="addWorkflowNode('condition')">+ Condition</button>
-                <button type="button" class="btn-secondary wf-edit-only" onclick="addWorkflowNode('action')">+ Action</button>
->>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
-                <button type="button" class="btn-secondary wf-edit-only" onclick="clearWorkflow()">Reset</button>
+                <button type="button" class="btn-secondary" onclick="fitWorkflowCanvas()">Fit</button>                <button type="button" class="btn-secondary wf-edit-only" onclick="clearWorkflow()">Reset</button>
                 <button type="button" class="btn-primary wf-edit-only" onclick="saveWorkflow()">Save</button>
                 <button type="button" class="btn-secondary" onclick="closeWorkflowEditor()">Close</button>
             </div>
@@ -1223,18 +1271,11 @@
                     <div id="drawflow"></div>
                     <div id="workflow-canvas-empty">
                         <div>
-<<<<<<< HEAD
                             <p style="margin:0 0 8px;color:#c9d1d9;">Empty canvas</p>
-                            <p style="margin:0;">Click <strong>+ Trigger</strong> to start, or load a saved workflow.</p>
-=======
-                            <p style="margin:0 0 8px;color:#c9d1d9;">Canvas vide</p>
-                            <p style="margin:0;">Cliquez <strong>+ Trigger</strong> pour commencer, ou chargez un exemple.</p>
->>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
-                        </div>
+                            <p style="margin:0;">Click <strong>+ Trigger</strong> to start, or load a saved workflow.</p>                        </div>
                     </div>
                 </div>
                 <aside id="workflow-help-panel" class="open">
-<<<<<<< HEAD
                     <h3 style="margin:0 0 10px;color:#58a6ff;font-size:13px;">Simulate incident</h3>
                     <label style="font-size:11px;display:block;margin-bottom:4px;">Test name</label>
                     <input type="text" id="wf-sim-name" class="login-input" value="[FLAKY] checkout payment" style="margin-bottom:8px;font-size:11px;">
@@ -1244,16 +1285,14 @@
                     <input type="text" id="wf-sim-error" class="login-input" value="timeout waiting for upstream" style="margin-bottom:8px;font-size:11px;">
                     <button type="button" class="btn-secondary wf-edit-only" style="width:100%;margin-bottom:10px;" onclick="simulateWorkflow()">Run simulation</button>
                     <pre id="workflow-simulate-result" class="workflow-simulate-result"></pre>
-                    <h3 style="margin:16px 0 10px;color:#58a6ff;font-size:13px;">Help</h3>
-=======
-                    <h3 style="margin:0 0 10px;color:#58a6ff;font-size:13px;">Help Center</h3>
->>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
-                    <p><strong>Trigger</strong> — Entry point when a CI alert is ingested into QA Capsule.</p>
-                    <p><strong>Condition</strong> — Branches on tags (e.g. <code>[FLAKY]</code>), status, or text match. Connect the <em>true</em> (top) or <em>false</em> (bottom) output.</p>
-                    <p><strong>Action</strong> — Runs a native integration from the Plugin Engine registry (Slack, Jira, …). Configure gateway routing values first.</p>
-                    <p style="margin-top:12px;border-top:1px solid #30363d;padding-top:10px;">Example: Trigger → Condition [FLAKY] → true → Slack; false → Jira.</p>
-                    <p><strong>Enable workflow</strong> — When checked and saved, the DAG drives remediation. When unchecked, the graph is stored as a <em>draft</em> and legacy AUTO-RUN + <code>trigger_on</code> rules still apply.</p>
-                    <p><strong>Reset</strong> deletes the DAG entirely and restores legacy mode.</p>
+                    <h3 style="margin:16px 0 10px;color:#58a6ff;font-size:13px;">Workflow quick guide</h3>
+                    <p><strong>Trigger</strong> — One entry node per graph when a CI alert is ingested.</p>
+                    <p><strong>Condition</strong> — Branch on <code>[FLAKY]</code>, <code>[PERF]</code>, status, or error text. <span style="color:#3fb950">Top</span> output = true, <span style="color:#f85149">bottom</span> = false.</p>
+                    <p><strong>Action</strong> — Native plugin (Slack, Jira, K8s…). Must be in gateway routing matrix + routing-enabled in Plugin Engine.</p>
+                    <p style="margin-top:10px;"><strong>Example</strong> — Trigger → [FLAKY]? → Slack (yes) / Jira (no).</p>
+                    <p><strong>Enable workflow</strong> + Save = DAG live. Unchecked = draft (legacy AUTO-RUN still runs).</p>
+                    <p><strong>Simulate</strong> — Dry-run without calling vendors. <strong>Reset</strong> — delete DAG.</p>
+                    <p style="margin-top:12px;font-size:11px;"><a href="#" onclick="openWorkflowHelpTopic();return false;" style="color:#58a6ff;">Full guide in Help Center →</a></p>
                 </aside>
             </div>
         </div>

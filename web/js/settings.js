@@ -2,7 +2,7 @@
  * web/js/settings.js
  * Technical settings, FinOps, Plugins, Analytics and Reports
  */
-import { fetchWithAuth, parseJwt, parseApiJson, asArray } from './api.js';
+import { fetchWithAuth, parseJwt, parseApiJson, asArray, describeApiFailure, performLogout } from './api.js';
 import { notify, showConfirmModal, showPromptModal } from './ui.js';
 import { canManagePluginAutoRun } from './roles.js';
 import * as analyticsLayout from './analytics-layout.js';
@@ -89,7 +89,6 @@ function workflowTableBadge(project) {
     return '<span class="wf-table-badge legacy" title="Legacy AUTO-RUN">Legacy</span>';
 }
 
-<<<<<<< HEAD
 let gatewayTableClickBound = false;
 
 function bindGatewayTableClicks() {
@@ -119,35 +118,13 @@ function bindGatewayTableClicks() {
         if (delBtn) {
             e.preventDefault();
             deleteProject(delBtn.getAttribute('data-project-id'));
-=======
-let workflowTableClickBound = false;
-
-function bindWorkflowTableClicks() {
-    const tbody = document.getElementById('projects-table-body');
-    if (!tbody || workflowTableClickBound) return;
-    workflowTableClickBound = true;
-    tbody.addEventListener('click', (e) => {
-        const btn = e.target.closest('.btn-open-workflow');
-        if (!btn) return;
-        e.preventDefault();
-        const projectId = btn.getAttribute('data-project-id');
-        const projectName = btn.getAttribute('data-project-name') || projectId;
-        if (typeof window.openWorkflowEditor === 'function') {
-            window.openWorkflowEditor(projectId, projectName);
-        } else {
-            notify('Workflow editor not loaded. Hard-refresh the page (Ctrl+F5).', 'error');
->>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
         }
     });
 }
 
 export function loadGatewaysData() {
     bindSRERoutingControls();
-<<<<<<< HEAD
     bindGatewayTableClicks();
-=======
-    bindWorkflowTableClicks();
->>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
     const tbody = document.getElementById('projects-table-body');
     fetchWithAuth(`/api/my-projects?_ts=${Date.now()}`)
         .then(res => parseApiJson(res))
@@ -169,16 +146,9 @@ export function loadGatewaysData() {
                     <td style="padding: 10px;"><code style="color: #ff7b72; font-family: monospace;">••••••••••••</code></td>
                     <td style="padding: 10px;">${workflowTableBadge(p)}</td>
                     <td style="padding: 10px; text-align: right;">
-<<<<<<< HEAD
                         <button type="button" class="btn btn-secondary btn-sm btn-open-workflow" style="margin-right:6px;" data-project-id="${escapePluginHtml(String(p.id))}" data-project-name="${escapePluginHtml(p.name)}" title="Visual remediation DAG">WORKFLOW</button>
                         <button type="button" class="btn btn-secondary btn-sm btn-info btn-edit-project" data-project-id="${escapePluginHtml(String(p.id))}">EDIT</button>
-                        <button type="button" class="btn btn-secondary btn-sm btn-danger btn-delete-project" data-project-id="${escapePluginHtml(String(p.id))}">DELETE</button>
-=======
-                        <button type="button" class="btn btn-secondary btn-sm btn-open-workflow" style="margin-right:6px;" data-project-id="${escapePluginHtml(p.id)}" data-project-name="${escapePluginHtml(p.name)}" title="Visual remediation DAG">WORKFLOW</button>
-                        <button type="button" class="btn btn-secondary btn-sm btn-info" onclick="window.editProject('${p.id}')">EDIT</button>
-                        <button type="button" class="btn btn-secondary btn-sm btn-danger" onclick="window.deleteProject('${p.id}')">DELETE</button>
->>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
-                    </td>
+                        <button type="button" class="btn btn-secondary btn-sm btn-danger btn-delete-project" data-project-id="${escapePluginHtml(String(p.id))}">DELETE</button>                    </td>
                 </tr>
             `).join('');
         })
@@ -865,12 +835,7 @@ function bindSRERoutingControls() {
 
 function initSRERoutingUI() {
     bindSRERoutingControls();
-<<<<<<< HEAD
-    bindGatewayTableClicks();
-=======
-    bindWorkflowTableClicks();
->>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
-}
+    bindGatewayTableClicks();}
 
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initSRERoutingUI);
@@ -893,7 +858,7 @@ export function renderSRERoutingList() {
     }
 
     if (!activePluginsForRouting.length) {
-        container.innerHTML = '<p style="font-size:12px;color:#8b949e;margin:0;">No integrations enabled for gateways yet. A <strong>Manager</strong> must <strong>Configure &amp; Save</strong> a plugin in Plugin Engine, or click <strong>Enable for gateways</strong>, then refresh (Ctrl+F5).</p>';
+        container.innerHTML = '<p style="font-size:12px;color:#8b949e;margin:0;">No integrations enabled for gateways yet. Open <strong>Plugin Engine</strong> (sidebar → Infrastructure), find Jira/Slack/etc., click <strong>Enable for gateways</strong> or <strong>Configure → Save</strong>, then refresh this page (Ctrl+F5).</p>';
         return;
     }
 
@@ -1222,18 +1187,36 @@ export function resetPluginFilters() {
 
 export function loadPlugins() {
     const meta = document.getElementById('plugin-search-meta');
+    const listEl = document.getElementById('plugin-list');
     if (meta) meta.textContent = 'Loading modules…';
 
-    fetchWithAuth(`/api/plugins?_ts=${Date.now()}`).then(res => res.json()).then(data => {
-        window.__pluginsCache = data || [];
-        populatePluginCategoryFilter(window.__pluginsCache);
-        const query = document.getElementById('plugin-search')?.value || '';
-        const category = document.getElementById('plugin-category-filter')?.value || 'all';
-        renderPluginList(window.__pluginsCache, query, category);
-    }).catch(() => {
-        notify('Network error', 'error');
-        if (meta) meta.textContent = 'Failed to load plugins.';
-    });
+    fetchWithAuth(`/api/plugins?_ts=${Date.now()}`)
+        .then(res => parseApiJson(res))
+        .then(({ ok, data, status, offline }) => {
+            if (!ok) {
+                const msg = offline
+                    ? 'Cannot reach server. Start: go run ./cmd/qacapsule'
+                    : (data?.error || describeApiFailure(status, offline));
+                if (listEl) {
+                    listEl.innerHTML = `<div style="text-align:center;padding:40px;opacity:0.7;"><p style="margin:0 0 8px;">Failed to load plugins.</p><p style="margin:0;font-size:13px;">${escapePluginHtml(msg)}</p></div>`;
+                }
+                if (meta) meta.textContent = 'Load failed.';
+                if (status === 401) performLogout();
+                return;
+            }
+            window.__pluginsCache = asArray(data);
+            populatePluginCategoryFilter(window.__pluginsCache);
+            const query = document.getElementById('plugin-search')?.value || '';
+            const category = document.getElementById('plugin-category-filter')?.value || 'all';
+            renderPluginList(window.__pluginsCache, query, category);
+            if (window.__pluginsCache.length === 0 && meta) {
+                meta.textContent = 'No modules in registry — check plugins/ folder and server logs (remediation registry loaded).';
+            }
+        })
+        .catch(() => {
+            notify('Network error', 'error');
+            if (meta) meta.textContent = 'Failed to load plugins.';
+        });
 }
 
 export function togglePluginConfig(id) { const el = document.getElementById(id); el.style.display = el.style.display === 'none' ? 'block' : 'none'; }
@@ -1241,7 +1224,10 @@ export function togglePluginConfig(id) { const el = document.getElementById(id);
 export function savePluginConfig(path, idx, keysStr) {
     const env = {};
     keysStr.split(',').filter(k => k).forEach(k => env[k] = document.getElementById(`env-${idx}-${k}`).value);
-    fetchWithAuth('/api/plugins/config', { method: 'POST', body: JSON.stringify({ file_path: path, env: env }) })
+    fetchWithAuth('/api/plugins/config', {
+        method: 'POST',
+        body: JSON.stringify({ file_path: path, env: env, enable_routing: true })
+    })
         .then(res => parseApiJson(res))
         .then(({ ok }) => {
             if (ok) {
@@ -1318,8 +1304,11 @@ export function loadFinOps() {
 
             const currencySelector = document.getElementById('finops-currency');
             if (currencySelector && data.currency) {
-                currencySelector.value = data.currency;
-                selectedCurrency = data.currency;
+                const preferred = window.selectedCurrency || localStorage.getItem('sre-pref-currency');
+                const code = preferred || data.currency;
+                currencySelector.value = code;
+                selectedCurrency = code;
+                window.selectedCurrency = code;
             }
         })
         .catch(e => console.error("Could not load FinOps settings"));
@@ -1327,9 +1316,18 @@ export function loadFinOps() {
 
 export function saveCurrencyPreference() {
     const currency = document.getElementById('finops-currency').value;
+    window.selectedCurrency = currency;
     selectedCurrency = currency;
     localStorage.setItem('selected-currency', currency);
+    try {
+        localStorage.setItem('sre-pref-currency', currency);
+    } catch (_) { /* quota */ }
+    const prefSel = document.getElementById('pref-currency');
+    if (prefSel) prefSel.value = currency;
     notify(`Currency changed to ${currency}`, 'success');
+    if (document.getElementById('view-finops')?.classList.contains('active') && window.refreshFinOpsKPIs) {
+        window.refreshFinOpsKPIs();
+    }
 }
 
 export function saveFinOps() {

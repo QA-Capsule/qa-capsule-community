@@ -8,7 +8,7 @@ icon: material/bell-ring
   <img src="../assets/integrations/pagerduty.png" alt="PagerDuty logo">
 </div>
 
-Déclenche un événement **Events API v2** (`event_action: trigger`) vers PagerDuty.
+Triggers an **Events API v2** event (`event_action: trigger`) to PagerDuty.
 
 | | |
 |---|---|
@@ -17,28 +17,28 @@ Déclenche un événement **Events API v2** (`event_action: trigger`) vers Pager
 
 ---
 
-=== "Côté QA Capsule"
+=== "QA Capsule Side"
 
-    | Variable | Obligatoire | Description |
+    | Variable | Required | Description |
     |----------|-------------|-------------|
-    | `PAGERDUTY_ROUTING_KEY` | **Oui** | Integration / routing key de l’événement |
-    | `PAGERDUTY_API_URL` | Non | Défaut `https://events.pagerduty.com/v2/enqueue` |
+    | `PAGERDUTY_ROUTING_KEY` | **Yes** | Event integration / routing key |
+    | `PAGERDUTY_API_URL` | No | Default `https://events.pagerduty.com/v2/enqueue` |
 
-    **Gateway** : champ **PagerDuty Routing Key** (surcharge par pipeline).
+    **Gateway**: **PagerDuty Routing Key** field (per-pipeline override).
 
-    **Execute** doit retourner `[PAGERDUTY] Queued (HTTP 200)`.
+    **Execute** should return `[PAGERDUTY] Queued (HTTP 200)`.
 
-=== "Côté fournisseur (PagerDuty)"
+=== "Provider Side (PagerDuty)"
 
-    ## 1. Service et intégration Events API v2
+    ## 1. Service and Events API v2 integration
 
-    1. PagerDuty → **Services** → service on-call cible
-    2. **Integrations** → ajouter **Events API V2**
-    3. Copier la **Integration Key** (= routing key)
+    1. PagerDuty → **Services** → target on-call service
+    2. **Integrations** → add **Events API V2**
+    3. Copy the **Integration Key** (= routing key)
 
-    ## 2. Escalade
+    ## 2. Escalation
 
-    Configurer politiques d’escalade, horaires, et filtres sur le service pour éviter le bruit (QA Capsule envoie `severity: critical`).
+    Configure escalation policies, schedules, and service filters to reduce noise (QA Capsule sends `severity: critical`).
 
     ## 3. Test
 
@@ -50,4 +50,4 @@ Déclenche un événement **Events API v2** (`event_action: trigger`) vers Pager
 
 ---
 
-- [Catalogue](integrations-catalog.md)
+- [Catalog](integrations-catalog.md)

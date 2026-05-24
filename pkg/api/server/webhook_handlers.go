@@ -132,9 +132,14 @@ func registerWebhookRoutes(config *core.Config) {
 		}
 
 		processed := 0
+		quarantined := 0
 		var incidentIDs []int64
 		for _, alert := range alerts {
 			res := core.ProcessAlert(*config, projectName, runID, alert, alertContext, allowedPlugins)
+			if res.Quarantined {
+				quarantined++
+				continue
+			}
 			if !res.Skipped {
 				processed++
 				if res.IncidentID > 0 {
@@ -152,12 +157,13 @@ func registerWebhookRoutes(config *core.Config) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusAccepted)
 		json.NewEncoder(w).Encode(map[string]interface{}{
-			"status":             "success",
-			"failures_processed": processed,
-			"incident_ids":       incidentIDs,
-			"last_incident_id":   lastID(incidentIDs),
-			"project":            projectName,
-			"pipeline_run_id":    runID,
+			"status":              "success",
+			"failures_processed":  processed,
+			"quarantined_skipped": quarantined,
+			"incident_ids":        incidentIDs,
+			"last_incident_id":    lastID(incidentIDs),
+			"project":             projectName,
+			"pipeline_run_id":     runID,
 		})
 	})
 }

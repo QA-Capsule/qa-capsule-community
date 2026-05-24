@@ -1,0 +1,24 @@
+.integration-hero {
+  text-align: center;
+  margin: 0 0 1.5rem 0;
+}
+.integration-hero img {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  border-radius: 12px;
+  background: var(--md-code-bg-color);
+  padding: 8px;
+  border: 1px solid var(--md-default-fg-color--lightest);
+}
+.integration-meta {
+  font-size: 0.9rem;
+  margin-bottom: 1.5rem;
+}
+.catalog-logos img {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  vertical-align: middle;
+  margin-right: 8px;
+}

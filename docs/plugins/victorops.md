@@ -8,7 +8,7 @@ icon: material/phone-alert
   <img src="../assets/integrations/victorops.png" alt="Splunk On-Call logo">
 </div>
 
-Envoie un incident **CRITICAL** vers l’URL de routage REST Splunk On-Call (ex-VictorOps).
+Sends a **CRITICAL** incident to the Splunk On-Call (formerly VictorOps) REST routing URL.
 
 | | |
 |---|---|
@@ -17,31 +17,31 @@ Envoie un incident **CRITICAL** vers l’URL de routage REST Splunk On-Call (ex-
 
 ---
 
-=== "Côté QA Capsule"
+=== "QA Capsule Side"
 
-    | Variable | Obligatoire |
+    | Variable | Required |
     |----------|-------------|
-    | `VICTOROPS_ROUTING_URL` | **Oui** (URL REST complète fournie par Splunk) |
+    | `VICTOROPS_ROUTING_URL` | **Yes** (full REST URL provided by Splunk) |
 
-    Configurable par pipeline via gateway **VictorOps Routing URL**.
+    Configurable per pipeline via gateway **VictorOps Routing URL**.
 
-    Corps JSON : `message_type: CRITICAL`, `entity_display_name: QA Capsule`, `state_message` avec résumé incident.
+    JSON body: `message_type: CRITICAL`, `entity_display_name: QA Capsule`, `state_message` with incident summary.
 
-=== "Côté fournisseur (Splunk On-Call)"
+=== "Provider Side (Splunk On-Call)"
 
-    ## 1. Obtenir l’URL de routage
+    ## 1. Obtain the routing URL
 
-    1. Splunk On-Call → **Settings** → intégration / endpoint REST
-    2. Copier l’URL POST unique (souvent par équipe)
+    1. Splunk On-Call → **Settings** → integration / REST endpoint
+    2. Copy the unique POST URL (often per team)
 
-    ## 2. Politique d’alerte
+    ## 2. Alert policy
 
-    Associer l’endpoint à la rotation on-call ; ajuster seuils pour éviter flood CI.
+    Associate the endpoint with on-call rotation; adjust thresholds to avoid CI flood.
 
     ## 3. Test
 
-    Poster un JSON minimal `message_type` + `state_message` vers l’URL fournie (voir doc Splunk On-Call pour le schéma exact de votre tenant).
+    Post minimal JSON with `message_type` + `state_message` to the provided URL (see Splunk On-Call documentation for the exact schema for your tenant).
 
 ---
 
-- [Catalogue](integrations-catalog.md)
+- [Catalog](integrations-catalog.md)

@@ -247,7 +247,6 @@ func runSchemaMigrations() {
 		`CREATE INDEX IF NOT EXISTS idx_test_metrics_fp ON test_execution_metrics(project_name, fingerprint, created_at)`,
 		`ALTER TABLE projects ADD COLUMN sre_routing_json TEXT DEFAULT '[]'`,
 		`ALTER TABLE projects ADD COLUMN sre_workflow_json TEXT DEFAULT ''`,
-<<<<<<< HEAD
 		`ALTER TABLE incidents ADD COLUMN rca_status TEXT DEFAULT ''`,
 		`ALTER TABLE incidents ADD COLUMN has_rca INTEGER DEFAULT 0`,
 		`CREATE TABLE IF NOT EXISTS ai_provider_config (
@@ -368,8 +367,6 @@ func runSchemaMigrations() {
 			FOREIGN KEY(signal_id) REFERENCES external_signals(id) ON DELETE CASCADE,
 			FOREIGN KEY(incident_id) REFERENCES incidents(id) ON DELETE CASCADE
 		)`,
-=======
->>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
 		`CREATE TABLE IF NOT EXISTS user_team_inheritance_optouts (
 			user_id INTEGER NOT NULL,
 			team_id INTEGER NOT NULL,
@@ -390,6 +387,9 @@ func runSchemaMigrations() {
 func migrateGlobalRoleCodes() {
 	if _, err := DB.Exec(`UPDATE users SET role = 'lead' WHERE role = 'operator'`); err != nil {
 		log.Printf("[INFO] Role migration (operator→lead): %v", err)
+	}
+	if _, err := DB.Exec(`UPDATE users SET role = lower(trim(role)) WHERE role != lower(trim(role))`); err != nil {
+		log.Printf("[WARNING] Could not normalize user roles: %v", err)
 	}
 	if _, err := DB.Exec(`UPDATE users SET role = 'observer' WHERE role = 'viewer'`); err != nil {
 		log.Printf("[INFO] Role migration (viewer→observer): %v", err)

@@ -8,27 +8,27 @@ icon: fontawesome/brands/jira
   <img src="../assets/integrations/jira.png" alt="Jira logo">
 </div>
 
-Crée automatiquement un ticket Jira (Bug / Task) via l’API REST `POST /rest/api/2/issue`.
+Automatically creates a Jira ticket (Bug / Task) via the REST API `POST /rest/api/2/issue`.
 
 | | |
 |---|---|
 | **Manifest** | `plugins/jira/jira-ticket.json` |
 | **Type** | `jira` |
-| **Auth** | Basic (email + API token Atlassian) |
+| **Auth** | Basic (email + Atlassian API token) |
 
 ---
 
-=== "Côté QA Capsule"
+=== "QA Capsule Side"
 
-    ## Variables serveur
+    ## Server variables
 
-    | Variable | Obligatoire | Source QA Capsule |
+    | Variable | Required | QA Capsule source |
     |----------|-------------|-------------------|
-    | `JIRA_URL` | **Oui** | Env / Configure (ex. `https://company.atlassian.net`) |
-    | `JIRA_EMAIL` | **Oui** | Compte service Atlassian |
-    | `JIRA_API_TOKEN` | **Oui** | Token Atlassian (jamais en clair dans Git) |
-    | `JIRA_ISSUE_TYPE` | Non | Défaut `Bug` |
-    | `JIRA_PROJECT_KEY` | **Oui** pour auto | **CI/CD Gateway** ou tag `@SCRUM-42` dans le nom du test |
+    | `JIRA_URL` | **Yes** | Env / Configure (e.g. `https://company.atlassian.net`) |
+    | `JIRA_EMAIL` | **Yes** | Atlassian service account |
+    | `JIRA_API_TOKEN` | **Yes** | Atlassian token (never in plain text in Git) |
+    | `JIRA_ISSUE_TYPE` | No | Default `Bug` |
+    | `JIRA_PROJECT_KEY` | **Yes** for auto | **CI/CD Gateway** or `@SCRUM-42` tag in test name |
 
     ```bash
     export JIRA_URL="https://votre-domaine.atlassian.net"
@@ -38,20 +38,20 @@ Crée automatiquement un ticket Jira (Bug / Task) via l’API REST `POST /rest/a
 
     ## Plugin Engine
 
-    1. **Configure** : optionnel si tout est en env
-    2. **Execute** sans `JIRA_PROJECT_KEY` → erreur explicite (comportement voulu)
-    3. **AUTO-RUN ON** seulement après un Execute réussi
+    1. **Configure**: optional if everything is in env
+    2. **Execute** without `JIRA_PROJECT_KEY` → explicit error (intended behavior)
+    3. **AUTO-RUN ON** only after a successful Execute
 
     ## CI/CD Gateway
 
     - **Add configuration** → **Jira Auto-Ticketing**
-    - Champ **Jira Project Key** : `SCRUM`, `PAY`, etc.
+    - **Jira Project Key** field: `SCRUM`, `PAY`, etc.
 
-    ## Extraction automatique depuis le test
+    ## Automatic extraction from test
 
-    Nom de test contenant `@jira-SCRUM-99` ou `@SCRUM-99` → clé issue / projet injectés à l’ingestion.
+    Test name containing `@jira-SCRUM-99` or `@SCRUM-99` → issue / project key injected at ingestion.
 
-    ## Payload créé
+    ## Created payload
 
     ```json
     {
@@ -64,35 +64,35 @@ Crée automatiquement un ticket Jira (Bug / Task) via l’API REST `POST /rest/a
     }
     ```
 
-    ## Dépannage
+    ## Troubleshooting
 
-    | Erreur | Solution |
+    | Error | Solution |
     |--------|----------|
-    | HTTP 401 | Token ou email incorrect |
-    | HTTP 400 project | `JIRA_PROJECT_KEY` invalide |
-    | Pas de ticket | AUTO-RUN off ou Jira absent du gateway |
+    | HTTP 401 | Incorrect token or email |
+    | HTTP 400 project | Invalid `JIRA_PROJECT_KEY` |
+    | No ticket | AUTO-RUN off or Jira missing from gateway |
 
-=== "Côté fournisseur (Atlassian Jira)"
+=== "Provider Side (Atlassian Jira)"
 
-    ## 1. Compte service
+    ## 1. Service account
 
-    1. Créer un utilisateur dédié (ex. `sre-bot@company.com`) ou utiliser un compte bot approuvé par l’admin Jira
-    2. L’inviter aux projets à surveiller avec permission **Create issues**
+    1. Create a dedicated user (e.g. `sre-bot@company.com`) or use a bot account approved by the Jira admin
+    2. Invite them to monitored projects with **Create issues** permission
 
     ## 2. API Token
 
     1. [id.atlassian.com](https://id.atlassian.com) → **Security** → **API tokens**
-    2. **Create API token** → copier une seule fois
-    3. Stocker dans le secret manager / `export JIRA_API_TOKEN` sur le serveur QA Capsule
+    2. **Create API token** → copy once
+    3. Store in secret manager / `export JIRA_API_TOKEN` on the QA Capsule server
 
-    ## 3. Projet Jira
+    ## 3. Jira project
 
-    | Élément | Où le trouver |
+    | Element | Where to find it |
     |---------|----------------|
-    | **Project Key** | Paramètres projet → ex. `SCRUM` |
-    | **Issue type** | Schéma projet (Bug, Task, Story) → aligner `JIRA_ISSUE_TYPE` |
+    | **Project Key** | Project settings → e.g. `SCRUM` |
+    | **Issue type** | Project scheme (Bug, Task, Story) → align `JIRA_ISSUE_TYPE` |
 
-    ## 4. Test API Atlassian
+    ## 4. Atlassian API test
 
     ```bash
     curl -u "email:API_TOKEN" -H "Content-Type: application/json" \
@@ -100,8 +100,8 @@ Crée automatiquement un ticket Jira (Bug / Task) via l’API REST `POST /rest/a
       "https://VOTRE-DOMAINE.atlassian.net/rest/api/2/issue"
     ```
 
-    HTTP **201** + `id` → configuration fournisseur OK.
+    HTTP **201** + `id` → provider configuration OK.
 
 ---
 
-- [Guide configuration](configuration-guide.md) · [Catalogue](integrations-catalog.md)
+- [Configuration Guide](configuration-guide.md) · [Catalog](integrations-catalog.md)

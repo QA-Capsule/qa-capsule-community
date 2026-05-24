@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"net/smtp"
+	"os"
 	"strings"
 
 	"github.com/QA-Capsule/qa-capsule-community/pkg/core"
@@ -16,8 +17,26 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// jwtKey is the secret used to sign JWT tokens
-var jwtKey = []byte("sre-super-secret-jwt-key")
+// jwtKey is the secret used to sign JWT tokens (set via InitJWT at startup).
+var jwtKey []byte
+
+const defaultJWTSecret = "sre-super-secret-jwt-key"
+
+// InitJWT configures the signing key from config or QACAPSULE_JWT_SECRET (dev fallback only).
+func InitJWT(config *core.Config) {
+	secret := ""
+	if config != nil {
+		secret = strings.TrimSpace(config.Security.JWTSecret)
+	}
+	if secret == "" {
+		secret = strings.TrimSpace(os.Getenv("QACAPSULE_JWT_SECRET"))
+	}
+	if secret == "" {
+		secret = defaultJWTSecret
+		log.Println("[SECURITY] JWT secret not set — using development default. Set security.jwt_secret or QACAPSULE_JWT_SECRET in production.")
+	}
+	jwtKey = []byte(secret)
+}
 
 var AdvancedFinOpsHandler = func(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
@@ -161,6 +180,7 @@ func enterpriseMiddleware(config *core.Config, next http.HandlerFunc) http.Handl
 // Start boots up the HTTP server and registers all routes
 func Start(initialConfig core.Config) {
 	config := &initialConfig
+	InitJWT(config)
 
 	// Create Enterprise Configuration Table
 	core.DB.Exec(`CREATE TABLE IF NOT EXISTS enterprise_config (
@@ -175,12 +195,9 @@ func Start(initialConfig core.Config) {
 	registerTeamRoutes(config)
 	registerProjectRoutes(config)
 	registerWorkflowRoutes(config)
-<<<<<<< HEAD
 	registerIntelligenceRoutes(config)
 	registerRunbooksRoutes(config)
 	registerDORARoutes(config)
-=======
->>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
 	registerWebhookRoutes(config)
 	registerIncidentRoutes(config)
 	registerArtifactRoutes(config)

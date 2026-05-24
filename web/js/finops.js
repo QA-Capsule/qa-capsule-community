@@ -20,22 +20,44 @@ let finopsMetricsChart = null;
 
 
 
-/** Same time range as the Operations dashboard when set. */
-
+/** Same time range as the Operations dashboard (DOM or localStorage). */
 export function getFinOpsRangeQuery() {
+    if (typeof window.getDashboardRangeQueryResolved === 'function') {
+        const q = window.getDashboardRangeQueryResolved();
+        if (q) return q;
+    }
     if (typeof window.getDashboardRangeQuery === 'function') {
         const q = window.getDashboardRangeQuery();
         if (q) return q;
     }
-    return 'range=90d';
+    return 'range=5m';
+}
+
+function finopsCurrencyCode() {
+    return window.selectedCurrency
+        || document.getElementById('finops-currency')?.value
+        || document.getElementById('pref-currency')?.value
+        || 'USD';
+}
+
+function finopsCurrencySymbol() {
+    return currencySymbols[finopsCurrencyCode()] || '$';
+}
+
+function updateFinOpsRangeHint() {
+    const hint = document.getElementById('finops-range-hint');
+    if (!hint) return;
+    const summary = document.getElementById('dashboard-range-summary')?.textContent?.trim();
+    hint.textContent = summary
+        ? `Metrics aligned with dashboard: ${summary}`
+        : 'Metrics aligned with the dashboard time range.';
 }
 
 
 
 export function loadFinOpsView() {
-
+    updateFinOpsRangeHint();
     loadFinOpsBaselines();
-
     refreshFinOpsKPIs();
 
     loadFinOpsWeeklyTable();
@@ -95,8 +117,14 @@ function loadFinOpsBaselines() {
             set('finops-investigation', data.avg_investigation_time ?? 30);
 
             const cur = document.getElementById('finops-currency');
-
-            if (cur && data.currency) cur.value = data.currency;
+            const preferred = window.selectedCurrency || localStorage.getItem('sre-pref-currency');
+            if (cur) {
+                cur.value = preferred || data.currency || 'USD';
+            }
+            if (preferred || data.currency) {
+                const code = preferred || data.currency;
+                window.selectedCurrency = code;
+            }
 
         })
 
@@ -123,6 +151,8 @@ export function saveFinOpsBaselines() {
     };
 
 
+
+    window.selectedCurrency = payload.currency;
 
     fetchWithAuth('/api/finops', { method: 'PUT', body: JSON.stringify(payload) })
 
@@ -186,8 +216,8 @@ export function exportFinOpsReport() {
 
 
 
-function refreshFinOpsKPIs() {
-
+export function refreshFinOpsKPIs() {
+    updateFinOpsRangeHint();
     const rangeQ = getFinOpsRangeQuery();
 
     fetchWithAuth(`/api/metrics?${rangeQ}&_ts=${Date.now()}`)
@@ -198,7 +228,7 @@ function refreshFinOpsKPIs() {
 
             if (!ok || !data) return;
 
-            const sym = currencySymbols[document.getElementById('finops-currency')?.value || 'USD'] || '$';
+            const sym = finopsCurrencySymbol();
 
             const impact = data.sre_impact || {};
 
@@ -236,7 +266,7 @@ function refreshFinOpsKPIs() {
 
 
 
-function loadFinOpsWeeklyTable() {
+export function loadFinOpsWeeklyTable() {
 
     const rangeQ = getFinOpsRangeQuery();
 
@@ -262,7 +292,7 @@ function loadFinOpsWeeklyTable() {
 
             if (rows.length === 0) {
 
-                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;opacity:0.5;">No incidents in the last 90 days.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;opacity:0.5;">No incidents in the selected time range.</td></tr>';
 
                 return;
 
@@ -319,7 +349,7 @@ function formatFinOpsLabel(raw, bucket) {
     return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-function loadFinOpsWeeklyEvolution() {
+export function loadFinOpsWeeklyEvolution() {
     const rangeQ = getFinOpsRangeQuery();
     fetchWithAuth(`/api/finops/evolution?${rangeQ}&_ts=${Date.now()}`)
         .then(res => parseApiJson(res))
@@ -399,7 +429,7 @@ function renderFinOpsCostChart(series, bucket = 'week') {
     if (!canvas || !series.length) return;
     if (finopsMetricsChart) finopsMetricsChart.destroy();
 
-    const sym = currencySymbols[document.getElementById('finops-currency')?.value || 'USD'] || '$';
+    const sym = finopsCurrencySymbol();
 
     finopsMetricsChart = new Chart(canvas.getContext('2d'), {
         type: 'line',

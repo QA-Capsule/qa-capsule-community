@@ -8,7 +8,7 @@ icon: material/microsoft-teams
   <img src="../assets/integrations/teams.png" alt="Microsoft Teams logo">
 </div>
 
-Publie une **MessageCard** sur un connecteur Entrant (Incoming Webhook) Teams.
+Posts a **MessageCard** to a Teams Incoming Webhook connector.
 
 | | |
 |---|---|
@@ -17,46 +17,46 @@ Publie une **MessageCard** sur un connecteur Entrant (Incoming Webhook) Teams.
 
 ---
 
-=== "Côté QA Capsule"
+=== "QA Capsule Side"
 
     ## Variables
 
-    | Variable | Obligatoire | Où |
+    | Variable | Required | Where |
     |----------|-------------|-----|
-    | `TEAMS_WEBHOOK_URL` | **Oui** | Env global **ou** champ gateway **MS Teams Webhook URL** |
+    | `TEAMS_WEBHOOK_URL` | **Yes** | Global env **or** gateway field **MS Teams Webhook URL** |
 
-    Le moteur accepte aussi l’alias `TEAMS_WEBHOOK` dans le routage legacy.
+    The engine also accepts the legacy routing alias `TEAMS_WEBHOOK`.
 
     ## Plugin Engine
 
-    - **Configure** : URL complète du connecteur
-    - **Execute** → HTTP 200/202 attendu
-    - **AUTO-RUN** : Manager uniquement
+    - **Configure**: full connector URL
+    - **Execute** → HTTP 200/202 expected
+    - **AUTO-RUN**: Manager only
 
     ## CI/CD Gateway
 
-    **Add configuration** → **Teams** → coller l’URL du connecteur **spécifique au canal** de l’équipe (chaque équipe peut avoir sa propre URL).
+    **Add configuration** → **Teams** → paste the **channel-specific** connector URL (each team may have its own URL).
 
-    ## Message envoyé
+    ## Message sent
 
-    MessageCard Office 365 avec titre incident, statut, texte d’erreur (markdown).
+    Office 365 MessageCard with incident title, status, and error text (markdown).
 
-=== "Côté fournisseur (Microsoft Teams)"
+=== "Provider Side (Microsoft Teams)"
 
-    ## 1. Connecteur Entrant (Incoming Webhook)
+    ## 1. Incoming Webhook connector
 
-    1. Teams → canal cible → **⋯** → **Connecteurs** (Connectors)
-    2. Chercher **Incoming Webhook** → **Configurer**
-    3. Nom : `QA Capsule Alerts` → créer
-    4. Copier l’URL `https://....webhook.office.com/...`
+    1. Teams → target channel → **⋯** → **Connectors**
+    2. Search for **Incoming Webhook** → **Configure**
+    3. Name: `QA Capsule Alerts` → create
+    4. Copy the URL `https://....webhook.office.com/...`
 
-    ## 2. Bonnes pratiques
+    ## 2. Best practices
 
-    | Point | Détail |
+    | Point | Detail |
     |-------|--------|
-    | Une URL par canal | Pas de routage dynamique de canal comme Slack — prévoir une URL par équipe/projet |
-    | Sécurité | URL = secret ; régénérer si exposée |
-    | Politique entreprise | Vérifier que les connecteurs Entrants sont autorisés par l’IT |
+    | One URL per channel | No dynamic channel routing like Slack — plan one URL per team/project |
+    | Security | URL = secret; regenerate if exposed |
+    | Enterprise policy | Verify that Incoming Webhooks are allowed by IT |
 
     ## 3. Test
 
@@ -67,4 +67,4 @@ Publie une **MessageCard** sur un connecteur Entrant (Incoming Webhook) Teams.
 
 ---
 
-- [Guide configuration](configuration-guide.md)
+- [Configuration Guide](configuration-guide.md)

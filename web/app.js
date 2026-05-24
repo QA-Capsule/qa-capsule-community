@@ -14,13 +14,10 @@ import * as about from './js/about.js';
 import * as analyticsLayout from './js/analytics-layout.js';
 import { applyRoleVisibility, canAccessFinOps, canAccessPlugins, canResolveIncidents, canDeleteIncidents, hasMinRole, roleLabel, canManageTeams, canManageIAM, isAdmin, canAccessView, accessDeniedMessage, defaultViewForRole, canManagePluginAutoRun } from './js/roles.js';
 import * as workflowEditor from './js/workflow-editor.js';
-<<<<<<< HEAD
 import * as rca from './js/rca.js';
 import * as quarantine from './js/quarantine.js';
 import * as runbooks from './js/runbooks.js';
 import * as dora from './js/dora.js';
-=======
->>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
 import { setupAutocomplete } from './js/autocomplete.js';
 import { initTheme } from './js/ui.js';
 
@@ -49,7 +46,6 @@ for (const [key, value] of Object.entries(analyticsLayout)) {
 for (const [key, value] of Object.entries(workflowEditor)) {
     if (typeof value === 'function') window[key] = value;
 }
-<<<<<<< HEAD
 for (const [key, value] of Object.entries(rca)) {
     if (typeof value === 'function') window[key] = value;
 }
@@ -62,9 +58,6 @@ for (const [key, value] of Object.entries(runbooks)) {
 for (const [key, value] of Object.entries(dora)) {
     if (typeof value === 'function') window[key] = value;
 }
-=======
-
->>>>>>> 70a3559fb4d4fbfe14293d19734d53e04a1553fb
 // ==========================================
 // VARIABLES GLOBALES & FINOPS SRE
 // ==========================================
@@ -498,6 +491,8 @@ window.fetchMetricsOnly = function () {
         .catch(err => console.error("FetchMetrics error:", err));
 };
 
+const DASHBOARD_RANGE_STORAGE_KEY = 'sre-dashboard-range';
+
 const DASHBOARD_RANGE_LABELS = {
     '5m': 'Last 5 minutes',
     '15m': 'Last 15 minutes',
@@ -618,6 +613,24 @@ window.getDashboardRangeQuery = function () {
     return `range=${encodeURIComponent(preset)}`;
 };
 
+window.buildDashboardRangeQueryFromPreset = function (stored) {
+    const preset = stored?.preset || '5m';
+    if (preset === 'custom') {
+        if (!stored?.fromDate || !stored?.toDate) return null;
+        const from = formatDatetimeForApi(`${stored.fromDate}T${stored.fromTime || '00:00'}`);
+        const to = formatDatetimeForApi(`${stored.toDate}T${stored.toTime || '23:59'}`);
+        if (!from || !to) return null;
+        return `range=custom&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
+    }
+    return `range=${encodeURIComponent(preset)}`;
+};
+
+window.getDashboardRangeQueryResolved = function () {
+    const live = window.getDashboardRangeQuery();
+    if (live) return live;
+    return window.buildDashboardRangeQueryFromPreset(readDashboardRangeStorage());
+};
+
 function syncDashboardRangeChips(preset) {
     document.querySelectorAll('#dashboard-range-quick .range-chip').forEach(chip => {
         chip.classList.toggle('active', chip.dataset.range === preset);
@@ -646,7 +659,10 @@ window.setDashboardRangeEndToNow = function () {
 
 window.onDashboardCustomRangeInput = function () {
     clearTimeout(dashboardRangeDebounceTimer);
-    dashboardRangeDebounceTimer = setTimeout(() => window.runDashboardRangeFilter(), 350);
+    dashboardRangeDebounceTimer = setTimeout(() => {
+        persistDashboardRange();
+        window.runDashboardRangeFilter();
+    }, 350);
 };
 
 window.runDashboardRangeFilter = function () {
@@ -671,9 +687,77 @@ window.runDashboardRangeFilter = function () {
     window.reloadDashboardAnalytics();
     if (typeof window.restartDashboardAutoRefresh === 'function') window.restartDashboardAutoRefresh();
     const finopsView = document.getElementById('view-finops');
-    if (finopsView && finopsView.classList.contains('active') && window.loadFinOpsView) {
-        window.loadFinOpsView();
+    if (finopsView && finopsView.classList.contains('active')) {
+        if (window.refreshFinOpsKPIs) window.refreshFinOpsKPIs();
+        if (window.loadFinOpsWeeklyTable) window.loadFinOpsWeeklyTable();
+        if (window.loadFinOpsWeeklyEvolution) window.loadFinOpsWeeklyEvolution();
     }
+};
+
+function isValidDashboardPreset(preset) {
+    return preset && (preset in DASHBOARD_RANGE_LABELS || preset in DASHBOARD_REFRESH_MS);
+}
+
+function persistDashboardRange() {
+    const preset = document.getElementById('dashboard-range-preset')?.value || '5m';
+    const payload = { preset };
+    if (preset === 'custom') {
+        payload.fromDate = document.getElementById('dashboard-range-from-date')?.value || '';
+        payload.fromTime = document.getElementById('dashboard-range-from-time')?.value || '';
+        payload.toDate = document.getElementById('dashboard-range-to-date')?.value || '';
+        payload.toTime = document.getElementById('dashboard-range-to-time')?.value || '';
+    }
+    try {
+        localStorage.setItem(DASHBOARD_RANGE_STORAGE_KEY, JSON.stringify(payload));
+    } catch (_) { /* quota / private mode */ }
+}
+
+function readDashboardRangeStorage() {
+    try {
+        const raw = localStorage.getItem(DASHBOARD_RANGE_STORAGE_KEY);
+        if (!raw) return { preset: '5m' };
+        if (raw.startsWith('{')) return JSON.parse(raw);
+        return { preset: raw };
+    } catch {
+        return { preset: '5m' };
+    }
+}
+
+window.restoreDashboardTimeRange = function () {
+    const stored = readDashboardRangeStorage();
+    const preset = isValidDashboardPreset(stored.preset) ? stored.preset : '5m';
+    const sel = document.getElementById('dashboard-range-preset');
+    const customEl = document.getElementById('dashboard-custom-range');
+    const summary = document.getElementById('dashboard-range-summary');
+
+    if (sel) sel.value = preset;
+    syncDashboardRangeChips(preset);
+
+    if (preset === 'custom') {
+        if (customEl) customEl.style.display = 'grid';
+        if (stored.fromDate && stored.toDate) {
+            const fromDate = document.getElementById('dashboard-range-from-date');
+            const fromTime = document.getElementById('dashboard-range-from-time');
+            const toDate = document.getElementById('dashboard-range-to-date');
+            const toTime = document.getElementById('dashboard-range-to-time');
+            if (fromDate) fromDate.value = stored.fromDate;
+            if (fromTime) fromTime.value = stored.fromTime || '00:00';
+            if (toDate) toDate.value = stored.toDate;
+            if (toTime) toTime.value = stored.toTime || formatTimeInput(new Date());
+        } else {
+            fillCustomRangeDefaults();
+        }
+        if (summary) {
+            summary.textContent = formatRangeSummary(
+                `${document.getElementById('dashboard-range-from-date')?.value}T${document.getElementById('dashboard-range-from-time')?.value}`,
+                `${document.getElementById('dashboard-range-to-date')?.value}T${document.getElementById('dashboard-range-to-time')?.value}`
+            );
+        }
+        return;
+    }
+
+    if (customEl) customEl.style.display = 'none';
+    if (summary) summary.textContent = DASHBOARD_RANGE_LABELS[preset] || preset;
 };
 
 window.onDashboardRangeChange = function () {
@@ -685,17 +769,21 @@ window.onDashboardRangeChange = function () {
 
     if (preset === 'custom') {
         if (customEl) customEl.style.display = 'grid';
-        fillCustomRangeDefaults();
+        if (!document.getElementById('dashboard-range-from-date')?.value) {
+            fillCustomRangeDefaults();
+        }
         if (summary) summary.textContent = formatRangeSummary(
             `${document.getElementById('dashboard-range-from-date')?.value}T${document.getElementById('dashboard-range-from-time')?.value}`,
             `${document.getElementById('dashboard-range-to-date')?.value}T${document.getElementById('dashboard-range-to-time')?.value}`
         );
+        persistDashboardRange();
         window.runDashboardRangeFilter();
         return;
     }
 
     if (customEl) customEl.style.display = 'none';
     if (summary) summary.textContent = DASHBOARD_RANGE_LABELS[preset] || preset;
+    persistDashboardRange();
     window.runDashboardRangeFilter();
 };
 
@@ -707,22 +795,19 @@ window.reloadDashboardAnalytics = function () {
 };
 
 window.initDashboardTimeRange = function () {
-    const sel = document.getElementById('dashboard-range-preset');
-    if (sel) sel.value = '5m';
-    fillCustomRangeDefaults();
-    syncDashboardRangeChips('5m');
-    const summary = document.getElementById('dashboard-range-summary');
-    if (summary) summary.textContent = DASHBOARD_RANGE_LABELS['5m'];
-    const customEl = document.getElementById('dashboard-custom-range');
-    if (customEl) customEl.style.display = 'none';
+    window.restoreDashboardTimeRange();
 };
 
 window.fetchIncidents = function (forceRender = false, opts = {}) {
     if (!opts.skipPauseCheck && !forceRender && Date.now() < window.pausePollingUntil) return;
     const filterEl = document.getElementById('project-filter');
     const projectFilter = filterEl ? filterEl.value : 'all';
-    const rangeQ = window.getDashboardRangeQuery();
+    const rangeQ = typeof window.getDashboardRangeQueryResolved === 'function'
+        ? window.getDashboardRangeQueryResolved()
+        : window.getDashboardRangeQuery();
     if (rangeQ === null) return Promise.resolve();
+
+    const previousIncidents = window.currentIncidents || [];
 
     return fetchWithAuth(`/api/incidents?project=${encodeURIComponent(projectFilter)}&${rangeQ}&_ts=${Date.now()}&_bust=${Math.random()}`, {
         headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache', 'Expires': '0' }
@@ -744,7 +829,17 @@ window.fetchIncidents = function (forceRender = false, opts = {}) {
             const oldSig = safeCurrent.map(i => `${i.id}:${normalizeIsResolved(i)}`).join('|');
             const newSig = safeData.map(i => `${i.id}:${normalizeIsResolved(i)}`).join('|');
 
-            if (forceRender || oldSig !== newSig) { window.currentIncidents = safeData; window.renderIncidentsList(); }
+            if (forceRender || oldSig !== newSig) {
+                const prevActiveIds = new Set(
+                    previousIncidents.filter(i => !normalizeIsResolved(i)).map(i => i.id)
+                );
+                const newActive = safeData.filter(i => !normalizeIsResolved(i) && !prevActiveIds.has(i.id));
+                if (newActive.length > 0 && typeof window.playCriticalAlertSound === 'function') {
+                    window.playCriticalAlertSound();
+                }
+                window.currentIncidents = safeData;
+                window.renderIncidentsList();
+            }
             return safeData;
         })
         .catch(() => {
@@ -1078,6 +1173,8 @@ window.checkAuth = function () {
 
     pingApiServer().then(() => {
         window.applyPermissions();
+        if (window.bootstrapDashboardRangeFromPreferences) window.bootstrapDashboardRangeFromPreferences();
+        window.restoreDashboardTimeRange();
         if (window.loadUserPreferences) window.loadUserPreferences();
 
         if (payload.role === 'admin') window.loadUsers();
@@ -1168,7 +1265,7 @@ window.switchView = function (id, el) {
     if (el) el.classList.add('active');
 
     if (id === 'dashboard') {
-        window.initDashboardTimeRange();
+        window.restoreDashboardTimeRange();
         window.loadDashboardFilters();
         window.pausePollingUntil = 0;
         if (window.loadAnalyticsLayoutFromPrefs) window.loadAnalyticsLayoutFromPrefs();

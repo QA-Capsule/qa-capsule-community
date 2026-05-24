@@ -1,17 +1,17 @@
 {
-  "auto_run": false,
+  "auto_run": true,
   "config": {
-    "SMTP_FROM": "",
-    "SMTP_HOST": "",
-    "SMTP_PASS": "",
+    "SMTP_FROM": "achraf@qa-cap,com",
+    "SMTP_HOST": "sandbox.smtp.mailtrap.io",
+    "SMTP_PASS": "5768cda5d786f5",
     "SMTP_PORT": "587",
-    "SMTP_TO": "",
-    "SMTP_USER": ""
+    "SMTP_TO": "admin@arkom.com",
+    "SMTP_USER": "11a704f61d6563"
   },
   "description": "Sends a plain-text alert via SMTP (TLS). Works with corporate relay or providers like Office365 / Gmail SMTP.",
   "integration": "smtp",
   "name": "Email — SMTP",
-  "routing_enabled": false,
+  "routing_enabled": true,
   "status": "Active",
   "trigger_on": [
     "CRITICAL",

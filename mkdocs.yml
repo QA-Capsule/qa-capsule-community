@@ -47,7 +47,11 @@ markdown_extensions:
   - attr_list
   - md_in_html
   - pymdownx.details
-  - pymdownx.superfences
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.tabbed:
       alternate_style: true
   - pymdownx.highlight:
@@ -75,6 +79,10 @@ nav:
       - GitHub Actions: integration/github.md
       - GitLab CI: integration/gitlab.md
       - Jenkins: integration/jenkins.md
+  - Architecture & Guides:
+      - Design Schemas & Diagrams: guides/design-diagrams.md
+      - System Architecture: guides/architecture.md
+      - Platform User Guide: guides/platform-user-guide.md
   - Dashboard & Operations:
       - Dashboard Guide: guides/dashboard-operations.md
       - Incident Lifecycle: guides/incident-lifecycle.md

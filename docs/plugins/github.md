@@ -8,7 +8,7 @@ icon: fontawesome/brands/github
   <img src="../assets/integrations/github.png" alt="GitHub logo">
 </div>
 
-Déclenche un workflow GitHub via `POST /repos/{owner}/{repo}/actions/workflows/{id}/dispatches`.
+Triggers a GitHub workflow via `POST /repos/{owner}/{repo}/actions/workflows/{id}/dispatches`.
 
 | | |
 |---|---|
@@ -17,31 +17,31 @@ Déclenche un workflow GitHub via `POST /repos/{owner}/{repo}/actions/workflows/
 
 ---
 
-=== "Côté QA Capsule"
+=== "QA Capsule Side"
 
-    | Variable | Obligatoire | Gateway |
+    | Variable | Required | Gateway |
     |----------|-------------|---------|
-    | `GITHUB_TOKEN` | **Oui** | PAT fine-grained ou classic |
-    | `GITHUB_OWNER` | **Oui** | Owner |
-    | `GITHUB_REPO` | **Oui** | Repository |
-    | `GITHUB_WORKFLOW_ID` | **Oui** | ID numérique ou nom fichier `ci.yml` |
-    | `GITHUB_REF` | Non | Branche (défaut `main`) |
+    | `GITHUB_TOKEN` | **Yes** | Fine-grained or classic PAT |
+    | `GITHUB_OWNER` | **Yes** | Owner |
+    | `GITHUB_REPO` | **Yes** | Repository |
+    | `GITHUB_WORKFLOW_ID` | **Yes** | Numeric ID or filename `ci.yml` |
+    | `GITHUB_REF` | No | Branch (default `main`) |
 
-    Inputs dispatch : `triggered_by: qa-capsule`, `incident: <résumé>`.
+    Dispatch inputs: `triggered_by: qa-capsule`, `incident: <summary>`.
 
-    Succès : HTTP **204**.
+    Success: HTTP **204**.
 
-=== "Côté fournisseur (GitHub)"
+=== "Provider Side (GitHub)"
 
     ## 1. Personal Access Token
 
-    1. GitHub → **Settings** → **Developer settings** → **Fine-grained tokens** (recommandé)
-    2. Repository access : repo cible uniquement
-    3. Permissions : **Actions: Read and write**, **Contents: Read** (selon workflow)
+    1. GitHub → **Settings** → **Developer settings** → **Fine-grained tokens** (recommended)
+    2. Repository access: target repo only
+    3. Permissions: **Actions: Read and write**, **Contents: Read** (depending on workflow)
 
-    ## 2. Workflow déclenchable
+    ## 2. Dispatchable workflow
 
-    Le workflow cible doit avoir :
+    The target workflow must have:
 
     ```yaml
     on:
@@ -53,10 +53,10 @@ Déclenche un workflow GitHub via `POST /repos/{owner}/{repo}/actions/workflows/
             required: false
     ```
 
-    ## 3. Trouver WORKFLOW_ID
+    ## 3. Find WORKFLOW_ID
 
-    - URL Actions du workflow → ID dans l’API
-    - Ou utiliser le nom du fichier : `ci.yml`
+    - Workflow Actions URL → ID in the API
+    - Or use the filename: `ci.yml`
 
     ## 4. Test
 
@@ -69,4 +69,4 @@ Déclenche un workflow GitHub via `POST /repos/{owner}/{repo}/actions/workflows/
 
 ---
 
-- [Catalogue](integrations-catalog.md)
+- [Catalog](integrations-catalog.md)

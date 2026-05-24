@@ -2,7 +2,7 @@
 icon: material/puzzle-outline
 ---
 
-# Plugin Engine (intégrations natives Go)
+# Plugin Engine (native Go integrations)
 
 <div align="center" class="integration-hero">
   <img src="../assets/integrations/slack.png" alt="Slack" style="margin:4px">
@@ -12,105 +12,105 @@ icon: material/puzzle-outline
   <img src="../assets/integrations/github.png" alt="GitHub" style="margin:4px">
 </div>
 
-Le moteur de remédiation exécute des appels **HTTP natifs** (Slack, Jira, PagerDuty, …). Les scripts shell ne sont **plus** exécutés (prévention RCE). Le code vit dans `pkg/integrations/` (`registry.go`, `engine.go`, `runners.go`, `routing_schema.go`).
+The remediation engine executes **native HTTP** calls (Slack, Jira, PagerDuty, …). Shell scripts are **no longer** executed (RCE prevention). The code lives in `pkg/integrations/` (`registry.go`, `engine.go`, `runners.go`, `routing_schema.go`).
 
 ---
 
-## Documentation recommandée
+## Recommended Documentation
 
-1. **[Guide de configuration — deux côtés](configuration-guide.md)** — QA Capsule vs fournisseur
-2. **[Catalogue avec logos](integrations-catalog.md)** — tableau de toutes les intégrations
-3. Page par outil (Slack, Jira, …) — onglets **Côté QA Capsule** / **Côté fournisseur**
+1. **[Configuration Guide — two sides](configuration-guide.md)** — QA Capsule vs provider
+2. **[Catalog with logos](integrations-catalog.md)** — table of all integrations
+3. Per-tool pages (Slack, Jira, …) — **QA Capsule side** / **Provider side** tabs
 
 ---
 
 ## Architecture
 
-| Couche | Rôle |
+| Layer | Role |
 |--------|------|
 | `plugins/**/*.json` | Manifests (integration, trigger_on, auto_run) |
-| `pkg/integrations` | Registry + runners HTTP |
+| `pkg/integrations` | Registry + HTTP runners |
 | Plugin Engine UI | Configure, AUTO-RUN, Execute |
-| CI/CD Gateway | Routage par pipeline (**Add configuration**) |
+| CI/CD Gateway | Pipeline routing (**Add configuration**) |
 
-Chargement **une fois au démarrage** du serveur. Modifier un manifest → redémarrer QA Capsule.
+Loaded **once at server startup**. After modifying a manifest → restart QA Capsule.
 
 ```mermaid
 sequenceDiagram
-  participant CI as Pipeline CI/CD
+  participant CI as CI/CD Pipeline
   participant WH as POST /api/webhooks/
   participant ING as Ingestion
-  participant ENG as Plugin Engine Go
-  participant EXT as Fournisseur (Slack, Jira, …)
+  participant ENG as Go Plugin Engine
+  participant EXT as Provider (Slack, Jira, …)
 
-  CI->>WH: Échec test + X-API-Key
-  WH->>ING: Corrélation fingerprint + incident DB
+  CI->>WH: Test failure + X-API-Key
+  WH->>ING: Fingerprint correlation + incident DB
   ING->>ENG: EvaluateAlertRules (async)
   Note over ENG: status Active + auto_run + trigger_on + gateway
   ENG->>EXT: HTTP POST (timeout 30s)
-  EXT-->>ENG: 2xx / erreur
-  ENG-->>ING: logs Plugin Engine (Execute / auto)
+  EXT-->>ENG: 2xx / error
+  ENG-->>ING: Plugin Engine logs (Execute / auto)
 ```
 
 ---
 
-## Cycle de vie d’un déclenchement
+## Trigger Lifecycle
 
-| Étape | Composant | Détail |
+| Step | Component | Detail |
 |-------|-----------|--------|
-| 1 | Webhook | `POST /api/webhooks/` avec clé projet ; payload JSON ou JUnit |
-| 2 | Ingestion | Création/mise à jour incident, tags `[FLAKY]` / `[PERF]`, fingerprint |
-| 3 | Contexte projet | `ProjectAlertContext` charge `sre_routing_json` + colonnes legacy |
-| 4 | Filtre gateway | Si le projet a des entrées SRE routing, **seuls** les manifests listés (`file_path`) peuvent partir en auto |
-| 5 | Moteur | `EvaluateAlertRules` parcourt le registry ; match sur texte alerte (`name` + `error` + `console_logs`) |
-| 6 | Runner | `runSlack`, `runJira`, … — un goroutine par intégration déclenchée |
+| 1 | Webhook | `POST /api/webhooks/` with project key; JSON or JUnit payload |
+| 2 | Ingestion | Create/update incident, `[FLAKY]` / `[PERF]` tags, fingerprint |
+| 3 | Project context | `ProjectAlertContext` loads `sre_routing_json` + legacy columns |
+| 4 | Gateway filter | If the project has SRE routing entries, **only** listed manifests (`file_path`) may auto-run |
+| 5 | Engine | `EvaluateAlertRules` iterates the registry; match on alert text (`name` + `error` + `console_logs`) |
+| 6 | Runner | `runSlack`, `runJira`, … — one goroutine per triggered integration |
 
-### Conditions pour un AUTO-RUN (les quatre doivent être vraies)
+### Conditions for AUTO-RUN (all four must be true)
 
-1. Manifest `status` = **Active** (insensible à la casse)
+1. Manifest `status` = **Active** (case-insensitive)
 2. Manifest `auto_run` = **true**
-3. Au moins un mot-clé de `trigger_on` apparaît dans le texte de l’alerte (insensible à la casse)
-4. **Gateway** : si le projet a au moins une ligne **Add configuration**, seules ces intégrations sont autorisées ; sinon fallback sur colonnes legacy (`slack_channel`, `jira_project_key`, `teams_webhook`)
+3. At least one keyword from `trigger_on` appears in the alert text (case-insensitive)
+4. **Gateway**: if the project has at least one **Add configuration** row, only those integrations are allowed; otherwise fallback to legacy columns (`slack_channel`, `jira_project_key`, `teams_webhook`)
 
-!!! warning "Scripts shell ignorés"
-    Les anciens manifests avec `"command": "bash ..."` ne sont **jamais** exécutés. Seul le champ `"integration"` (ou le dossier sous `plugins/`) détermine le runner Go.
+!!! warning "Shell scripts ignored"
+    Legacy manifests with `"command": "bash ..."` are **never** executed. Only the `"integration"` field (or the folder under `plugins/`) determines the Go runner.
 
 ---
 
-## Priorité de configuration
+## Configuration Priority
 
-Pour chaque clé (`SLACK_WEBHOOK_URL`, `JIRA_PROJECT_KEY`, …) :
+For each key (`SLACK_WEBHOOK_URL`, `JIRA_PROJECT_KEY`, …):
 
-| Priorité | Source | Exemple |
+| Priority | Source | Example |
 |:--------:|--------|---------|
-| 1 (la plus forte) | Variable d’environnement du **processus Go** | `export SLACK_WEBHOOK_URL=...` |
-| 2 | Valeurs du **CI/CD Gateway** (`sre_routing[].values` + colonnes legacy) | `#alerts-checkout`, clé Jira `PAY` |
-| 3 | Manifest `config` / `env` dans `plugins/**/*.json` | Valeurs par défaut non sensibles |
+| 1 (highest) | **Go process** environment variable | `export SLACK_WEBHOOK_URL=...` |
+| 2 | **CI/CD Gateway** values (`sre_routing[].values` + legacy columns) | `#alerts-checkout`, Jira key `PAY` |
+| 3 | Manifest `config` / `env` in `plugins/**/*.json` | Non-sensitive default values |
 
-Fusion côté code : `mergedConfig(manifest, routing)` puis lecture via `configVal()` qui lit d’abord `os.Getenv`.
+Code-side merge: `mergedConfig(manifest, routing)` then read via `configVal()` which checks `os.Getenv` first.
 
 ---
 
-## Runners natifs (type → HTTP)
+## Native Runners (type → HTTP)
 
-| Logo | `integration` | Runner | API / protocole |
+| Logo | `integration` | Runner | API / protocol |
 |:----:|---------------|--------|-----------------|
 | ![Slack](../assets/integrations/slack.png){ width="24" } | `slack` | `runSlack` | Incoming Webhook JSON |
-| ![Teams](../assets/integrations/teams.png){ width="24" } | `teams` | `runTeams` | Connector Office 365 |
+| ![Teams](../assets/integrations/teams.png){ width="24" } | `teams` | `runTeams` | Office 365 Connector |
 | ![Jira](../assets/integrations/jira.png){ width="24" } | `jira` | `runJira` | REST API v3 (Basic auth) |
 | ![PagerDuty](../assets/integrations/pagerduty.png){ width="24" } | `pagerduty` | `runPagerDuty` | Events API v2 |
 | ![Opsgenie](../assets/integrations/opsgenie.png){ width="24" } | `opsgenie` | `runOpsgenie` | Alert API |
 | ![VictorOps](../assets/integrations/victorops.png){ width="24" } | `victorops` | `runVictorOps` | REST incident |
 | ![Datadog](../assets/integrations/datadog.png){ width="24" } | `datadog` | `runDatadog` | Events API |
-| ![Webhook](../assets/integrations/webhook.png){ width="24" } | `webhook` | `runWebhook` | POST JSON générique |
+| ![Webhook](../assets/integrations/webhook.png){ width="24" } | `webhook` | `runWebhook` | Generic JSON POST |
 | ![GitHub](../assets/integrations/github.png){ width="24" } | `github` | `runGitHub` | `workflow_dispatch` |
-| ![Email](../assets/integrations/email.png){ width="24" } | `sendgrid` / `smtp` | `runSendGrid` / `runSMTP` | API ou SMTP |
-| ![TestRail](../assets/integrations/testrail.png){ width="24" } | `testrail`, `zephyr`, `xray`, `qa` | `runWebhook` | URL configurée |
+| ![Email](../assets/integrations/email.png){ width="24" } | `sendgrid` / `smtp` | `runSendGrid` / `runSMTP` | API or SMTP |
+| ![TestRail](../assets/integrations/testrail.png){ width="24" } | `testrail`, `zephyr`, `xray`, `qa` | `runWebhook` | Configured URL |
 | ![K8s](../assets/integrations/k8s.png){ width="24" } | `k8s` | `runK8sStub` | Stub (roadmap) |
 
 ---
 
-## Champs manifest
+## Manifest Fields
 
 ```json
 {
@@ -123,18 +123,18 @@ Fusion côté code : `mergedConfig(manifest, routing)` puis lecture via `configV
 }
 ```
 
-| Champ | Description |
+| Field | Description |
 |-------|-------------|
-| `integration` | Type Go : `slack`, `jira`, `teams`, … |
-| `status` | `Active` = visible dans le dropdown gateway |
-| `auto_run` | Si `false`, pas de déclenchement auto sur webhook |
-| `trigger_on` | Mots-clés dans nom/erreur/logs |
+| `integration` | Go type: `slack`, `jira`, `teams`, … |
+| `status` | `Active` = visible in gateway dropdown |
+| `auto_run` | If `false`, no auto-trigger on webhook |
+| `trigger_on` | Keywords in name/error/logs |
 
 ---
 
 ## Secrets
 
-Ordre de priorité : **variable d’environnement serveur** > `config` / `env` dans le JSON.
+Priority order: **server environment variable** > `config` / `env` in JSON.
 
 ```bash
 export SLACK_WEBHOOK_URL=https://hooks.slack.com/...
@@ -142,16 +142,16 @@ export SLACK_WEBHOOK_URL=https://hooks.slack.com/...
 
 ---
 
-## AUTO-RUN et gateway
+## AUTO-RUN and Gateway
 
-- **Manager / Admin** : bouton AUTO-RUN dans Plugin Engine
-- **Manager / Lead** : **Add configuration** sur chaque pipeline — seules ces intégrations sont déclenchées pour ce projet
+- **Manager / Admin**: AUTO-RUN button in Plugin Engine
+- **Manager / Lead**: **Add configuration** on each pipeline — only these integrations are triggered for that project
 
 ---
 
 ## API
 
-| Méthode | Path |
+| Method | Path |
 |---------|------|
 | GET | `/api/plugins` |
 | GET | `/api/plugins/active` |
@@ -161,6 +161,6 @@ export SLACK_WEBHOOK_URL=https://hooks.slack.com/...
 
 ---
 
-## Guides par fournisseur
+## Provider Guides
 
 [Slack](slack.md) · [Teams](teams.md) · [Jira](jira.md) · [PagerDuty](pagerduty.md) · [Opsgenie](opsgenie.md) · [VictorOps](victorops.md) · [Datadog](datadog.md) · [Webhook](webhook.md) · [GitHub](github.md) · [Email](email.md) · [Test management](test-management.md) · [Kubernetes](k8s.md)

@@ -44,6 +44,7 @@ type Config struct {
 		AdminUser     string `yaml:"admin_user" json:"admin_user"`
 		AdminPass     string `yaml:"admin_pass" json:"-"`
 		AllowedDomain string `yaml:"allowed_domain" json:"allowed_domain"`
+		JWTSecret     string `yaml:"jwt_secret" json:"-"`
 	} `yaml:"security" json:"security"`
 	Telemetry TelemetryConfig `yaml:"telemetry" json:"telemetry"`
 	Projects []ProjectConfig `yaml:"projects" json:"projects"`

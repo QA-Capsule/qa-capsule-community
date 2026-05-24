@@ -65,6 +65,20 @@ func TestEvaluateCondition_flakyPrefix(t *testing.T) {
 	}
 }
 
+func TestEvaluateCondition_textEquals(t *testing.T) {
+	ctx := WorkflowContext{
+		Incident: IncidentContext{Error: "upstream timeout after 30s"},
+	}
+	contains := &ConditionExpr{Op: "text", Match: "contains", Field: "incident.error", Value: "timeout"}
+	if !EvaluateCondition(contains, ctx) {
+		t.Fatal("expected contains match")
+	}
+	equals := &ConditionExpr{Op: "text", Match: "equals", Field: "incident.error", Value: "upstream timeout after 30s"}
+	if !EvaluateCondition(equals, ctx) {
+		t.Fatal("expected equals match on error field")
+	}
+}
+
 func TestWorkflowEngine_runsActionOnBranch(t *testing.T) {
 	pluginsDir := filepath.Join("..", "..", "plugins")
 	if _, err := os.Stat(pluginsDir); err != nil {

@@ -10,72 +10,72 @@ icon: material/clipboard-check
   <img src="../assets/integrations/xray.png" alt="Xray">
 </div>
 
-| Outil | Manifest | Type |
+| Tool | Manifest | Type |
 |-------|----------|------|
 | TestRail | `testrail/testrail-result.json` | `testrail` |
 | Zephyr Scale | `zephyr/zephyr-execution.json` | `zephyr` |
 | Xray Cloud | `xray/xray-result.json` | `xray` |
 
-Le moteur community utilise le **runner webhook** : configurez une URL réceptrice par outil.
+The community engine uses the **webhook runner**: configure a receiver URL per tool.
 
 ---
 
 === "TestRail"
 
-    === "Côté QA Capsule"
+    === "QA Capsule Side"
 
         | Variable | Usage |
         |----------|--------|
-        | `WEBHOOK_URL` | URL de votre bridge ou middleware |
+        | `WEBHOOK_URL` | URL of your bridge or middleware |
         | Gateway | **TestRail Webhook URL** |
 
-        Variables documentées pour une future API native :
+        Variables documented for a future native API:
 
         | Variable | Description |
         |----------|-------------|
         | `TESTRAIL_URL` | Instance |
-        | `TESTRAIL_USER` | Utilisateur API |
-        | `TESTRAIL_API_KEY` | Clé API |
-        | `TESTRAIL_RUN_ID` | Run actif |
-        | `TESTRAIL_CASE_ID` | Cas en échec |
+        | `TESTRAIL_USER` | API user |
+        | `TESTRAIL_API_KEY` | API key |
+        | `TESTRAIL_RUN_ID` | Active run |
+        | `TESTRAIL_CASE_ID` | Failing case |
 
-    === "Côté fournisseur (TestRail)"
+    === "Provider Side (TestRail)"
 
-        1. TestRail → profil utilisateur → **API Key**
-        2. Créer un run de test ; noter **Run ID** et **Case ID**
-        3. Option : middleware (Azure Function, small service) qui reçoit le JSON QA Capsule et appelle l’API TestRail `add_result_for_case`
+        1. TestRail → user profile → **API Key**
+        2. Create a test run; note **Run ID** and **Case ID**
+        3. Option: middleware (Azure Function, small service) that receives the QA Capsule JSON and calls the TestRail `add_result_for_case` API
 
 === "Zephyr Scale"
 
-    === "Côté QA Capsule"
+    === "QA Capsule Side"
 
-        Gateway : **Zephyr Webhook URL** → `WEBHOOK_URL` effectif.
+        Gateway: **Zephyr Webhook URL** → effective `WEBHOOK_URL`.
 
-        Variables futures : `ZEPHYR_API_TOKEN`, `ZEPHYR_PROJECT_KEY`, `ZEPHYR_TEST_CASE_KEY`.
+        Future variables: `ZEPHYR_API_TOKEN`, `ZEPHYR_PROJECT_KEY`, `ZEPHYR_TEST_CASE_KEY`.
 
-    === "Côté fournisseur (Zephyr)"
+    === "Provider Side (Zephyr)"
 
         1. Jira → Zephyr Scale → **API Keys**
-        2. Documenter clés de cas de test (`PROJ-T42`)
-        3. Webhook ou automation Jira pour marquer exécution en échec
+        2. Document test case keys (`PROJ-T42`)
+        3. Webhook or Jira automation to mark execution as failed
 
 === "Xray Cloud"
 
-    === "Côté QA Capsule"
+    === "QA Capsule Side"
 
-        Gateway : **Xray Webhook URL**.
+        Gateway: **Xray Webhook URL**.
 
-        Variables futures : `XRAY_CLIENT_ID`, `XRAY_CLIENT_SECRET`, `XRAY_TEST_KEY`.
+        Future variables: `XRAY_CLIENT_ID`, `XRAY_CLIENT_SECRET`, `XRAY_TEST_KEY`.
 
-    === "Côté fournisseur (Xray)"
+    === "Provider Side (Xray)"
 
         1. Xray Cloud → **API Keys** (OAuth client)
-        2. Associer tests Jira ; utiliser clés d’exécution
-        3. Middleware recommandé jusqu’à runner natif Xray
+        2. Associate Jira tests; use execution keys
+        3. Middleware recommended until native Xray runner
 
 ---
 
-## Payload QA Capsule reçu par votre webhook
+## QA Capsule payload received by your webhook
 
 ```json
 {
@@ -89,4 +89,4 @@ Le moteur community utilise le **runner webhook** : configurez une URL réceptri
 
 ---
 
-- [Webhook](webhook.md) · [Catalogue](integrations-catalog.md)
+- [Webhook](webhook.md) · [Catalog](integrations-catalog.md)

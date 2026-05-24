@@ -68,21 +68,7 @@ func ComputeDORAMetrics(project string, from, to time.Time) DORAMetrics {
 		out.ChangeFailureRate = float64(failed) / float64(deploys)
 	}
 
-	leadArgs := []interface{}{fromS, toS}
-	leadFilter := ""
-	if project != "" {
-		leadFilter = " AND i.project_name = ? "
-		leadArgs = append(leadArgs, project)
-	}
-	var leadMedian sql.NullFloat64
-	_ = DB.QueryRow(fmt.Sprintf(`
-		SELECT AVG((julianday(i.created_at) - julianday(p.started_at)) * 24 * 60)
-		FROM incidents i
-		INNER JOIN pipeline_runs p ON p.project_name = i.project_name AND p.pipeline_run_id = i.pipeline_run_id
-		WHERE i.created_at >= ? AND i.created_at <= ? %s`, leadFilter), leadArgs...).Scan(&leadMedian)
-	if leadMedian.Valid {
-		out.LeadTimeMinutesMedian = leadMedian.Float64
-	}
+	out.LeadTimeMinutesMedian = queryLeadTimeMedian(fromS, toS, project)
 
 	mttrArgs := []interface{}{fromS, toS}
 	mttrFilter := " AND created_at >= ? AND created_at <= ? "
@@ -144,6 +130,44 @@ func loadDORASeries(project string, from, to time.Time) []DORABucket {
 		series = append(series, b)
 	}
 	return series
+}
+
+func queryLeadTimeMedian(fromS, toS, project string) float64 {
+	args := []interface{}{fromS, toS}
+	filter := ""
+	if project != "" {
+		filter = " AND i.project_name = ? "
+		args = append(args, project)
+	}
+	rows, err := DB.Query(fmt.Sprintf(`
+		SELECT (julianday(i.created_at) - julianday(p.started_at)) * 24 * 60 AS lead_min
+		FROM incidents i
+		INNER JOIN pipeline_runs p ON p.project_name = i.project_name AND p.pipeline_run_id = i.pipeline_run_id
+		WHERE i.created_at >= ? AND i.created_at <= ? %s
+		ORDER BY lead_min`, filter), args...)
+	if err != nil {
+		return 0
+	}
+	defer rows.Close()
+	var values []float64
+	for rows.Next() {
+		var v float64
+		if rows.Scan(&v) == nil {
+			values = append(values, v)
+		}
+	}
+	return medianFloat64(values)
+}
+
+func medianFloat64(values []float64) float64 {
+	n := len(values)
+	if n == 0 {
+		return 0
+	}
+	if n%2 == 1 {
+		return values[n/2]
+	}
+	return (values[n/2-1] + values[n/2]) / 2
 }
 
 func countCorrelatedIncidents(project string, from, to time.Time) int {

@@ -8,51 +8,51 @@ icon: material/email
   <img src="../assets/integrations/email.png" alt="Email">
 </div>
 
-Deux manifests distincts sous `plugins/email/` :
+Two separate manifests under `plugins/email/`:
 
-| Manifest | Type | Protocole |
+| Manifest | Type | Protocol |
 |----------|------|-----------|
-| `sendgrid-alert.json` | `sendgrid` | API SendGrid v3 |
+| `sendgrid-alert.json` | `sendgrid` | SendGrid API v3 |
 | `smtp-alert.json` | `smtp` | SMTP (STARTTLS) |
 
 ---
 
 === "SendGrid"
 
-    === "Côté QA Capsule"
+    === "QA Capsule Side"
 
-        | Variable | Obligatoire |
+        | Variable | Required |
         |----------|-------------|
-        | `SENDGRID_API_KEY` | **Oui** |
-        | `SENDGRID_FROM` | **Oui** |
-        | `SENDGRID_TO` | **Oui** (ou gateway **Alert Email To**) |
+        | `SENDGRID_API_KEY` | **Yes** |
+        | `SENDGRID_FROM` | **Yes** |
+        | `SENDGRID_TO` | **Yes** (or gateway **Alert Email To**) |
 
-        Succès API : HTTP **202**.
+        API success: HTTP **202**.
 
-    === "Côté fournisseur (SendGrid)"
+    === "Provider Side (SendGrid)"
 
-        1. [sendgrid.com](https://sendgrid.com) → **Settings** → **API Keys** → créer clé **Mail Send**
-        2. **Sender Authentication** : domaine ou Single Sender vérifié → adresse `SENDGRID_FROM`
-        3. Destinataire `SENDGRID_TO` = liste on-call / mailing list
+        1. [sendgrid.com](https://sendgrid.com) → **Settings** → **API Keys** → create **Mail Send** key
+        2. **Sender Authentication**: verified domain or Single Sender → `SENDGRID_FROM` address
+        3. `SENDGRID_TO` recipient = on-call list / mailing list
 
 === "SMTP"
 
-    === "Côté QA Capsule"
+    === "QA Capsule Side"
 
-        | Variable | Défaut | Description |
+        | Variable | Default | Description |
         |----------|--------|-------------|
-        | `SMTP_HOST` | — | Serveur |
+        | `SMTP_HOST` | — | Server |
         | `SMTP_PORT` | `587` | Port |
         | `SMTP_USER` / `SMTP_PASS` | — | Auth |
-        | `SMTP_FROM` | — | Expéditeur |
-        | `SMTP_TO` | — | Destinataire (gateway possible) |
+        | `SMTP_FROM` | — | Sender |
+        | `SMTP_TO` | — | Recipient (gateway optional) |
 
-    === "Côté fournisseur (SMTP)"
+    === "Provider Side (SMTP)"
 
-        1. Obtenir relais corporate (Exchange, Postfix, Mailtrap pour dev)
-        2. Autoriser l’IP du serveur QA Capsule en relay si nécessaire
-        3. SPF/DKIM alignés sur `SMTP_FROM`
+        1. Obtain corporate relay (Exchange, Postfix, Mailtrap for dev)
+        2. Allow QA Capsule server IP as relay if required
+        3. SPF/DKIM aligned with `SMTP_FROM`
 
 ---
 
-- [Catalogue](integrations-catalog.md)
+- [Catalog](integrations-catalog.md)

@@ -16,6 +16,16 @@ func NewEngine(repo Repository, policy PolicyConfig) *Engine {
 	return &Engine{repo: repo, policy: policy}
 }
 
+// IsQuarantined returns true when the test is on the active deny list.
+func (e *Engine) IsQuarantined(ctx context.Context, projectName, testName string) bool {
+	if e == nil || e.repo == nil {
+		return false
+	}
+	fp := TestIdentityFingerprint(projectName, testName)
+	ent, err := e.repo.ActiveEntry(ctx, projectName, fp)
+	return err == nil && ent != nil
+}
+
 func (e *Engine) RecordTransition(ctx context.Context, ev TransitionEvent) (*Decision, error) {
 	if e == nil || e.repo == nil {
 		return nil, nil

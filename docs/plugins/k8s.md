@@ -12,45 +12,45 @@ icon: material/kubernetes
 |---|---|
 | **Manifest** | `plugins/k8s/k8s-restart.json` |
 | **Type** | `k8s` |
-| **État** | **Stub** — pas d’accès cluster en community (sécurité) |
+| **Status** | **Stub** — no cluster access in community edition (security) |
 
 ---
 
-=== "Côté QA Capsule"
+=== "QA Capsule Side"
 
-    L’intégration `k8s` retourne un message explicite invitant à utiliser un **webhook** vers GitOps / opérateur.
+    The `k8s` integration returns an explicit message directing you to use a **webhook** to GitOps / an operator.
 
-    ## Pattern recommandé
+    ## Recommended pattern
 
-    1. Activer l’intégration **Custom Webhook** ou **GitHub Actions**
-    2. Gateway : URL vers votre contrôleur (ex. restart deployment, sync Argo CD)
-    3. Payload standard QA Capsule (voir [webhook.md](webhook.md))
+    1. Enable the **Custom Webhook** or **GitHub Actions** integration
+    2. Gateway: URL to your controller (e.g. restart deployment, Argo CD sync)
+    3. Standard QA Capsule payload (see [webhook.md](webhook.md))
 
-    ## Gateway k8s (optionnel)
+    ## k8s gateway (optional)
 
-    Champ **GitOps / Operator Webhook URL** → même runner que `webhook`.
+    **GitOps / Operator Webhook URL** field → same runner as `webhook`.
 
-=== "Côté fournisseur (Kubernetes / GitOps)"
+=== "Provider Side (Kubernetes / GitOps)"
 
-    ## 1. Ne pas exposer kubeconfig à QA Capsule
+    ## 1. Do not expose kubeconfig to QA Capsule
 
-    Préférer un service intermédiaire qui :
+    Prefer an intermediary service that:
 
-    - Valide un token webhook
-    - Applique une action limitée (rollout restart, scale, sync)
+    - Validates a webhook token
+    - Applies a limited action (rollout restart, scale, sync)
 
-    ## 2. Exemples d’outils
+    ## 2. Example tools
 
-    | Outil | Rôle |
+    | Tool | Role |
     |-------|------|
-    | Argo CD | Sync application après incident |
+    | Argo CD | Sync application after incident |
     | Flux | Reconcile GitOps |
-    | API interne | `kubectl rollout restart` encapsulé |
+    | Internal API | Encapsulated `kubectl rollout restart` |
 
-    ## 3. RBAC cluster
+    ## 3. Cluster RBAC
 
-    ServiceAccount dédié avec droits minimaux sur un namespace cible.
+    Dedicated ServiceAccount with minimal permissions on a target namespace.
 
 ---
 
-- [Webhook](webhook.md) · [Catalogue](integrations-catalog.md)
+- [Webhook](webhook.md) · [Catalog](integrations-catalog.md)

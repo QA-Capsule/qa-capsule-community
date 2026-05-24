@@ -99,12 +99,12 @@ func (e *Engine) EvaluateAlertRules(alertName, alertError, alertConsole, alertSt
 		inc := incBase
 		inc.Action = "AUTO_EVENT:" + alertName
 		slog.Info("remediation auto-trigger", "integration", m.Integration, "name", m.Name)
-		go func() {
+		RunRemediationAsync(func() {
 			res := e.runManifest(context.Background(), mCopy, inc, routing)
 			if !res.Success {
 				slog.Warn("remediation failed", "integration", mCopy.Integration, "logs", res.Logs)
 			}
-		}()
+		})
 	}
 }
 

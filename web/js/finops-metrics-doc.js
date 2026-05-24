@@ -80,7 +80,7 @@ export const FINOPS_METRICS_DOC_HTML = `
   ${formulaBlock('Impact_total = (M_total × C_ci) + (N × C_invest)')}
   ${formulaBlock('Impact_total = N × (T_pipe × C_ci + C_invest)')}
   <p>
-    Per-incident fully loaded cost (used in QCL FinOps metrics):
+    Per-incident fully loaded cost (used in dashboard FinOps analytics):
   </p>
   ${formulaBlock('C_incident = (T_pipe × C_ci) + C_invest')}
 
@@ -93,7 +93,7 @@ export const FINOPS_METRICS_DOC_HTML = `
   ${formulaBlock('WastePct = (Impact_flaky / Impact_total) × 100   when Impact_total > 0')}
   <p>
     A rising WastePct with flat N indicates deteriorating test hygiene rather than organic traffic growth.
-    Pair with <code>flaky_ratio</code> in QCL dashboards for gateway-level attribution.
+    Pair with <code>flaky_ratio</code> in dashboard analytics for gateway-level attribution.
   </p>
 
   <h3>7. MTTR — Mean Time To Resolution</h3>
@@ -140,8 +140,8 @@ export const FINOPS_METRICS_DOC_HTML = `
     Use this for chargeback conversations with service owners.
   </p>
 
-  <h3>11. Metrics (QCL) — FinOps tokens</h3>
-  <p>When composing QCL queries (see Help Center → Metrics), these <code>METRIC</code> tokens map directly to the formulas above:</p>
+  <h3>11. Dashboard analytics — FinOps metric IDs</h3>
+  <p>When customizing Operations analytics tiles (Help Center → Dashboard analytics), these metric IDs map to the formulas above:</p>
   <table class="about-table">
     <thead><tr><th>METRIC</th><th>Aggregation</th></tr></thead>
     <tbody>
