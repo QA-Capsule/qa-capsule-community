@@ -16,8 +16,11 @@ POST /api/webhooks/upload?framework={FrameworkName}
 
 | Parameter | Location | Required | Description |
 |---|---|---|---|
-| `framework` | Query string | Recommended | `Playwright`, `Cypress`, `Pytest`, `JUnit`, `RobotFramework`, etc. |
+| `framework` | Query string | Recommended | `Playwright`, `Cypress`, `Pytest`, `JUnit`, `RobotFramework`, `Postman`, etc. |
 | `X-API-Key` | HTTP Header | **Yes** | Project API key from CI/CD Gateways |
+| `X-Run-Id` | HTTP Header | Recommended | Groups results in Telemetry Stream (`github.run_id`, `$CI_PIPELINE_ID`, …) |
+| `X-Execution-Env` | HTTP Header | Optional | `PROD`, `STAGING`, `DEV`, `CANARY` |
+| `X-Execution-Type` | HTTP Header | Optional | `TEST-RUN`, `SMOKE`, `NIGHTLY`, `REAL` |
 | `file` | Multipart body | **Yes** | JUnit XML file (max 10 MB) |
 
 ---
@@ -47,7 +50,12 @@ For each `<testcase>` that contains a `<failure>` or `<error>` child, QA Capsule
 | Standard error | `<system-err>` | `incidents.error_logs` |
 | Fingerprint | SHA-256(`name` + `error`) | `incidents.fingerprint` |
 
-Passed tests are **ignored** — only failures create incidents.
+The full report stores **all** test cases (pass, fail, skip) for the unified matrix view. Failed `<testcase>` nodes also create **incidents** (unless quarantined or deduplicated by fingerprint).
+
+!!! note "Robot Framework nested suites"
+    rebot xUnit may nest `<testsuite>` elements. QA Capsule flattens nested suites when building the execution report. Use `rebot --xunit robot-junit.xml --outputdir tests/results` (basename only for `--xunit`).
+
+See [All test frameworks](test-frameworks.md) (Playwright, Cypress, Pytest, Robot, Newman, JUnit, …).
 
 ---
 
@@ -135,14 +143,16 @@ e2e_tests:
 }
 ```
 
-### `200 OK` — No failures in XML
+### `200 OK` — No tests parsed / no failures
 
 ```json
 {
   "status": "success",
-  "message": "No failed tests detected."
+  "message": "No actionable events detected."
 }
 ```
+
+This usually means the XML was empty, malformed, or no `<testcase>` nodes were found (e.g. wrong file path, or nested Robot suites on an older server). Check CI logs and [Test frameworks — troubleshooting](test-frameworks.md#troubleshooting).
 
 ### `401 Unauthorized`
 

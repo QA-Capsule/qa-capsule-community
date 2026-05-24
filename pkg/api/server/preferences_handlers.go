@@ -16,17 +16,43 @@ import (
 
 // UserPreferences holds per-user UI and dashboard defaults.
 type UserPreferences struct {
-	Theme               string          `json:"theme"`
-	DefaultStatusFilter string          `json:"default_status_filter"`
-	AnalyticsExpanded   bool            `json:"analytics_expanded"`
-	AnalyticsLayout     json.RawMessage `json:"analytics_layout,omitempty"`
+	Theme                       string          `json:"theme"`
+	DefaultStatusFilter         string          `json:"default_status_filter"`
+	AnalyticsExpanded           bool            `json:"analytics_expanded"`
+	AnalyticsLayout             json.RawMessage `json:"analytics_layout,omitempty"`
+	DefaultTimeRange            string          `json:"default_time_range"`
+	CompactUI                   bool            `json:"compact_ui"`
+	SidebarCollapsedDefault     bool            `json:"sidebar_collapsed_default"`
+	DashboardAutoRefresh        bool            `json:"dashboard_auto_refresh"`
+	DashboardRefreshIntervalSec int             `json:"dashboard_refresh_interval_sec"`
+	DateFormat                  string          `json:"date_format"`
+	Timezone                    string          `json:"timezone"`
+	DefaultLandingView          string          `json:"default_landing_view"`
+	ReducedMotion               bool            `json:"reduced_motion"`
+	HighContrast                bool            `json:"high_contrast"`
+	BrowserNotifications        bool            `json:"browser_notifications"`
+	ExpandIncidentCards         bool            `json:"expand_incident_cards"`
+	DenseTables                 bool            `json:"dense_tables"`
 }
 
 func defaultUserPreferences() UserPreferences {
 	return UserPreferences{
-		Theme:               "dark",
-		DefaultStatusFilter: "all",
-		AnalyticsExpanded:   false,
+		Theme:                       "dark",
+		DefaultStatusFilter:         "all",
+		AnalyticsExpanded:           false,
+		DefaultTimeRange:            "15m",
+		CompactUI:                   false,
+		SidebarCollapsedDefault:     false,
+		DashboardAutoRefresh:        true,
+		DashboardRefreshIntervalSec: 60,
+		DateFormat:                  "locale",
+		Timezone:                    "auto",
+		DefaultLandingView:          "dashboard",
+		ReducedMotion:               false,
+		HighContrast:                false,
+		BrowserNotifications:        false,
+		ExpandIncidentCards:         false,
+		DenseTables:                 false,
 	}
 }
 
@@ -52,7 +78,61 @@ func loadUserPreferences(userID int) UserPreferences {
 	if prefs.DefaultStatusFilter != "all" && prefs.DefaultStatusFilter != "active" && prefs.DefaultStatusFilter != "resolved" {
 		prefs.DefaultStatusFilter = "all"
 	}
+	prefs.DefaultTimeRange = normalizeTimeRangePreset(prefs.DefaultTimeRange)
+	prefs.DateFormat = normalizeDateFormat(prefs.DateFormat)
+	prefs.Timezone = normalizeTimezonePref(prefs.Timezone)
+	prefs.DefaultLandingView = normalizeLandingView(prefs.DefaultLandingView)
+	prefs.DashboardRefreshIntervalSec = normalizeRefreshIntervalSec(prefs.DashboardRefreshIntervalSec)
 	return prefs
+}
+
+func normalizeTimeRangePreset(v string) string {
+	switch v {
+	case "5m", "15m", "30m", "1h", "6h", "24h", "7d", "30d", "today", "yesterday", "all":
+		return v
+	default:
+		return "15m"
+	}
+}
+
+func normalizeDateFormat(v string) string {
+	switch v {
+	case "locale", "short", "iso":
+		return v
+	default:
+		return "locale"
+	}
+}
+
+func normalizeTimezonePref(v string) string {
+	v = strings.TrimSpace(v)
+	if v == "" || v == "auto" {
+		return "auto"
+	}
+	return v
+}
+
+func normalizeLandingView(v string) string {
+	switch v {
+	case "dashboard", "ingestion", "finops", "dora", "plugins", "rca", "quarantine", "runbooks", "about":
+		return v
+	default:
+		return "dashboard"
+	}
+}
+
+func normalizeRefreshIntervalSec(sec int) int {
+	switch sec {
+	case 15, 30, 60, 120, 300:
+		return sec
+	}
+	if sec < 15 {
+		return 15
+	}
+	if sec > 300 {
+		return 300
+	}
+	return 60
 }
 
 func saveUserPreferences(userID int, prefs UserPreferences) error {
@@ -85,6 +165,45 @@ func mergePreferences(current UserPreferences, patch map[string]interface{}) Use
 		if b, err := json.Marshal(v); err == nil {
 			current.AnalyticsLayout = b
 		}
+	}
+	if v, ok := patch["default_time_range"].(string); ok {
+		current.DefaultTimeRange = normalizeTimeRangePreset(v)
+	}
+	if v, ok := patch["compact_ui"].(bool); ok {
+		current.CompactUI = v
+	}
+	if v, ok := patch["sidebar_collapsed_default"].(bool); ok {
+		current.SidebarCollapsedDefault = v
+	}
+	if v, ok := patch["dashboard_auto_refresh"].(bool); ok {
+		current.DashboardAutoRefresh = v
+	}
+	if v, ok := patch["dashboard_refresh_interval_sec"].(float64); ok {
+		current.DashboardRefreshIntervalSec = normalizeRefreshIntervalSec(int(v))
+	}
+	if v, ok := patch["date_format"].(string); ok {
+		current.DateFormat = normalizeDateFormat(v)
+	}
+	if v, ok := patch["timezone"].(string); ok {
+		current.Timezone = normalizeTimezonePref(v)
+	}
+	if v, ok := patch["default_landing_view"].(string); ok {
+		current.DefaultLandingView = normalizeLandingView(v)
+	}
+	if v, ok := patch["reduced_motion"].(bool); ok {
+		current.ReducedMotion = v
+	}
+	if v, ok := patch["high_contrast"].(bool); ok {
+		current.HighContrast = v
+	}
+	if v, ok := patch["browser_notifications"].(bool); ok {
+		current.BrowserNotifications = v
+	}
+	if v, ok := patch["expand_incident_cards"].(bool); ok {
+		current.ExpandIncidentCards = v
+	}
+	if v, ok := patch["dense_tables"].(bool); ok {
+		current.DenseTables = v
 	}
 	return current
 }

@@ -542,6 +542,9 @@ const DASHBOARD_REFRESH_MS = {
 };
 
 function dashboardRefreshIntervalMs() {
+    if (window.userDashboardAutoRefresh === false) return 0;
+    const userSec = Number(window.userDashboardRefreshIntervalSec);
+    if (userSec >= 15) return userSec * 1000;
     const preset = document.getElementById('dashboard-range-preset')?.value || '5m';
     return DASHBOARD_REFRESH_MS[preset] || 60000;
 }
@@ -549,7 +552,12 @@ function dashboardRefreshIntervalMs() {
 function updateDashboardRefreshHint() {
     const el = document.getElementById('dashboard-auto-refresh-hint');
     if (!el) return;
-    const sec = Math.round(dashboardRefreshIntervalMs() / 1000);
+    const ms = dashboardRefreshIntervalMs();
+    if (!ms) {
+        el.textContent = 'Auto ↻ off';
+        return;
+    }
+    const sec = Math.round(ms / 1000);
     el.textContent = `Auto ↻ ${sec}s`;
 }
 
@@ -561,12 +569,14 @@ window.stopDashboardAutoRefresh = function () {
 window.startDashboardAutoRefresh = function () {
     window.stopDashboardAutoRefresh();
     updateDashboardRefreshHint();
+    const ms = dashboardRefreshIntervalMs();
+    if (!ms) return;
     dashboardRefreshTimer = setInterval(() => {
         const dash = document.getElementById('view-dashboard');
         if (!dash || !dash.classList.contains('active')) return;
         if (Date.now() < window.pausePollingUntil) return;
         window.runDashboardRangeFilter();
-    }, dashboardRefreshIntervalMs());
+    }, ms);
 };
 
 window.restartDashboardAutoRefresh = function () {
@@ -848,8 +858,12 @@ window.fetchIncidents = function (forceRender = false, opts = {}) {
                     previousIncidents.filter(i => !normalizeIsResolved(i)).map(i => i.id)
                 );
                 const newActive = safeData.filter(i => !normalizeIsResolved(i) && !prevActiveIds.has(i.id));
-                if (newActive.length > 0 && typeof window.playCriticalAlertSound === 'function') {
-                    window.playCriticalAlertSound();
+                if (newActive.length > 0) {
+                    if (typeof window.playCriticalAlertSound === 'function') window.playCriticalAlertSound();
+                    if (typeof window.notifyNewIncidentsIfEnabled === 'function') {
+                        const activeCount = safeData.filter(i => !normalizeIsResolved(i)).length;
+                        window.notifyNewIncidentsIfEnabled(activeCount, newActive[0]?.name);
+                    }
                 }
                 window.currentIncidents = safeData;
                 if (typeof executionHub.clearExecutionReportCache === 'function') {

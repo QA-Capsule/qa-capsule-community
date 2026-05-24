@@ -91,11 +91,24 @@ curl -f -X POST "${QA_CAPSULE_URL}/api/webhooks/upload?framework=Playwright" \
 
 | Platform | Guide |
 |---|---|
+| **All test frameworks** (20+ guides) | [Test frameworks catalog](test-frameworks.md) |
+| **All CI/CD providers** (GitHub, GitLab, Jenkins, Azure DevOps, CircleCI, Bitbucket, …) | [CI/CD providers](cicd-providers.md) |
 | GitHub Actions | [GitHub Actions Integration](github.md) |
 | GitLab CI | [GitLab CI Integration](gitlab.md) |
 | Jenkins | [Jenkins Integration](jenkins.md) |
 | Custom / Internal CI | [Webhooks API](../api/webhooks.md) + [JUnit XML Upload](junit-xml-upload.md) |
 | Shell agent script | [The SRE Agent](agent.md) |
+
+---
+
+## Example workflows in this repository
+
+| Workflow | Framework | Trigger |
+|----------|-----------|---------|
+| `.github/workflows/robot-tests.yml` | Robot Framework | `workflow_dispatch` |
+| `.github/workflows/e2e-tests-playwright.yml` | Playwright | `workflow_dispatch` |
+| `.github/workflows/e2e-tests-cypress.yml` | Cypress | `workflow_dispatch` |
+| `.github/workflows/api-tests-pytest.yml` | Pytest | `workflow_dispatch` |
 
 ---
 
@@ -111,46 +124,11 @@ See [Incident Lifecycle](../guides/incident-lifecycle.md) for full details.
 
 ---
 
-## Framework Configuration Examples
+## Framework configuration
 
-### Playwright
+See the dedicated guide for **Robot Framework, Playwright, Cypress, Pytest, Selenium, Postman/Newman, JUnit/Java, TestNG, K6**, and custom runners:
 
-```javascript
-// playwright.config.js
-module.exports = {
-  reporter: [['junit', { outputFile: 'playwright-results.xml' }]],
-};
-```
-
-### Cypress
-
-```javascript
-// cypress.config.js
-module.exports = {
-  reporter: 'junit',
-  reporterOptions: {
-    mochaFile: 'cypress/results/test-results.xml',
-  },
-};
-```
-
-### Pytest
-
-```bash
-pytest --junitxml=pytest-results.xml
-```
-
-### Maven / Java
-
-```xml
-<plugin>
-  <groupId>org.apache.maven.plugins</groupId>
-  <artifactId>maven-surefire-plugin</artifactId>
-  <configuration>
-    <reportsDirectory>${project.build.directory}/surefire-reports</reportsDirectory>
-  </configuration>
-</plugin>
-```
+→ **[All test frameworks — catalog](test-frameworks.md)** (Playwright, Cypress, Pytest, Robot, Newman, Selenium, JUnit, TestNG, Jest, NUnit, Go, PHPUnit, RSpec, Karate, Appium, Cucumber, K6, …)
 
 ---
 

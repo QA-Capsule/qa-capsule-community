@@ -104,6 +104,8 @@ go build -o bin/qacapsule-cli ./cmd/cli
 | [System Configuration](setup/config.md) | SMTP, storage, security policy |
 | [RBAC & Teams](setup/rbac-teams.md) | Roles, teams, project access |
 | [CI/CD Overview](integration/cicd-overview.md) | Pipeline integration checklist |
+| [All test frameworks](integration/test-frameworks.md) | **20+ guides**: Playwright, Cypress, Pytest, Robot, Newman, Selenium, JUnit, TestNG, Jest, NUnit, Go, PHPUnit, RSpec, Karate, Appium, Cucumber, K6, … |
+| [CI/CD providers](integration/cicd-providers.md) | GitHub, GitLab, Jenkins, Azure DevOps, CircleCI, Bitbucket, … |
 | [JUnit XML Upload](integration/junit-xml-upload.md) | Structured multi-test ingestion |
 | [Playwright Reporter](integration/playwright-reporter.md) | Real-time reporter + trace upload |
 | [Webhooks API](api/webhooks.md) | JSON payload, batch mode, headers |

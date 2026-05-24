@@ -690,24 +690,193 @@ textarea::placeholder {
     border-color: var(--border-main);
 }
 
-.profile-settings-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: var(--space-lg);
+.profile-page-head {
     margin-bottom: var(--space-lg);
 }
 
+.profile-page-title {
+    margin: 0;
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.profile-header {
+    flex-wrap: wrap;
+}
+
+.profile-header-actions {
+    margin-left: auto;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+    align-items: center;
+}
+
+.profile-layout {
+    display: grid;
+    grid-template-columns: minmax(11rem, 13rem) minmax(0, 1fr);
+    gap: var(--space-lg);
+    align-items: start;
+}
+
+.profile-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: var(--space-sm);
+    position: sticky;
+    top: var(--space-md);
+}
+
+.profile-nav-btn {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 0.55rem 0.75rem;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.profile-nav-btn:hover {
+    background: var(--bg-muted);
+    color: var(--text-main);
+}
+
+.profile-nav-btn.active {
+    background: var(--accent-soft, rgba(79, 70, 229, 0.12));
+    color: var(--accent);
+    font-weight: 600;
+}
+
+.profile-panels {
+    min-width: 0;
+}
+
+.profile-panel {
+    display: none;
+}
+
+.profile-panel.active {
+    display: block;
+}
+
+.profile-form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-md);
+    margin-bottom: var(--space-md);
+}
+
+.form-panel-desc {
+    margin: -0.25rem 0 var(--space-md);
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.5;
+}
+
+.profile-data-list {
+    margin: 0 0 var(--space-md);
+    padding-left: 1.2rem;
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.6;
+}
+
+.profile-data-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+}
+
+.profile-inline-btn {
+    margin-top: var(--space-sm);
+}
+
+.profile-danger-btn {
+    border-color: var(--danger-border, #fecaca);
+    color: var(--danger-text, #b91c1c);
+}
+
 .profile-password-card {
-    margin-bottom: var(--space-lg);
+    margin-bottom: 0;
 }
 
 .profile-password-btn {
     margin-top: var(--space-md);
 }
 
-.profile-save-row {
-    display: flex;
-    justify-content: flex-start;
+/* Compact / accessibility modes (My Account) */
+body.ui-compact {
+    --space-md: 0.65rem;
+    --space-lg: 1rem;
+}
+
+body.ui-compact .data-card {
+    padding: 0.75rem 1rem;
+}
+
+body.ui-compact .form-field {
+    margin-bottom: 0.65rem;
+}
+
+body.ui-high-contrast {
+    --border-main: #64748b;
+    --text-main: #0f172a;
+}
+
+[data-theme="dark"] body.ui-high-contrast {
+    --border-main: #94a3b8;
+    --text-main: #f8fafc;
+}
+
+body.ui-dense-tables .data-table th,
+body.ui-dense-tables .data-table td,
+body.ui-dense-tables table th,
+body.ui-dense-tables table td {
+    padding: 0.35rem 0.5rem;
+    font-size: 12px;
+}
+
+html.reduced-motion *,
+html.reduced-motion *::before,
+html.reduced-motion *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+}
+
+@media (max-width: 900px) {
+    .profile-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .profile-nav {
+        flex-direction: row;
+        flex-wrap: wrap;
+        position: static;
+    }
+
+    .profile-nav-btn {
+        width: auto;
+        flex: 1 1 auto;
+    }
+
+    .profile-header-actions {
+        width: 100%;
+        margin-left: 0;
+        margin-top: var(--space-sm);
+    }
+
+    .profile-form-grid {
+        grid-template-columns: 1fr;
+    }
 }
 
 .finops-range-hint {
@@ -715,12 +884,6 @@ textarea::placeholder {
     font-size: 12px;
     color: var(--accent);
     font-weight: 500;
-}
-
-@media (max-width: 900px) {
-    .profile-settings-grid {
-        grid-template-columns: 1fr;
-    }
 }
 
 .password-fields-stack .login-input {

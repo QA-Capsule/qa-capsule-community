@@ -8,6 +8,11 @@ Integrating QA Capsule with GitHub Actions allows you to instantly capture test 
 
 By pushing this telemetry to your QA Capsule Control Plane, your engineering team can diagnose flaky tests and pipeline crashes without ever having to dig through raw GitHub Actions logs.
 
+!!! info "Related guides"
+    - **[All test frameworks](test-frameworks.md)** — Playwright, Cypress, Pytest, Robot, Newman, Selenium, JUnit, TestNG, Jest, NUnit, Go, PHPUnit, RSpec, Karate, Appium, Cucumber, K6, …  
+    - **[CI/CD providers](cicd-providers.md)** — patterns for `if: always()` and `X-Run-Id`  
+    - **Example workflows** in `.github/workflows/` (`robot-tests.yml`, `e2e-tests-playwright.yml`, `e2e-tests-cypress.yml`, `api-tests-pytest.yml`)
+
 ---
 
 ## Prerequisites

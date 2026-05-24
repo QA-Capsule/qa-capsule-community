@@ -1062,10 +1062,10 @@
             </section>
 
             <section id="view-profile" class="view-section profile-view">
-                <div class="header-bar">
+                <div class="profile-page-head">
                     <div>
-                        <h1 style="margin: 0; font-size: 24px;">My Account</h1>
-                        <p class="profile-subtitle">Personal profile, time range defaults, and workspace preferences.</p>
+                        <h1 class="profile-page-title">My Account</h1>
+                        <p class="profile-subtitle">Identity, appearance, dashboard behavior, notifications, and security.</p>
                     </div>
                 </div>
 
@@ -1079,106 +1079,274 @@
                         <span id="profile-role-badge" class="profile-role-badge role-observer">—</span>
                         <span id="profile-role" class="sr-only">—</span>
                     </div>
-                </div>
-
-                <div class="profile-settings-grid">
-                    <div class="data-card form-panel">
-                        <h3 class="form-panel-title">Identity</h3>
-                        <div class="form-field">
-                            <label for="profile-fullname">Display name</label>
-                            <input type="text" id="profile-fullname" class="login-input" placeholder="Your full name">
-                        </div>
-                    </div>
-
-                    <div class="data-card form-panel">
-                        <h3 class="form-panel-title">Workspace preferences</h3>
-                        <div class="form-field">
-                            <label for="pref-theme">Theme</label>
-                            <select id="pref-theme" class="login-input">
-                                <option value="dark">Dark</option>
-                                <option value="light">Light</option>
-                            </select>
-                        </div>
-                        <div class="form-field">
-                            <label for="pref-default-range">Preferred default window</label>
-                            <select id="pref-default-range" class="login-input">
-                                <option value="5m">Last 5 minutes</option>
-                                <option value="15m" selected>Last 15 minutes</option>
-                                <option value="30m">Last 30 minutes</option>
-                                <option value="1h">Last 1 hour</option>
-                                <option value="6h">Last 6 hours</option>
-                                <option value="24h">Last 24 hours</option>
-                                <option value="7d">Last 7 days</option>
-                                <option value="30d">Last 30 days</option>
-                                <option value="today">Today</option>
-                                <option value="yesterday">Yesterday</option>
-                                <option value="all">All time (1 year)</option>
-                            </select>
-                            <p class="form-field-hint">Used on first visit when no session time range is saved yet.</p>
-                        </div>
-                        <div class="form-field">
-                            <label for="pref-status-filter">Default incident filter</label>
-                            <select id="pref-status-filter" class="login-input">
-                                <option value="all">All</option>
-                                <option value="active">Active only</option>
-                                <option value="resolved">Resolved only</option>
-                            </select>
-                        </div>
-                        <div class="form-field">
-                            <label for="pref-currency">Application currency</label>
-                            <select id="pref-currency" class="login-input" onchange="onProfileCurrencyChange()">
-                                <option value="USD">USD ($)</option>
-                                <option value="EUR">EUR (€)</option>
-                                <option value="GBP">GBP (£)</option>
-                                <option value="JPY">JPY (¥)</option>
-                                <option value="AUD">AUD (A$)</option>
-                                <option value="CAD">CAD (C$)</option>
-                                <option value="CHF">CHF (Fr)</option>
-                                <option value="INR">INR (₹)</option>
-                                <option value="CNY">CNY (¥)</option>
-                                <option value="MXN">MXN ($)</option>
-                                <option value="SGD">SGD (S$)</option>
-                                <option value="NZD">NZD (NZ$)</option>
-                            </select>
-                        </div>
-                        <label class="pref-toggle-card" for="pref-analytics-expanded">
-                            <input type="checkbox" id="pref-analytics-expanded">
-                            <span class="pref-toggle-text">
-                                <strong>Open analytics panel by default</strong>
-                                <small>Show the analytics section expanded when you open the dashboard.</small>
-                            </span>
-                        </label>
-                        <label class="pref-toggle-card" for="pref-alert-sounds">
-                            <input type="checkbox" id="pref-alert-sounds">
-                            <span class="pref-toggle-text">
-                                <strong>Browser in-app sounds</strong>
-                                <small>Play a short tone when a new active incident appears.</small>
-                            </span>
-                        </label>
+                    <div class="profile-header-actions">
+                        <button type="button" class="btn-primary" onclick="saveProfile()">Save changes</button>
+                        <button type="button" class="btn-secondary" onclick="resetProfileFormDefaults()">Reset section</button>
                     </div>
                 </div>
 
-                <div class="data-card form-panel profile-password-card">
-                    <h3 class="form-panel-title">Change password</h3>
-                    <div class="password-fields-stack">
-                        <div class="form-field">
-                            <label for="profile-current-password">Current password</label>
-                            <input type="password" id="profile-current-password" class="login-input" placeholder="Current password" autocomplete="current-password">
+                <div class="profile-layout">
+                    <nav class="profile-nav data-card" aria-label="Account settings sections">
+                        <button type="button" class="profile-nav-btn active" data-profile-tab="identity" onclick="switchProfileTab('identity', this)">Profile</button>
+                        <button type="button" class="profile-nav-btn" data-profile-tab="appearance" onclick="switchProfileTab('appearance', this)">Appearance</button>
+                        <button type="button" class="profile-nav-btn" data-profile-tab="dashboard" onclick="switchProfileTab('dashboard', this)">Dashboard</button>
+                        <button type="button" class="profile-nav-btn" data-profile-tab="operations" onclick="switchProfileTab('operations', this)">Operations</button>
+                        <button type="button" class="profile-nav-btn" data-profile-tab="notifications" onclick="switchProfileTab('notifications', this)">Notifications</button>
+                        <button type="button" class="profile-nav-btn" data-profile-tab="security" onclick="switchProfileTab('security', this)">Security</button>
+                        <button type="button" class="profile-nav-btn" data-profile-tab="data" onclick="switchProfileTab('data', this)">Data &amp; privacy</button>
+                    </nav>
+
+                    <div class="profile-panels">
+                        <div class="profile-panel active" id="profile-panel-identity" data-profile-panel="identity">
+                            <div class="data-card form-panel">
+                                <h3 class="form-panel-title">Identity</h3>
+                                <p class="form-panel-desc">How your name appears in the control plane and audit context.</p>
+                                <div class="form-field">
+                                    <label for="profile-fullname">Display name</label>
+                                    <input type="text" id="profile-fullname" class="login-input" placeholder="Your full name">
+                                </div>
+                                <div class="form-field">
+                                    <label for="pref-landing-view">Default home screen</label>
+                                    <select id="pref-landing-view" class="login-input">
+                                        <option value="dashboard">Telemetry Stream (Dashboard)</option>
+                                        <option value="ingestion">CI/CD Gateways</option>
+                                        <option value="finops">FinOps Intelligence</option>
+                                        <option value="dora">DORA Metrics</option>
+                                        <option value="plugins">Plugin Engine</option>
+                                        <option value="rca">AI RCA</option>
+                                        <option value="quarantine">Quarantine</option>
+                                        <option value="runbooks">Runbooks</option>
+                                        <option value="about">Help Center</option>
+                                    </select>
+                                    <p class="form-field-hint">Opened after sign-in when your role allows access.</p>
+                                </div>
+                            </div>
                         </div>
-                        <div class="form-field">
-                            <label for="profile-new-password">New password</label>
-                            <input type="password" id="profile-new-password" class="login-input" placeholder="Min. 8 characters" autocomplete="new-password">
+
+                        <div class="profile-panel" id="profile-panel-appearance" data-profile-panel="appearance" hidden>
+                            <div class="data-card form-panel">
+                                <h3 class="form-panel-title">Appearance</h3>
+                                <p class="form-panel-desc">Theme, density, and accessibility for the whole workspace.</p>
+                                <div class="profile-form-grid">
+                                    <div class="form-field">
+                                        <label for="pref-theme">Color theme</label>
+                                        <select id="pref-theme" class="login-input">
+                                            <option value="dark">Dark</option>
+                                            <option value="light">Light</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-field">
+                                        <label for="pref-date-format">Date &amp; time format</label>
+                                        <select id="pref-date-format" class="login-input">
+                                            <option value="locale">Browser locale</option>
+                                            <option value="short">Short (24 Mar 2026, 14:30)</option>
+                                            <option value="iso">ISO (2026-03-24 14:30)</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-field">
+                                        <label for="pref-timezone">Timezone</label>
+                                        <select id="pref-timezone" class="login-input">
+                                            <option value="auto">Automatic (browser)</option>
+                                            <option value="UTC">UTC</option>
+                                            <option value="Europe/Paris">Europe/Paris</option>
+                                            <option value="Europe/London">Europe/London</option>
+                                            <option value="America/New_York">America/New_York</option>
+                                            <option value="America/Chicago">America/Chicago</option>
+                                            <option value="America/Los_Angeles">America/Los_Angeles</option>
+                                            <option value="Asia/Tokyo">Asia/Tokyo</option>
+                                            <option value="Asia/Singapore">Asia/Singapore</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <label class="pref-toggle-card" for="pref-compact-ui">
+                                    <input type="checkbox" id="pref-compact-ui">
+                                    <span class="pref-toggle-text">
+                                        <strong>Compact UI density</strong>
+                                        <small>Tighter spacing on cards, tables, and forms.</small>
+                                    </span>
+                                </label>
+                                <label class="pref-toggle-card" for="pref-sidebar-collapsed">
+                                    <input type="checkbox" id="pref-sidebar-collapsed">
+                                    <span class="pref-toggle-text">
+                                        <strong>Start with sidebar collapsed</strong>
+                                        <small>More horizontal space for telemetry and reports.</small>
+                                    </span>
+                                </label>
+                                <label class="pref-toggle-card" for="pref-reduced-motion">
+                                    <input type="checkbox" id="pref-reduced-motion">
+                                    <span class="pref-toggle-text">
+                                        <strong>Reduce motion</strong>
+                                        <small>Minimize transitions and animations.</small>
+                                    </span>
+                                </label>
+                                <label class="pref-toggle-card" for="pref-high-contrast">
+                                    <input type="checkbox" id="pref-high-contrast">
+                                    <span class="pref-toggle-text">
+                                        <strong>High contrast</strong>
+                                        <small>Stronger borders and text contrast for readability.</small>
+                                    </span>
+                                </label>
+                            </div>
                         </div>
-                        <div class="form-field">
-                            <label for="profile-confirm-password">Confirm password</label>
-                            <input type="password" id="profile-confirm-password" class="login-input" placeholder="Confirm new password" autocomplete="new-password">
+
+                        <div class="profile-panel" id="profile-panel-dashboard" data-profile-panel="dashboard" hidden>
+                            <div class="data-card form-panel">
+                                <h3 class="form-panel-title">Dashboard &amp; telemetry</h3>
+                                <p class="form-panel-desc">Defaults for the Telemetry Stream and incident list.</p>
+                                <div class="profile-form-grid">
+                                    <div class="form-field">
+                                        <label for="pref-default-range">Preferred time window</label>
+                                        <select id="pref-default-range" class="login-input">
+                                            <option value="5m">Last 5 minutes</option>
+                                            <option value="15m">Last 15 minutes</option>
+                                            <option value="30m">Last 30 minutes</option>
+                                            <option value="1h">Last 1 hour</option>
+                                            <option value="6h">Last 6 hours</option>
+                                            <option value="24h">Last 24 hours</option>
+                                            <option value="7d">Last 7 days</option>
+                                            <option value="30d">Last 30 days</option>
+                                            <option value="today">Today</option>
+                                            <option value="yesterday">Yesterday</option>
+                                            <option value="all">All time (1 year)</option>
+                                        </select>
+                                        <p class="form-field-hint">Applied when no session range is stored yet.</p>
+                                    </div>
+                                    <div class="form-field">
+                                        <label for="pref-status-filter">Default incident filter</label>
+                                        <select id="pref-status-filter" class="login-input">
+                                            <option value="all">All</option>
+                                            <option value="active">Active only</option>
+                                            <option value="resolved">Resolved only</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-field">
+                                        <label for="pref-refresh-interval">Auto-refresh interval</label>
+                                        <select id="pref-refresh-interval" class="login-input">
+                                            <option value="15">Every 15 seconds</option>
+                                            <option value="30">Every 30 seconds</option>
+                                            <option value="60">Every 60 seconds</option>
+                                            <option value="120">Every 2 minutes</option>
+                                            <option value="300">Every 5 minutes</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <label class="pref-toggle-card" for="pref-dashboard-auto-refresh">
+                                    <input type="checkbox" id="pref-dashboard-auto-refresh" checked>
+                                    <span class="pref-toggle-text">
+                                        <strong>Auto-refresh dashboard</strong>
+                                        <small>Periodically reload incidents while Telemetry Stream is open.</small>
+                                    </span>
+                                </label>
+                                <label class="pref-toggle-card" for="pref-analytics-expanded">
+                                    <input type="checkbox" id="pref-analytics-expanded">
+                                    <span class="pref-toggle-text">
+                                        <strong>Open analytics panel by default</strong>
+                                        <small>Expand charts when entering the dashboard.</small>
+                                    </span>
+                                </label>
+                                <label class="pref-toggle-card" for="pref-expand-incidents">
+                                    <input type="checkbox" id="pref-expand-incidents">
+                                    <span class="pref-toggle-text">
+                                        <strong>Expand new incident cards</strong>
+                                        <small>Show full error context on first paint when possible.</small>
+                                    </span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="profile-panel" id="profile-panel-operations" data-profile-panel="operations" hidden>
+                            <div class="data-card form-panel">
+                                <h3 class="form-panel-title">Operations &amp; FinOps</h3>
+                                <p class="form-panel-desc">Regional and display preferences for cost and pipeline views.</p>
+                                <div class="profile-form-grid">
+                                    <div class="form-field">
+                                        <label for="pref-currency">Application currency</label>
+                                        <select id="pref-currency" class="login-input" onchange="onProfileCurrencyChange()">
+                                            <option value="USD">USD ($)</option>
+                                            <option value="EUR">EUR (€)</option>
+                                            <option value="GBP">GBP (£)</option>
+                                            <option value="JPY">JPY (¥)</option>
+                                            <option value="AUD">AUD (A$)</option>
+                                            <option value="CAD">CAD (C$)</option>
+                                            <option value="CHF">CHF (Fr)</option>
+                                            <option value="INR">INR (₹)</option>
+                                            <option value="CNY">CNY (¥)</option>
+                                            <option value="MXN">MXN ($)</option>
+                                            <option value="SGD">SGD (S$)</option>
+                                            <option value="NZD">NZD (NZ$)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <label class="pref-toggle-card" for="pref-dense-tables">
+                                    <input type="checkbox" id="pref-dense-tables">
+                                    <span class="pref-toggle-text">
+                                        <strong>Dense tables</strong>
+                                        <small>Compact rows in gateways, FinOps, and IAM lists.</small>
+                                    </span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="profile-panel" id="profile-panel-notifications" data-profile-panel="notifications" hidden>
+                            <div class="data-card form-panel">
+                                <h3 class="form-panel-title">Notifications</h3>
+                                <p class="form-panel-desc">In-browser alerts when new failures arrive (Slack/Jira remain in Plugin Engine).</p>
+                                <label class="pref-toggle-card" for="pref-alert-sounds">
+                                    <input type="checkbox" id="pref-alert-sounds">
+                                    <span class="pref-toggle-text">
+                                        <strong>In-app alert sound</strong>
+                                        <small>Short tone when a new active incident appears on the dashboard.</small>
+                                    </span>
+                                </label>
+                                <label class="pref-toggle-card" for="pref-browser-notifications">
+                                    <input type="checkbox" id="pref-browser-notifications">
+                                    <span class="pref-toggle-text">
+                                        <strong>Desktop notifications</strong>
+                                        <small>Requires browser permission. Shows test name when polling detects new incidents.</small>
+                                    </span>
+                                </label>
+                                <button type="button" class="btn-secondary profile-inline-btn" onclick="requestBrowserNotificationPermission()">Request notification permission</button>
+                            </div>
+                        </div>
+
+                        <div class="profile-panel" id="profile-panel-security" data-profile-panel="security" hidden>
+                            <div class="data-card form-panel profile-password-card">
+                                <h3 class="form-panel-title">Security</h3>
+                                <p class="form-panel-desc">Update your sign-in password. Minimum 8 characters.</p>
+                                <div class="password-fields-stack">
+                                    <div class="form-field">
+                                        <label for="profile-current-password">Current password</label>
+                                        <input type="password" id="profile-current-password" class="login-input" placeholder="Current password" autocomplete="current-password">
+                                    </div>
+                                    <div class="form-field">
+                                        <label for="profile-new-password">New password</label>
+                                        <input type="password" id="profile-new-password" class="login-input" placeholder="Min. 8 characters" autocomplete="new-password">
+                                    </div>
+                                    <div class="form-field">
+                                        <label for="profile-confirm-password">Confirm password</label>
+                                        <input type="password" id="profile-confirm-password" class="login-input" placeholder="Confirm new password" autocomplete="new-password">
+                                    </div>
+                                </div>
+                                <button type="button" class="btn-secondary profile-password-btn" onclick="changeOwnPassword()">Update password</button>
+                            </div>
+                        </div>
+
+                        <div class="profile-panel" id="profile-panel-data" data-profile-panel="data" hidden>
+                            <div class="data-card form-panel">
+                                <h3 class="form-panel-title">Data &amp; privacy</h3>
+                                <p class="form-panel-desc">Local preferences stored in this browser. Server-side prefs sync when you save.</p>
+                                <ul class="profile-data-list">
+                                    <li>Theme, filters, and layout → account record on QA Capsule</li>
+                                    <li>Currency &amp; alert sounds → this browser (localStorage)</li>
+                                    <li>Sidebar collapse → this browser until synced via appearance prefs</li>
+                                </ul>
+                                <div class="profile-data-actions">
+                                    <button type="button" class="btn-secondary" onclick="exportProfilePreferences()">Export preferences (JSON)</button>
+                                    <button type="button" class="btn-secondary profile-danger-btn" onclick="clearLocalProfileData()">Clear local browser data</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    <button type="button" class="btn-secondary profile-password-btn" onclick="changeOwnPassword()">Update password</button>
-                </div>
-
-                <div class="profile-save-row">
-                    <button type="button" class="btn-primary" onclick="saveProfile()">Save profile</button>
                 </div>
             </section>
         </main>

@@ -8,33 +8,32 @@ edit_uri: edit/main/docs/
 
 theme:
   name: material
-  # UI/UX FIX: Set professional fonts (Inter for text, Fira Code for technical blocks)
   font:
-    text: Inter
-    code: Fira Code
+    text: Roboto
+    code: Roboto Mono
   features:
     - navigation.tabs
     - navigation.sections
     - navigation.top
     - navigation.expand
+    - navigation.indexes
     - search.suggest
     - search.highlight
     - content.code.copy
     - content.code.annotate
+    - toc.follow
   palette:
-    # UI/UX FIX: Professional Enterprise Light Theme
     - media: "(prefers-color-scheme: light)"
       scheme: default
-      primary: black
-      accent: teal
+      primary: blue grey
+      accent: blue
       toggle:
         icon: material/brightness-7
         name: Switch to dark mode
-    # UI/UX FIX: Professional Enterprise Dark Theme
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
-      primary: black
-      accent: teal
+      primary: blue grey
+      accent: light blue
       toggle:
         icon: material/brightness-4
         name: Switch to light mode
@@ -73,7 +72,27 @@ nav:
       - RBAC & Teams: setup/rbac-teams.md
   - CI/CD Integration:
       - Overview & Architecture: integration/cicd-overview.md
-      - JUnit XML : integration/junit-xml-upload.md
+      - All test frameworks (catalog): integration/test-frameworks.md
+      - Playwright: integration/frameworks/playwright.md
+      - Cypress: integration/frameworks/cypress.md
+      - Pytest: integration/frameworks/pytest.md
+      - Robot Framework: integration/frameworks/robot-framework.md
+      - Selenium: integration/frameworks/selenium.md
+      - Postman / Newman: integration/frameworks/postman-newman.md
+      - JUnit / Maven / Gradle: integration/frameworks/junit-java.md
+      - TestNG: integration/frameworks/testng.md
+      - Jest / Mocha / Vitest: integration/frameworks/jest-mocha.md
+      - NUnit / xUnit (.NET): integration/frameworks/dotnet.md
+      - Go (testing): integration/frameworks/golang.md
+      - K6 / Gatling: integration/frameworks/k6.md
+      - Appium: integration/frameworks/appium.md
+      - Karate: integration/frameworks/karate.md
+      - PHPUnit: integration/frameworks/phpunit.md
+      - RSpec: integration/frameworks/rspec.md
+      - REST Assured: integration/frameworks/rest-assured.md
+      - Cucumber: integration/frameworks/cucumber.md
+      - CI/CD providers: integration/cicd-providers.md
+      - JUnit XML upload: integration/junit-xml-upload.md
       - Playwright Reporter: integration/playwright-reporter.md
       - The SRE Agent: integration/agent.md
       - GitHub Actions: integration/github.md
@@ -93,7 +112,7 @@ nav:
       - End-to-End Testing: guides/testing.md
   - Plugin Engine:
       - Native Integrations Overview: plugins/overview.md
-      - Configuration Guide (QA Capsule + Provider): plugins/configuration-guide.md
+      - Configuration Guide: plugins/configuration-guide.md
       - Visual Workflow Builder: plugins/visual-workflow.md
       - Integrations Catalog: plugins/integrations-catalog.md
       - Jira Integration: plugins/jira.md

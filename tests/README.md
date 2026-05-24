@@ -2,6 +2,8 @@
 
 Suite d’exemples exécutables en local ou en CI/CD, avec envoi des résultats vers **QA Capsule** au format JUnit XML.
 
+**Documentation :** [Tous les frameworks de tests](https://qa-capsule.github.io/qa-capsule-community/integration/test-frameworks/) (Playwright, Cypress, Pytest, Robot, Newman, Selenium, JUnit, …) · [CI/CD providers](https://qa-capsule.github.io/qa-capsule-community/integration/cicd-providers/)
+
 ## Prérequis
 
 - Python 3.10+
@@ -88,7 +90,9 @@ Sans `QA_CAPSULE_*`, les tests tournent quand même ; l’upload est ignoré (ut
 
 ### GitHub Actions
 
-Workflow aligné sur **API Pipeline (Pytest)** et **E2E Playwright** : [`.github/workflows/robot-tests.yml`](../.github/workflows/robot-tests.yml) — exécution Robot puis étape **`Send Alert to QA Capsule`** (`if: always()`), comme les autres pipelines.
+Workflow Robot : [`.github/workflows/robot-tests.yml`](../.github/workflows/robot-tests.yml).  
+Autres exemples : Playwright, Cypress, Pytest dans `.github/workflows/`.  
+**Tous les frameworks** : [documentation](https://qa-capsule.github.io/qa-capsule-community/integration/test-frameworks/).
 
 1. **Settings → Secrets and variables → Actions** → ajouter :
    - `QA_CAPSULE_URL` — base URL (sans `/` final), ex. `https://qa-capsule.example.com`
