@@ -1,22 +1,31 @@
 /**
  * RCA & AI Insights view
  */
-import { fetchWithAuth, parseApiJson } from './api.js';
+import { fetchWithAuth, parseApiJson, parseJwt } from './api.js';
 import { notify } from './ui.js';
 import { canConfigureAI } from './roles.js';
-import { parseJwt } from './api.js';
+import {
+    AI_PROVIDERS,
+    iconAiInsight,
+    logoForProvider,
+    getProviderMeta
+} from './ai-provider-icons.js';
+
+let providerPickerBound = false;
 
 export function loadRCAView() {
-    const tbody = document.getElementById('rca-insights-body');
+    const listEl = document.getElementById('rca-insights-body');
     const projectSel = document.getElementById('rca-project-filter');
-    if (!tbody) return;
+    if (!listEl) return;
 
     const role = parseJwt(localStorage.getItem('sre-jwt'))?.role;
     const cfgPanel = document.getElementById('rca-ai-config-panel');
     if (cfgPanel) cfgPanel.style.display = canConfigureAI(role) ? 'block' : 'none';
 
+    initRCAProviderUI();
     loadRCAProjects(projectSel);
     loadRCAInsights();
+    loadAIConfigPanel();
 
     const cfgBtn = document.getElementById('rca-save-ai-config');
     if (cfgBtn && !cfgBtn.dataset.bound) {
@@ -26,6 +35,76 @@ export function loadRCAView() {
     if (projectSel && !projectSel.dataset.bound) {
         projectSel.dataset.bound = '1';
         projectSel.addEventListener('change', () => loadRCAInsights());
+    }
+}
+
+function initRCAProviderUI() {
+    const headingIcon = document.getElementById('rca-ai-heading-icon');
+    if (headingIcon) headingIcon.innerHTML = iconAiInsight();
+
+    const picker = document.getElementById('rca-ai-provider-picker');
+    const select = document.getElementById('rca-ai-provider');
+    if (!picker || !select) return;
+
+    if (!picker.dataset.rendered) {
+        picker.innerHTML = AI_PROVIDERS.map(p => `
+            <button type="button" class="ai-provider-option" data-provider="${p.id}" role="radio" aria-checked="false">
+                <span class="ai-provider-option__logo">${logoForProvider(p.id)}</span>
+                <span>${p.label}</span>
+            </button>
+        `).join('');
+        picker.dataset.rendered = '1';
+    }
+
+    if (!providerPickerBound) {
+        providerPickerBound = true;
+        picker.addEventListener('click', (e) => {
+            const btn = e.target.closest('.ai-provider-option');
+            if (!btn) return;
+            const prev = select.value;
+            const next = btn.dataset.provider;
+            const applyDefaults = next !== prev;
+            setActiveProvider(next, { applyDefaults });
+        });
+    }
+
+    setActiveProvider(select.value || 'disabled', { applyDefaults: false });
+}
+
+export function setActiveProvider(providerId, opts = {}) {
+    const select = document.getElementById('rca-ai-provider');
+    const picker = document.getElementById('rca-ai-provider-picker');
+    const meta = getProviderMeta(providerId);
+    const id = meta.id;
+
+    if (select) select.value = id;
+
+    picker?.querySelectorAll('.ai-provider-option').forEach(btn => {
+        const active = btn.dataset.provider === id;
+        btn.classList.toggle('is-active', active);
+        btn.setAttribute('aria-checked', active ? 'true' : 'false');
+    });
+
+    const logoEl = document.getElementById('rca-ai-provider-logo');
+    if (logoEl) logoEl.innerHTML = logoForProvider(id);
+
+    const modelInput = document.getElementById('rca-ai-model');
+    const baseInput = document.getElementById('rca-ai-base-url');
+    const keyInput = document.getElementById('rca-ai-key-env');
+
+    if (opts.applyDefaults) {
+        if (modelInput && meta.defaultModel) modelInput.value = meta.defaultModel;
+        if (baseInput) baseInput.value = meta.defaultBaseUrl;
+        if (keyInput) keyInput.value = meta.defaultKeyEnv;
+    }
+
+    if (modelInput) {
+        modelInput.placeholder = meta.defaultModel || 'Model name';
+        modelInput.disabled = id === 'disabled';
+    }
+    if (baseInput) {
+        baseInput.placeholder = meta.defaultBaseUrl || 'Base URL';
+        baseInput.disabled = id === 'disabled';
     }
 }
 
@@ -41,33 +120,47 @@ async function loadRCAProjects(select) {
 }
 
 export async function loadRCAInsights() {
-    const tbody = document.getElementById('rca-insights-body');
-    if (!tbody) return;
+    const listEl = document.getElementById('rca-insights-body');
+    if (!listEl) return;
     const project = document.getElementById('rca-project-filter')?.value || '';
     const q = project ? `?project=${encodeURIComponent(project)}&limit=100` : '?limit=100';
-    tbody.innerHTML = '<tr><td colspan="5" style="padding:20px;opacity:0.5;">Loading…</td></tr>';
+    listEl.innerHTML = '<p class="modern-data-grid__loading">Loading AI insights…</p>';
     const res = await fetchWithAuth(`/api/rca/insights${q}`);
     const { ok, data } = await parseApiJson(res);
     if (!ok) {
-        tbody.innerHTML = '<tr><td colspan="5">Failed to load insights.</td></tr>';
+        listEl.innerHTML = '<p class="modern-data-grid__empty">Failed to load insights.</p>';
         return;
     }
     const rows = Array.isArray(data) ? data : [];
     if (!rows.length) {
-        tbody.innerHTML = '<tr><td colspan="5" style="padding:20px;opacity:0.5;">No AI summaries yet. Failures enqueue RCA when AI is enabled.</td></tr>';
+        listEl.innerHTML = '<p class="modern-data-grid__empty">No AI summaries yet. Failures enqueue RCA when AI is enabled.</p>';
         return;
     }
-    tbody.innerHTML = rows.map(r => `
-        <tr style="border-bottom:1px solid var(--border-main);">
-            <td style="padding:10px;">${escapeHtml(r.project_name)}</td>
-            <td style="padding:10px;">${escapeHtml(r.test_name)}</td>
-            <td style="padding:10px;">${escapeHtml(r.rca_status || '—')}</td>
-            <td style="padding:10px;font-size:12px;">${escapeHtml(r.summary || '—')}</td>
-            <td style="padding:10px;text-align:right;">
-                <button type="button" class="btn-secondary btn-sm" onclick="window.triggerRCA(${r.incident_id})">Re-run</button>
-            </td>
-        </tr>
-    `).join('');
+    listEl.innerHTML = rows.map(r => renderRCAInsightCard(r)).join('');
+}
+
+function renderRCAInsightCard(r) {
+    const status = escapeHtml(r.rca_status || 'pending');
+    return `
+        <article class="ai-insight-panel rca-insight-card" role="listitem">
+            <div class="ai-insight-panel__inner">
+                <header class="rca-insight-card__head">
+                    <div class="rca-insight-card__title-wrap">
+                        <h3 class="rca-insight-card__title">
+                            <span class="ai-insight-panel__icon" aria-hidden="true">${iconAiInsight()}</span>
+                            ${escapeHtml(r.test_name || 'Unknown test')}
+                        </h3>
+                        <p class="rca-insight-card__meta">
+                            ${escapeHtml(r.project_name || '—')}
+                            <span class="rca-insight-card__status">${status}</span>
+                        </p>
+                    </div>
+                    <button type="button" class="btn-secondary btn-sm" onclick="window.triggerRCA(${Number(r.incident_id) || 0})">Re-run</button>
+                </header>
+                <p class="rca-insight-card__body">${escapeHtml(r.summary || 'No summary generated yet.')}</p>
+            </div>
+        </article>
+    `;
 }
 
 export async function triggerRCA(incidentId) {
@@ -112,6 +205,7 @@ export async function loadAIConfigPanel() {
     set('rca-ai-timeout', data.timeout_seconds);
     const en = document.getElementById('rca-ai-enabled');
     if (en) en.checked = !!data.enabled;
+    setActiveProvider(data.provider || 'disabled', { applyDefaults: false });
 }
 
 function escapeHtml(s) {

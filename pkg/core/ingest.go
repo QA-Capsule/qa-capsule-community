@@ -6,6 +6,9 @@ import (
 	"strings"
 )
 
+// PipelineCrashDefaultName is used when a CI webhook reports failure without a test name.
+const PipelineCrashDefaultName = "[PIPELINE CRASH] Execution Failed"
+
 // IngestResult summarizes one processed alert.
 type IngestResult struct {
 	IncidentID  int64
@@ -21,6 +24,8 @@ func ProcessAlert(cfg Config, projectName, runID string, alert UnifiedAlert, rou
 		slog.Error("database not initialized")
 		return IngestResult{}
 	}
+
+	alert = EnsurePipelineCrashName(alert)
 
 	if IsTestQuarantined(projectName, alert.Name) {
 		fp := IncidentFingerprint(alert.Name, alert.Error)
@@ -261,7 +266,23 @@ func NormalizePayloads(raw map[string]interface{}) []UnifiedAlert {
 	return []UnifiedAlert{enrichAlert(NormalizePayload(raw))}
 }
 
+// EnsurePipelineCrashName assigns a stable incident title when CI fails without test-level data.
+func EnsurePipelineCrashName(a UnifiedAlert) UnifiedAlert {
+	if strings.TrimSpace(a.Name) != "" {
+		return a
+	}
+	if !isFailureStatus(a.Status) {
+		return a
+	}
+	a.Name = PipelineCrashDefaultName
+	if strings.TrimSpace(a.Error) == "" {
+		a.Error = "Pipeline execution failed (no test name or failure details in webhook payload)."
+	}
+	return a
+}
+
 func enrichAlert(a UnifiedAlert) UnifiedAlert {
+	a = EnsurePipelineCrashName(a)
 	if a.JiraIssueKey == "" {
 		a.JiraIssueKey = ExtractJiraIssueKey(a.Name)
 	}

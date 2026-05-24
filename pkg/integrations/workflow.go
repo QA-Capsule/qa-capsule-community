@@ -246,25 +246,27 @@ func EvaluateCondition(expr *ConditionExpr, ctx WorkflowContext) bool {
 }
 
 func evalTag(expr *ConditionExpr, ctx WorkflowContext) bool {
-	want := fmt.Sprint(expr.Value)
+	want := strings.TrimSpace(fmt.Sprint(expr.Value))
 	match := strings.ToLower(expr.Match)
 	if match == "" {
 		match = "eq"
 	}
-	field := strings.ToLower(expr.Field)
-	if match == "prefix" && (field == "" || field == "incident.name") {
-		return strings.HasPrefix(strings.ToUpper(ctx.Incident.Name), strings.ToUpper(want))
+	field := strings.ToLower(strings.TrimSpace(expr.Field))
+	field = strings.TrimPrefix(field, "incident.")
+	if match == "prefix" && (field == "" || field == "name") {
+		return strings.HasPrefix(strings.ToLower(ctx.Incident.Name), strings.ToLower(want))
 	}
-	wantUp := strings.ToUpper(want)
+	wantNorm := strings.ToLower(want)
 	for _, t := range ctx.Tags {
+		tagNorm := strings.ToLower(t)
 		switch match {
 		case "eq", "equals":
-			if strings.ToUpper(t) == wantUp {
+			if tagNorm == wantNorm {
 				return true
 			}
 		case "in":
-			for _, part := range strings.Split(wantUp, ",") {
-				if strings.ToUpper(t) == strings.TrimSpace(part) {
+			for _, part := range strings.Split(want, ",") {
+				if tagNorm == strings.ToLower(strings.TrimSpace(part)) {
 					return true
 				}
 			}
@@ -274,18 +276,19 @@ func evalTag(expr *ConditionExpr, ctx WorkflowContext) bool {
 }
 
 func evalStatus(expr *ConditionExpr, status string) bool {
-	want := fmt.Sprint(expr.Value)
+	want := strings.TrimSpace(fmt.Sprint(expr.Value))
 	match := strings.ToLower(expr.Match)
 	if match == "" {
 		match = "eq"
 	}
-	statusUp := strings.ToUpper(strings.TrimSpace(status))
+	statusNorm := strings.ToLower(strings.TrimSpace(status))
+	wantNorm := strings.ToLower(want)
 	switch match {
 	case "eq", "equals":
-		return statusUp == strings.ToUpper(want)
+		return statusNorm == wantNorm
 	case "in":
-		for _, part := range strings.Split(strings.ToUpper(want), ",") {
-			if statusUp == strings.TrimSpace(part) {
+		for _, part := range strings.Split(want, ",") {
+			if statusNorm == strings.ToLower(strings.TrimSpace(part)) {
 				return true
 			}
 		}
@@ -293,22 +296,33 @@ func evalStatus(expr *ConditionExpr, status string) bool {
 	return false
 }
 
+// workflowFieldValue resolves incident fields for conditions (case-insensitive field names).
+func workflowFieldValue(inc IncidentContext, field string) string {
+	f := strings.ToLower(strings.TrimSpace(field))
+	f = strings.TrimPrefix(f, "incident.")
+	switch f {
+	case "error", "error_message", "err", "message":
+		return inc.Error
+	case "console", "console_logs", "logs", "stdout":
+		return inc.ConsoleLogs
+	case "status":
+		return inc.Status
+	case "action":
+		return inc.Action
+	case "name", "":
+		return inc.Name
+	default:
+		return inc.Name
+	}
+}
+
 func evalText(expr *ConditionExpr, inc IncidentContext) bool {
-	want := strings.ToLower(fmt.Sprint(expr.Value))
+	want := strings.ToLower(strings.TrimSpace(fmt.Sprint(expr.Value)))
 	match := strings.ToLower(expr.Match)
 	if match == "" {
 		match = "contains"
 	}
-	field := strings.ToLower(expr.Field)
-	var hay string
-	switch field {
-	case "incident.error", "error":
-		hay = strings.ToLower(inc.Error)
-	case "incident.console", "console":
-		hay = strings.ToLower(inc.ConsoleLogs)
-	default:
-		hay = strings.ToLower(inc.Name)
-	}
+	hay := strings.ToLower(workflowFieldValue(inc, expr.Field))
 	switch match {
 	case "contains":
 		return strings.Contains(hay, want)

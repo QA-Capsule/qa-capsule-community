@@ -11,6 +11,7 @@ import { notify } from './ui.js';
 import { currencySymbols } from './settings.js';
 
 import { CHART_PALETTE } from './chart-palette.js';
+import { setPremiumKpi } from './kpi-premium.js';
 
 
 
@@ -229,34 +230,52 @@ export function refreshFinOpsKPIs() {
             if (!ok || !data) return;
 
             const sym = finopsCurrencySymbol();
-
             const impact = data.sre_impact || {};
-
-            const setText = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
-
-
-
-            setText('finops-kpi-total-cost', sym + (impact.estimated_cost_usd ?? '0'));
-
-            setText('finops-kpi-flaky-cost', sym + (impact.flaky_waste_cost_usd ?? '0'));
-
-            setText('finops-kpi-ci-minutes', (impact.ci_minutes_lost ?? 0) + ' min');
-
-            setText('finops-kpi-mttr', (data.mttr_minutes ?? 0) + ' min');
-
-            setText('finops-kpi-incidents', String(data.total_incidents ?? 0));
-
-            setText('finops-kpi-flaky-count', String(data.flaky_tests ?? 0));
-
-
-
-            const total = impact.estimated_cost_usd || 0;
-
-            const flaky = impact.flaky_waste_cost_usd || 0;
-
+            const total = Number(impact.estimated_cost_usd) || 0;
+            const flaky = Number(impact.flaky_waste_cost_usd) || 0;
             const pct = total > 0 ? Math.round((flaky / total) * 100) : 0;
+            const ciMin = impact.ci_minutes_lost ?? 0;
+            const incidents = data.total_incidents ?? 0;
+            const flakyCount = data.flaky_tests ?? 0;
 
-            setText('finops-kpi-waste-pct', pct + '% of total');
+            setPremiumKpi('finops-kpi-total-cost', sym + (impact.estimated_cost_usd ?? '0'), {
+                tone: 'info',
+                trend: total > 100 ? 'down' : '',
+                trendText: total > 100 ? '↓ Spend in range' : ''
+            });
+
+            setPremiumKpi('finops-kpi-flaky-cost', sym + (impact.flaky_waste_cost_usd ?? '0'), {
+                tone: 'warn',
+                trend: flaky > 0 ? 'down' : 'up',
+                trendText: flaky > 0 ? '↓ Flaky waste' : '↑ No flaky waste'
+            });
+
+            const hintEl = document.getElementById('finops-kpi-waste-pct');
+            if (hintEl) hintEl.textContent = pct + '% of total';
+
+            setPremiumKpi('finops-kpi-ci-minutes', ciMin + ' min', {
+                tone: 'danger',
+                trend: ciMin > 30 ? 'down' : 'up',
+                trendText: ciMin > 30 ? '↓ CI time lost' : '↑ Low CI loss'
+            });
+
+            setPremiumKpi('finops-kpi-mttr', (data.mttr_minutes ?? 0) + ' min', {
+                tone: 'success',
+                trend: (data.mttr_minutes ?? 0) > 60 ? 'down' : 'up',
+                trendText: (data.mttr_minutes ?? 0) > 60 ? '↓ Elevated MTTR' : '↑ Recovery OK'
+            });
+
+            setPremiumKpi('finops-kpi-incidents', String(incidents), {
+                tone: incidents > 10 ? 'warn' : 'neutral',
+                trend: incidents > 0 ? 'down' : 'up',
+                trendText: incidents > 0 ? '↓ Active volume' : '↑ Quiet period'
+            });
+
+            setPremiumKpi('finops-kpi-flaky-count', String(flakyCount), {
+                tone: 'warn',
+                trend: flakyCount > 0 ? 'down' : 'up',
+                trendText: flakyCount > 0 ? '↓ Flaky detected' : '↑ Stable tests'
+            });
 
         })
 

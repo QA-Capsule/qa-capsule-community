@@ -882,58 +882,87 @@
                 </div>
             </section>
 
-            <section id="view-rca" class="view-section">
+            <section id="view-rca" class="view-section intelligence-view">
                 <div class="header-bar">
                     <div>
-                        <h1 style="margin:0;font-size:24px;">RCA &amp; AI Insights</h1>
-                        <p style="margin:5px 0 0;opacity:0.6;font-size:14px;">LLM-generated root cause summaries for test failures.</p>
+                        <h1 class="intelligence-view__title">RCA &amp; AI Insights</h1>
+                        <p class="intelligence-view__subtitle">LLM-generated root cause summaries for test failures.</p>
                     </div>
                 </div>
-                <div id="rca-ai-config-panel" class="data-card" style="margin-bottom:20px;display:none;">
-                    <h3 style="margin-top:0;font-size:14px;color:#58a6ff;">AI Provider (Manager)</h3>
-                    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;">
-                        <div><label style="font-size:11px;color:#8b949e;">Provider</label>
-                            <select id="rca-ai-provider" class="login-input"><option value="disabled">disabled</option><option value="openai">openai</option><option value="ollama">ollama</option></select></div>
-                        <div><label style="font-size:11px;color:#8b949e;">Model</label><input id="rca-ai-model" class="login-input" placeholder="gpt-4o-mini / llama3.2"></div>
-                        <div><label style="font-size:11px;color:#8b949e;">Base URL</label><input id="rca-ai-base-url" class="login-input" placeholder="http://localhost:11434"></div>
-                        <div><label style="font-size:11px;color:#8b949e;">API key env</label><input id="rca-ai-key-env" class="login-input" value="OPENAI_API_KEY"></div>
+                <div id="rca-ai-config-panel" class="ai-insight-panel ai-config-panel" style="margin-bottom:20px;display:none;">
+                    <div class="ai-insight-panel__inner">
+                        <h3 class="ai-insight-panel__heading">
+                            <span class="ai-insight-panel__icon" id="rca-ai-heading-icon" aria-hidden="true"></span>
+                            AI Provider (Manager)
+                        </h3>
+                        <div class="form-field">
+                            <span class="form-field-label">Provider</span>
+                            <div id="rca-ai-provider-picker" class="ai-provider-picker" role="radiogroup" aria-label="AI provider"></div>
+                            <select id="rca-ai-provider" class="sr-only" aria-hidden="true" tabindex="-1">
+                                <option value="disabled">disabled</option>
+                                <option value="openai">openai</option>
+                                <option value="ollama">ollama</option>
+                            </select>
+                        </div>
+                        <div class="ai-config-grid form-panel">
+                            <div class="form-field">
+                                <label for="rca-ai-model">Model</label>
+                                <div class="ai-model-input-wrap">
+                                    <span class="ai-model-input-wrap__logo" id="rca-ai-provider-logo" aria-hidden="true"></span>
+                                    <input id="rca-ai-model" class="login-input" placeholder="gpt-4o-mini">
+                                </div>
+                            </div>
+                            <div class="form-field">
+                                <label for="rca-ai-base-url">Base URL</label>
+                                <input id="rca-ai-base-url" class="login-input" placeholder="https://api.openai.com/v1">
+                            </div>
+                            <div class="form-field">
+                                <label for="rca-ai-key-env">API key env</label>
+                                <input id="rca-ai-key-env" class="login-input" value="OPENAI_API_KEY">
+                            </div>
+                        </div>
+                        <div class="ai-config-footer">
+                            <label class="pref-toggle-card ai-config-enable" for="rca-ai-enabled">
+                                <input type="checkbox" id="rca-ai-enabled">
+                                <span class="pref-toggle-text"><strong>Enable AI RCA on new failures</strong></span>
+                            </label>
+                            <button type="button" id="rca-save-ai-config" class="btn-primary ai-config-save">Save AI config</button>
+                        </div>
                     </div>
-                    <label style="display:flex;align-items:center;gap:8px;margin:12px 0;font-size:12px;"><input type="checkbox" id="rca-ai-enabled"> Enable AI RCA on new failures</label>
-                    <button type="button" id="rca-save-ai-config" class="btn-primary">Save AI config</button>
                 </div>
-                <div class="data-card">
-                    <label style="font-size:11px;color:#8b949e;">Gateway filter</label>
-                    <select id="rca-project-filter" class="login-input" style="max-width:280px;margin-bottom:16px;"></select>
-                    <table style="width:100%;border-collapse:collapse;font-size:14px;">
-                        <thead><tr style="border-bottom:2px solid var(--border-main);">
-                            <th style="padding:10px;text-align:left;">Project</th><th>Test</th><th>RCA</th><th>Summary</th><th></th>
-                        </tr></thead>
-                        <tbody id="rca-insights-body"><tr><td colspan="5" style="padding:20px;opacity:0.5;">Open this view to load data.</td></tr></tbody>
-                    </table>
+                <div class="data-card intelligence-panel">
+                    <div class="form-field">
+                        <label for="rca-project-filter">Gateway filter</label>
+                        <select id="rca-project-filter" class="login-input"></select>
+                    </div>
+                    <div id="rca-insights-body" class="modern-data-grid rca-insights-list" role="list">
+                        <p class="modern-data-grid__empty">Open this view to load AI insights.</p>
+                    </div>
                 </div>
             </section>
 
-            <section id="view-quarantine" class="view-section">
+            <section id="view-quarantine" class="view-section intelligence-view">
                 <div class="header-bar">
                     <div>
-                        <h1 style="margin:0;font-size:24px;">Quality / Quarantine</h1>
-                        <p style="margin:5px 0 0;opacity:0.6;font-size:14px;">DenyList for flaky tests — CI calls <code>GET /api/ci/quarantine</code> with <code>X-API-Key</code>.</p>
+                        <h1 class="intelligence-view__title">Quality / Quarantine</h1>
+                        <p class="intelligence-view__subtitle">DenyList for flaky tests — CI calls <code>GET /api/ci/quarantine</code> with <code>X-API-Key</code>.</p>
                     </div>
                 </div>
-                <div class="data-card" style="margin-bottom:16px;">
-                    <select id="quarantine-project-filter" class="login-input" style="max-width:280px;"></select>
-                    <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap;" class="role-lead">
-                        <input type="text" id="quarantine-test-name" class="login-input" placeholder="Test name to quarantine" style="flex:1;min-width:200px;">
+                <div class="data-card form-panel" style="margin-bottom:16px;">
+                    <div class="form-field">
+                        <label for="quarantine-project-filter">Gateway</label>
+                        <select id="quarantine-project-filter" class="login-input"></select>
+                    </div>
+                    <div class="quarantine-add-row role-lead">
+                        <input type="text" id="quarantine-test-name" class="login-input" placeholder="Test name to quarantine">
                         <button type="button" id="quarantine-add-btn" class="btn-secondary">Add to quarantine</button>
                     </div>
                 </div>
-                <div class="data-card">
-                    <table style="width:100%;border-collapse:collapse;">
-                        <thead><tr style="border-bottom:2px solid var(--border-main);">
-                            <th style="padding:10px;text-align:left;">Test</th><th>Fingerprint</th><th>Reason</th><th>Since</th><th></th>
-                        </tr></thead>
-                        <tbody id="quarantine-list-body"></tbody>
-                    </table>
+                <div class="data-card intelligence-panel">
+                    <div class="modern-data-grid modern-data-grid--header" aria-hidden="true">
+                        <span>Test</span><span>Fingerprint</span><span>Reason</span><span>Since</span><span></span>
+                    </div>
+                    <div id="quarantine-list-body" class="modern-data-grid quarantine-data-grid" role="list"></div>
                 </div>
             </section>
 
@@ -949,27 +978,56 @@
                 <div id="runbooks-template-grid"></div>
             </section>
 
-            <section id="view-dora" class="view-section">
+            <section id="view-dora" class="view-section executive-view">
                 <div class="header-bar">
-                    <h1 style="margin:0;font-size:24px;">DORA &amp; Executive Dashboard</h1>
-                    <p style="margin:8px 0 0;opacity:0.6;font-size:14px;">Deployment frequency, lead time, change failure rate, MTTR — correlated with Prometheus via <code>/api/webhooks/prometheus</code>.</p>
+                    <h1 class="executive-view__title">DORA &amp; Executive Dashboard</h1>
+                    <p class="executive-view__subtitle">Deployment frequency, lead time, change failure rate, MTTR — correlated with Prometheus via <code>/api/webhooks/prometheus</code>.</p>
                 </div>
-                <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;">
-                    <select id="dora-project-filter" style="padding:8px;min-width:180px;" onchange="refreshDORAMetrics()"></select>
-                    <select id="dora-range-select" style="padding:8px;" onchange="refreshDORAMetrics()">
+                <div class="executive-toolbar">
+                    <select id="dora-project-filter" class="login-input" onchange="refreshDORAMetrics()"></select>
+                    <select id="dora-range-select" class="login-input" onchange="refreshDORAMetrics()">
                         <option value="7d">Last 7 days</option>
                         <option value="30d" selected>Last 30 days</option>
                         <option value="90d">Last 90 days</option>
                     </select>
                     <button type="button" class="btn-secondary" onclick="refreshDORAMetrics()">Refresh</button>
                 </div>
-                <div class="finops-bento-metrics" style="margin-bottom:20px;">
-                    <div class="kpi-card"><div>Deploy frequency / day</div><div class="kpi-value" id="dora-kpi-deploy-freq">—</div></div>
-                    <div class="kpi-card"><div>Lead time (median)</div><div class="kpi-value" id="dora-kpi-lead-time">—</div></div>
-                    <div class="kpi-card"><div>Change failure rate</div><div class="kpi-value" id="dora-kpi-cfr">—</div></div>
-                    <div class="kpi-card"><div>MTTR</div><div class="kpi-value" id="dora-kpi-mttr">—</div></div>
-                    <div class="kpi-card"><div>Pipeline runs</div><div class="kpi-value" id="dora-kpi-deployments">—</div></div>
-                    <div class="kpi-card"><div>External signals</div><div class="kpi-value" id="dora-kpi-signals">—</div></div>
+                <div class="kpi-card-grid executive-kpi-grid">
+                    <article class="kpi-card-premium">
+                        <span class="kpi-card-premium__label">Deploy frequency / day</span>
+                        <span class="kpi-card-premium__value kpi-tone-neutral" id="dora-kpi-deploy-freq">—</span>
+                        <span class="kpi-card-premium__trend kpi-trend-up" id="dora-kpi-deploy-freq-trend" hidden></span>
+                    </article>
+                    <article class="kpi-card-premium">
+                        <span class="kpi-card-premium__label">Lead time (median)</span>
+                        <span class="kpi-card-premium__value kpi-tone-neutral" id="dora-kpi-lead-time">—</span>
+                        <span class="kpi-card-premium__trend kpi-trend-down" id="dora-kpi-lead-time-trend" hidden></span>
+                    </article>
+                    <article class="kpi-card-premium">
+                        <span class="kpi-card-premium__label">Change failure rate</span>
+                        <span class="kpi-card-premium__value kpi-tone-neutral" id="dora-kpi-cfr">—</span>
+                        <span class="kpi-card-premium__trend kpi-trend-down" id="dora-kpi-cfr-trend" hidden></span>
+                    </article>
+                    <article class="kpi-card-premium">
+                        <span class="kpi-card-premium__label">MTTR</span>
+                        <span class="kpi-card-premium__value kpi-tone-neutral" id="dora-kpi-mttr">—</span>
+                        <span class="kpi-card-premium__trend kpi-trend-down" id="dora-kpi-mttr-trend" hidden></span>
+                    </article>
+                    <article class="kpi-card-premium">
+                        <span class="kpi-card-premium__label">Pipeline runs</span>
+                        <span class="kpi-card-premium__value kpi-tone-neutral" id="dora-kpi-deployments">—</span>
+                        <span class="kpi-card-premium__trend kpi-trend-up" id="dora-kpi-deployments-trend" hidden></span>
+                    </article>
+                    <article class="kpi-card-premium">
+                        <span class="kpi-card-premium__label">External signals</span>
+                        <span class="kpi-card-premium__value kpi-tone-neutral" id="dora-kpi-signals">—</span>
+                        <span class="kpi-card-premium__trend kpi-trend-up" id="dora-kpi-signals-trend" hidden></span>
+                    </article>
+                    <article class="kpi-card-premium">
+                        <span class="kpi-card-premium__label">Correlated incidents</span>
+                        <span class="kpi-card-premium__value kpi-tone-neutral" id="dora-kpi-correlated">—</span>
+                        <span class="kpi-card-premium__trend kpi-trend-up" id="dora-kpi-correlated-trend" hidden></span>
+                    </article>
                 </div>
                 <div class="data-card" style="margin-bottom:16px;">
                     <h3 style="margin:0 0 12px;font-size:15px;">Deployments vs failures (weekly)</h3>
@@ -993,13 +1051,38 @@
                     <p id="finops-range-hint" class="finops-range-hint"></p>
                 </div>
 
-                <div class="finops-bento-metrics">
-                    <div class="kpi-card"><div>Total impact</div><div class="kpi-value" style="color: var(--log-info);" id="finops-kpi-total-cost">—</div></div>
-                    <div class="kpi-card"><div>Flaky waste</div><div class="kpi-value" style="color: var(--log-warn);" id="finops-kpi-flaky-cost">—</div><div class="metric-hint" id="finops-kpi-waste-pct">—</div></div>
-                    <div class="kpi-card"><div>CI minutes lost</div><div class="kpi-value log-fatal" id="finops-kpi-ci-minutes">—</div></div>
-                    <div class="kpi-card"><div>Average MTTR</div><div class="kpi-value" style="color: var(--log-pass);" id="finops-kpi-mttr">—</div></div>
-                    <div class="kpi-card"><div>Total incidents</div><div class="kpi-value" id="finops-kpi-incidents">—</div></div>
-                    <div class="kpi-card"><div>Flaky tests</div><div class="kpi-value" style="color: var(--log-warn);" id="finops-kpi-flaky-count">—</div></div>
+                <div class="kpi-card-grid executive-kpi-grid finops-kpi-grid">
+                    <article class="kpi-card-premium">
+                        <span class="kpi-card-premium__label">Total impact</span>
+                        <span class="kpi-card-premium__value kpi-tone-info" id="finops-kpi-total-cost">—</span>
+                        <span class="kpi-card-premium__trend kpi-trend-down" id="finops-kpi-total-cost-trend" hidden></span>
+                    </article>
+                    <article class="kpi-card-premium">
+                        <span class="kpi-card-premium__label">Flaky waste</span>
+                        <span class="kpi-card-premium__value kpi-tone-warn" id="finops-kpi-flaky-cost">—</span>
+                        <span class="kpi-card-premium__hint" id="finops-kpi-waste-pct">—</span>
+                        <span class="kpi-card-premium__trend kpi-trend-down" id="finops-kpi-flaky-cost-trend" hidden></span>
+                    </article>
+                    <article class="kpi-card-premium">
+                        <span class="kpi-card-premium__label">CI minutes lost</span>
+                        <span class="kpi-card-premium__value kpi-tone-danger" id="finops-kpi-ci-minutes">—</span>
+                        <span class="kpi-card-premium__trend kpi-trend-down" id="finops-kpi-ci-minutes-trend" hidden></span>
+                    </article>
+                    <article class="kpi-card-premium">
+                        <span class="kpi-card-premium__label">Average MTTR</span>
+                        <span class="kpi-card-premium__value kpi-tone-success" id="finops-kpi-mttr">—</span>
+                        <span class="kpi-card-premium__trend kpi-trend-up" id="finops-kpi-mttr-trend" hidden></span>
+                    </article>
+                    <article class="kpi-card-premium">
+                        <span class="kpi-card-premium__label">Total incidents</span>
+                        <span class="kpi-card-premium__value kpi-tone-neutral" id="finops-kpi-incidents">—</span>
+                        <span class="kpi-card-premium__trend kpi-trend-down" id="finops-kpi-incidents-trend" hidden></span>
+                    </article>
+                    <article class="kpi-card-premium">
+                        <span class="kpi-card-premium__label">Flaky tests</span>
+                        <span class="kpi-card-premium__value kpi-tone-warn" id="finops-kpi-flaky-count">—</span>
+                        <span class="kpi-card-premium__trend kpi-trend-down" id="finops-kpi-flaky-count-trend" hidden></span>
+                    </article>
                 </div>
 
                                 <div class="data-card" style="margin-bottom: 24px; display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end;">

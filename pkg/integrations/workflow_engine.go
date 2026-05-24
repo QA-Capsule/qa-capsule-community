@@ -22,13 +22,13 @@ func NewWorkflowEngine(engine *Engine) *WorkflowEngine {
 }
 
 // Execute traverses the workflow from entry and runs action nodes sequentially per branch.
+// Remediation uses a detached context so upstream HTTP timeouts cannot cancel plugin actions.
 func (we *WorkflowEngine) Execute(ctx context.Context, doc *WorkflowDocument, wctx WorkflowContext, routing ProjectRouting) {
 	if we == nil || we.engine == nil || doc == nil || !IsWorkflowActive(doc) {
 		return
 	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
+	_ = ctx
+	ctx = context.Background()
 	visited := make(map[string]bool)
 	we.walk(ctx, doc, doc.Entry, wctx, routing, visited)
 }

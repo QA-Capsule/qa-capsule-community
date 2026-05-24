@@ -7,14 +7,14 @@ import { canManageQuarantine } from './roles.js';
 
 export function loadQuarantineView() {
     const projectSel = document.getElementById('quarantine-project-filter');
-    const tbody = document.getElementById('quarantine-list-body');
+    const listEl = document.getElementById('quarantine-list-body');
     if (projectSel && !projectSel.dataset.bound) {
         projectSel.dataset.bound = '1';
         projectSel.addEventListener('change', () => loadQuarantineList());
     }
-    if (tbody && !tbody.dataset.bound) {
-        tbody.dataset.bound = '1';
-        tbody.addEventListener('click', (e) => {
+    if (listEl && !listEl.dataset.bound) {
+        listEl.dataset.bound = '1';
+        listEl.addEventListener('click', (e) => {
             const btn = e.target.closest('.btn-lift-quarantine');
             if (!btn) return;
             e.preventDefault();
@@ -45,38 +45,42 @@ async function loadQuarantineProjects(select) {
         return;
     }
     projects.forEach((p, i) => {
-        select.innerHTML += `<option value="${escapeHtml(p.name)}"${i === 0 ? ' selected' : ''}>${escapeHtml(p.name)}</option>`;
+        select.innerHTML += `<option value="${escapeAttr(p.name)}"${i === 0 ? ' selected' : ''}>${escapeHtml(p.name)}</option>`;
     });
 }
 
 export async function loadQuarantineList() {
-    const tbody = document.getElementById('quarantine-list-body');
+    const listEl = document.getElementById('quarantine-list-body');
     const project = document.getElementById('quarantine-project-filter')?.value;
-    if (!tbody || !project) return;
-    tbody.innerHTML = '<tr><td colspan="5" style="padding:20px;opacity:0.5;">Loading…</td></tr>';
+    if (!listEl || !project) return;
+    listEl.innerHTML = '<p class="modern-data-grid__loading">Loading quarantine list…</p>';
     const res = await fetchWithAuth(`/api/quarantine?project=${encodeURIComponent(project)}`);
     const { ok, data } = await parseApiJson(res);
     if (!ok) {
-        tbody.innerHTML = '<tr><td colspan="5">Failed to load quarantine list.</td></tr>';
+        listEl.innerHTML = '<p class="modern-data-grid__empty">Failed to load quarantine list.</p>';
         return;
     }
     const tests = data?.tests || [];
     const role = parseJwt(localStorage.getItem('sre-jwt'))?.role;
     const canEdit = canManageQuarantine(role);
     if (!tests.length) {
-        tbody.innerHTML = '<tr><td colspan="5" style="padding:20px;opacity:0.5;">No quarantined tests for this gateway.</td></tr>';
+        listEl.innerHTML = '<p class="modern-data-grid__empty">No quarantined tests for this gateway.</p>';
         return;
     }
-    tbody.innerHTML = tests.map(t => `
-        <tr style="border-bottom:1px solid var(--border-main);">
-            <td style="padding:10px;">${escapeHtml(t.test_name)}</td>
-            <td style="padding:10px;"><code style="font-size:10px;">${escapeHtml(t.fingerprint?.slice(0, 12) || '')}…</code></td>
-            <td style="padding:10px;">${escapeHtml(t.reason)}</td>
-            <td style="padding:10px;font-size:11px;">${escapeHtml(t.since || '')}</td>
-            <td style="padding:10px;text-align:right;">
-                ${canEdit ? `<button type="button" class="btn-secondary btn-sm btn-lift-quarantine" data-project="${escapeAttr(project)}" data-fingerprint="${escapeAttr(t.fingerprint)}">Lift</button>` : '—'}
-            </td>
-        </tr>
+    listEl.innerHTML = tests.map(t => `
+        <div class="modern-data-grid__row" role="listitem">
+            <div class="modern-data-grid__cell modern-data-grid__cell--primary">${escapeHtml(t.test_name)}</div>
+            <div class="modern-data-grid__cell modern-data-grid__cell--muted">
+                <code>${escapeHtml((t.fingerprint || '').slice(0, 12))}…</code>
+            </div>
+            <div class="modern-data-grid__cell">${escapeHtml(t.reason)}</div>
+            <div class="modern-data-grid__cell modern-data-grid__cell--muted">${escapeHtml(t.since || '')}</div>
+            <div class="modern-data-grid__cell modern-data-grid__cell--actions">
+                ${canEdit
+        ? `<button type="button" class="btn-ghost btn-sm btn-lift-quarantine" data-project="${escapeAttr(project)}" data-fingerprint="${escapeAttr(t.fingerprint)}">Release from Quarantine</button>`
+        : '<span class="modern-data-grid__cell--muted">—</span>'}
+            </div>
+        </div>
     `).join('');
 }
 

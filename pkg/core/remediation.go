@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/QA-Capsule/qa-capsule-community/pkg/integrations"
 )
@@ -58,9 +57,8 @@ func RunPostIngestRemediation(config Config, projectName string, alert UnifiedAl
 	if integrations.IsWorkflowActive(doc) {
 		docCopy := doc
 		integrations.RunRemediationAsync(func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-			defer cancel()
-			integrations.NewWorkflowEngine(engine).Execute(ctx, docCopy, wctx, routing)
+			// Detached context: HTTP request cancellation must not abort background remediation.
+			integrations.NewWorkflowEngine(engine).Execute(context.Background(), docCopy, wctx, routing)
 		})
 		return
 	}

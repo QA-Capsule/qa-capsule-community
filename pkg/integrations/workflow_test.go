@@ -65,6 +65,24 @@ func TestEvaluateCondition_flakyPrefix(t *testing.T) {
 	}
 }
 
+func TestEvaluateCondition_fieldCaseInsensitive(t *testing.T) {
+	ctx := WorkflowContext{
+		Incident: IncidentContext{
+			Name:   "[PIPELINE CRASH] Execution Failed",
+			Status: "Failed",
+			Error:  "install phase timeout",
+		},
+	}
+	expr := &ConditionExpr{Op: "text", Match: "contains", Field: "Incident.Name", Value: "pipeline crash"}
+	if !EvaluateCondition(expr, ctx) {
+		t.Fatal("expected case-insensitive field match on incident name")
+	}
+	statusExpr := &ConditionExpr{Op: "status", Match: "equals", Value: "failed"}
+	if !EvaluateCondition(statusExpr, ctx) {
+		t.Fatal("expected case-insensitive status equals")
+	}
+}
+
 func TestEvaluateCondition_textEquals(t *testing.T) {
 	ctx := WorkflowContext{
 		Incident: IncidentContext{Error: "upstream timeout after 30s"},

@@ -3,6 +3,7 @@
  */
 import { fetchWithAuth, parseApiJson } from './api.js';
 import { CHART_PALETTE } from './chart-palette.js';
+import { setPremiumKpi } from './kpi-premium.js';
 
 let doraTrendChart = null;
 
@@ -45,21 +46,57 @@ export function refreshDORAMetrics() {
         .then(({ ok, data }) => {
             if (!ok || !data?.metrics) return;
             const m = data.metrics;
-            setText('dora-kpi-deploy-freq', m.deployment_frequency_per_day?.toFixed(2) ?? '—');
-            setText('dora-kpi-lead-time', formatMinutes(m.lead_time_minutes_median));
-            setText('dora-kpi-cfr', m.change_failure_rate != null ? `${(m.change_failure_rate * 100).toFixed(1)}%` : '—');
-            setText('dora-kpi-mttr', formatMinutes(m.mttr_minutes));
-            setText('dora-kpi-deployments', String(m.deployments ?? '—'));
-            setText('dora-kpi-signals', String(m.external_signals ?? 0));
-            setText('dora-kpi-correlated', String(m.correlated_incidents ?? 0));
+            const cfr = m.change_failure_rate;
+            const cfrPct = cfr != null ? `${(cfr * 100).toFixed(1)}%` : '—';
+            const deployFreq = m.deployment_frequency_per_day?.toFixed(2) ?? '—';
+
+            setPremiumKpi('dora-kpi-deploy-freq', deployFreq, {
+                tone: 'info',
+                trend: (m.deployment_frequency_per_day ?? 0) >= 0.5 ? 'up' : '',
+                trendText: '↑ Delivery cadence'
+            });
+
+            const leadMin = m.lead_time_minutes_median;
+            setPremiumKpi('dora-kpi-lead-time', formatMinutes(leadMin), {
+                tone: leadMin != null && leadMin > 120 ? 'warn' : 'success',
+                trend: leadMin != null && leadMin > 120 ? 'down' : 'up',
+                trendText: leadMin != null && leadMin > 120 ? '↓ Slow lead time' : '↑ On track'
+            });
+
+            setPremiumKpi('dora-kpi-cfr', cfrPct, {
+                tone: cfr != null && cfr > 0.15 ? 'danger' : 'success',
+                trend: cfr != null && cfr > 0.15 ? 'down' : 'up',
+                trendText: cfr != null && cfr > 0.15 ? '↓ Above target' : '↑ Within target'
+            });
+
+            const mttr = m.mttr_minutes;
+            setPremiumKpi('dora-kpi-mttr', formatMinutes(mttr), {
+                tone: mttr != null && mttr > 60 ? 'warn' : 'success',
+                trend: mttr != null && mttr > 60 ? 'down' : 'up',
+                trendText: mttr != null && mttr > 60 ? '↓ Recovery slow' : '↑ Healthy MTTR'
+            });
+
+            setPremiumKpi('dora-kpi-deployments', String(m.deployments ?? '—'), {
+                tone: 'neutral',
+                trend: (m.deployments ?? 0) > 0 ? 'up' : '',
+                trendText: '↑ Pipeline activity'
+            });
+
+            setPremiumKpi('dora-kpi-signals', String(m.external_signals ?? 0), {
+                tone: 'info',
+                trend: (m.external_signals ?? 0) > 0 ? 'up' : '',
+                trendText: '↑ Observability linked'
+            });
+
+            setPremiumKpi('dora-kpi-correlated', String(m.correlated_incidents ?? 0), {
+                tone: (m.correlated_incidents ?? 0) > 0 ? 'warn' : 'neutral',
+                trend: (m.correlated_incidents ?? 0) > 0 ? 'down' : 'up',
+                trendText: (m.correlated_incidents ?? 0) > 0 ? '↓ Correlations found' : '↑ No correlations'
+            });
+
             renderDORATrend(m.series || []);
             renderCorrelations(data.correlations || []);
         });
-}
-
-function setText(id, val) {
-    const el = document.getElementById(id);
-    if (el) el.textContent = val;
 }
 
 function formatMinutes(v) {
@@ -102,7 +139,7 @@ function renderCorrelations(rows) {
     const tbody = document.getElementById('dora-correlations-body');
     if (!tbody) return;
     if (!rows.length) {
-        tbody.innerHTML = '<tr><td colspan="4" style="padding:12px;opacity:0.6;">No Prometheus ↔ incident correlations in range.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="4" class="modern-data-grid__empty">No Prometheus ↔ incident correlations in range.</td></tr>';
         return;
     }
     tbody.innerHTML = rows.map(r => `

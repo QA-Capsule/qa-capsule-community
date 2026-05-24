@@ -89,10 +89,25 @@ func NormalizePayload(raw map[string]interface{}) UnifiedAlert {
 	default:
 		name, _ := raw["name"].(string)
 		errStr, _ := raw["error"].(string)
+		if errStr == "" {
+			if msg, ok := raw["message"].(string); ok {
+				errStr = msg
+			}
+		}
+		if errStr == "" {
+			if reason, ok := raw["failure_reason"].(string); ok {
+				errStr = reason
+			}
+		}
 		browser, _ := raw["browser"].(string)
 		osName, _ := raw["os"].(string)
 		viewport, _ := raw["viewport"].(string)
 		status, _ := raw["status"].(string)
+		if status == "" {
+			if st, ok := raw["state"].(string); ok && strings.TrimSpace(st) != "" {
+				status = st
+			}
+		}
 		if status == "" {
 			status = "FAILED"
 		}
