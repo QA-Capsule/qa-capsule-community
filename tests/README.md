@@ -17,6 +17,7 @@ tests/
 │   ├── resources/common.robot
 │   ├── smoke_tests.robot
 │   ├── api_health.robot
+│   ├── demo_failure.robot   # échec volontaire (alerte QA Capsule en CI)
 │   └── ui_navigation.robot
 └── results/          # généré (ignoré par git)
 ```
