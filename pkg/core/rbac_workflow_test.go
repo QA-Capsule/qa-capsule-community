@@ -3,8 +3,8 @@ package core
 import "testing"
 
 func TestCanManageWorkflow(t *testing.T) {
-	if !CanManageWorkflow(RoleAdmin) {
-		t.Fatal("admin should manage workflow")
+	if CanManageWorkflow(RoleAdmin) {
+		t.Fatal("platform admin must not manage workflow")
 	}
 	if !CanManageWorkflow(RoleManager) {
 		t.Fatal("manager should manage workflow")

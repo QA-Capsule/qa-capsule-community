@@ -3,7 +3,7 @@
  * Personal account settings and persisted user preferences
  */
 import { fetchWithAuth, parseJwt, parseApiJson } from './api.js';
-import { notify } from './ui.js';
+import { notify, applyTheme as applyDocumentTheme } from './ui.js';
 import { roleLabel, normalizeRole } from './roles.js';
 import { setSelectedCurrency, currencySymbols } from './settings.js';
 
@@ -132,13 +132,7 @@ function renderProfileHeader({ fullname, username, role }) {
 }
 
 export function applyTheme(theme) {
-    if (theme === 'dark') {
-        document.body.setAttribute('data-theme', 'dark');
-        localStorage.setItem('sre-theme', 'dark');
-    } else {
-        document.body.removeAttribute('data-theme');
-        localStorage.setItem('sre-theme', 'light');
-    }
+    applyDocumentTheme(theme);
     const analyticsView = document.getElementById('analytics-view');
     if (analyticsView && analyticsView.style.display !== 'none' && typeof window.loadAnalytics === 'function') {
         window.loadAnalytics(false);

@@ -107,7 +107,7 @@ export function canAccessPlugins(role) {
 
 export function canManagePluginAutoRun(role) {
     const r = normalizeRole(role);
-    return r === 'manager' || r === 'admin';
+    return r === 'manager' || r === 'lead';
 }
 
 export function canResolveIncidents(role) {

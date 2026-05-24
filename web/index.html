@@ -285,10 +285,11 @@
             <p style="opacity: 0.6; font-size: 12px; letter-spacing: 2px; margin-bottom: 30px;">SRE CONTROL PLANE</p>
             <div id="login-error" class="sre-notification error" style="display: none; margin-bottom: 15px; font-size: 12px; padding: 10px;">AUTHENTICATION FAILED</div>
             <p id="login-server-hint" style="display: none; color: #d29922; font-size: 11px; margin-bottom: 12px; line-height: 1.4;"></p>
-            <p style="color: #6e7681; font-size: 11px; margin-bottom: 12px; line-height: 1.45;">Open <strong>http://localhost:9000</strong> (not a file on disk). Default admin: <code>admin</code> / <code>admin</code> if the database is new.</p>
             
             <input type="text" id="login-username" class="login-input" placeholder="Username or email" autocomplete="username">
+            <br /><br>
             <input type="password" id="login-password" class="login-input" placeholder="Passphrase">
+            <br /><br>
             <button class="btn-primary" style="width: 100%; margin-top: 15px;" onclick="performLogin()">INITIALIZE SESSION</button>
 
             <div style="margin-top: 20px; border-top: 1px solid #30363d; padding-top: 20px;">
@@ -430,13 +431,13 @@
                 </svg><span class="nav-text">Help Center</span>
             </div>
 
-            <div class="nav-section-label role-hide-observer" style="margin-top: 10px;">INFRASTRUCTURE</div>
-            <div class="nav-item role-hide-observer" onclick="switchView('ingestion', this)" data-tooltip="CI/CD Gateways">
+            <div class="nav-section-label role-lead" style="margin-top: 10px;">INFRASTRUCTURE</div>
+            <div class="nav-item role-lead" onclick="switchView('ingestion', this)" data-tooltip="CI/CD Gateways">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
                 </svg><span class="nav-text">CI/CD Gateways</span>
             </div>
-            <div class="nav-item role-hide-observer" onclick="switchView('plugins', this)" data-tooltip="Plugin Engine">
+            <div class="nav-item role-lead" onclick="switchView('plugins', this)" data-tooltip="Plugin Engine">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
                 </svg><span class="nav-text">Plugin Engine</span>

@@ -3,6 +3,31 @@
  * UI utilities: Notifications, Modals, and Theme management
  */
 
+const THEME_STORAGE_KEY = 'sre-theme';
+
+export function getStoredTheme() {
+    const stored = localStorage.getItem(THEME_STORAGE_KEY);
+    if (stored === 'dark' || stored === 'light') return stored;
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        return 'dark';
+    }
+    return 'light';
+}
+
+/** Apply light/dark theme to document (html + body) and persist. */
+export function applyTheme(theme) {
+    const next = theme === 'dark' ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', next);
+    if (next === 'dark') {
+        document.body.setAttribute('data-theme', 'dark');
+    } else {
+        document.body.setAttribute('data-theme', 'light');
+    }
+    document.documentElement.style.colorScheme = next;
+    localStorage.setItem(THEME_STORAGE_KEY, next);
+    return next;
+}
+
 export function notify(message, type = 'success') {
     const container = document.getElementById('notification-container');
     if (!container) return alert(message);
@@ -10,14 +35,14 @@ export function notify(message, type = 'success') {
     const toast = document.createElement('div');
     const bgColor = type === 'error' ? 'var(--log-fatal, #dc2626)' : 'var(--log-pass, #059669)';
 
-    toast.style.cssText = `background-color: ${bgColor}; color: white; padding: 12px 18px; border-radius: var(--radius-sm, 8px); box-shadow: var(--shadow-md, 0 8px 24px rgba(0,0,0,0.2)); font-weight: 600; font-size: 13px; transition: opacity 0.5s ease; margin-top: 10px; z-index: 100001; max-width: min(420px, 90vw); line-height: 1.4;`;
+    toast.style.cssText = `background-color: ${bgColor}; color: #fff; padding: 12px 18px; border-radius: var(--radius-sm, 8px); box-shadow: var(--shadow-md, 0 8px 24px rgba(0,0,0,0.2)); font-weight: 600; font-size: 13px; transition: opacity 0.5s ease; margin-top: 10px; z-index: 100001; max-width: min(420px, 90vw); line-height: 1.4;`;
     toast.innerHTML = `<span>${message}</span>`;
     container.appendChild(toast);
     setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 500); }, 4000);
 }
 
-export function initTheme() { 
-    if (localStorage.getItem('sre-theme') === 'dark') document.body.setAttribute('data-theme', 'dark'); 
+export function initTheme() {
+    applyTheme(getStoredTheme());
 }
 
 const SIDEBAR_COLLAPSED_KEY = 'sre-sidebar-collapsed';
@@ -49,14 +74,9 @@ export function toggleSidebar() {
 
 export function toggleTheme(e) {
     if (e?.stopPropagation) e.stopPropagation();
-    const isDark = document.body.hasAttribute('data-theme');
+    const isDark = document.body.getAttribute('data-theme') === 'dark';
     const next = isDark ? 'light' : 'dark';
-    if (isDark) {
-        document.body.removeAttribute('data-theme');
-    } else {
-        document.body.setAttribute('data-theme', 'dark');
-    }
-    localStorage.setItem('sre-theme', next);
+    applyTheme(next);
     if (typeof window.persistThemeFromToggle === 'function') {
         window.persistThemeFromToggle(next);
     }
@@ -78,54 +98,42 @@ export function showConfirmModal(title, message, type, confirmCallback) {
     if (type === 'danger') {
         box.style.borderColor = 'var(--log-fatal)';
         titleEl.style.color = 'var(--log-fatal)';
-    } else if (type === 'warning') {
-        box.style.borderColor = 'var(--log-warn)';
-        titleEl.style.color = 'var(--log-warn)';
     } else {
-        box.style.borderColor = 'var(--text-main)';
+        box.style.borderColor = 'var(--border-main)';
         titleEl.style.color = 'var(--text-main)';
     }
 
-    const confirmBtn = document.getElementById('custom-modal-confirm');
-    confirmBtn.onclick = function () {
-        closeModal();
-        confirmCallback();
-    };
     modal.style.display = 'flex';
+    const confirmBtn = document.getElementById('custom-modal-confirm');
+    confirmBtn.onclick = () => {
+        closeModal();
+        if (confirmCallback) confirmCallback();
+    };
 }
 
-export function showPromptModal(title, message, placeholder, confirmCallback, isPassword = false) {
+export function showPromptModal(title, message, defaultValue, confirmCallback) {
     const modal = document.getElementById('custom-modal');
     const box = document.getElementById('custom-modal-box');
     const titleEl = document.getElementById('custom-modal-title');
     const inputEl = document.getElementById('custom-modal-input');
 
     titleEl.innerText = title;
-    document.getElementById('custom-modal-message').innerText = message;
-
-    inputEl.style.display = 'block';
-    inputEl.type = isPassword ? 'password' : 'text';
-    inputEl.placeholder = placeholder;
-    inputEl.value = '';
-
-    box.style.borderColor = 'var(--text-main)';
     titleEl.style.color = 'var(--text-main)';
+    box.style.borderColor = 'var(--border-main)';
+    document.getElementById('custom-modal-message').innerText = message;
+    inputEl.style.display = 'block';
+    inputEl.value = defaultValue || '';
 
-    const confirmBtn = document.getElementById('custom-modal-confirm');
-    confirmBtn.onclick = function () {
-        const val = inputEl.value;
-        if (val) {
-            closeModal();
-            confirmCallback(val);
-        }
-    };
     modal.style.display = 'flex';
-    inputEl.focus();
+    const confirmBtn = document.getElementById('custom-modal-confirm');
+    confirmBtn.onclick = () => {
+        const val = inputEl.value;
+        closeModal();
+        if (confirmCallback) confirmCallback(val);
+    };
 }
 
 export function closeModal() {
-    document.getElementById('custom-modal').style.display = 'none';
+    const modal = document.getElementById('custom-modal');
+    if (modal) modal.style.display = 'none';
 }
-
-// Initialize theme immediately upon module load
-initTheme();

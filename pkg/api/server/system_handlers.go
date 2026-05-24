@@ -25,6 +25,11 @@ func registerSystemRoutes(config *core.Config) {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
+		claims := claimsFromRequest(r)
+		if claims == nil || !core.CanAccessPlugins(claims.Role) {
+			writeJSONError(w, "Lead or Manager role required", http.StatusForbidden)
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
 		if config.Plugins.AutoReload {
 			_ = core.ReloadRemediationRegistry(config.Plugins.Directory)
@@ -39,6 +44,11 @@ func registerSystemRoutes(config *core.Config) {
 
 	// Execute a specific plugin manually from the UI
 	http.HandleFunc("/api/plugins/run", jwtAuthMiddleware(config, "", func(w http.ResponseWriter, r *http.Request) {
+		claims := claimsFromRequest(r)
+		if claims == nil || !core.CanAccessPlugins(claims.Role) {
+			writeJSONError(w, "Lead or Manager role required", http.StatusForbidden)
+			return
+		}
 		var req struct {
 			FilePath string `json:"file_path"`
 		}
@@ -67,7 +77,7 @@ func registerSystemRoutes(config *core.Config) {
 		claims := &Claims{}
 		jwt.ParseWithClaims(tokenString, claims, func(t *jwt.Token) (interface{}, error) { return jwtKey, nil })
 		if !core.CanManagePluginAutoRun(claims.Role) {
-			writeJSONError(w, "Manager or Platform Admin required", http.StatusForbidden)
+			writeJSONError(w, "Manager or Lead role required", http.StatusForbidden)
 			return
 		}
 		var req struct {
@@ -102,7 +112,7 @@ func registerSystemRoutes(config *core.Config) {
 		claims := &Claims{}
 		jwt.ParseWithClaims(tokenString, claims, func(t *jwt.Token) (interface{}, error) { return jwtKey, nil })
 		if !core.CanManagePluginAutoRun(claims.Role) {
-			writeJSONError(w, "Manager or Platform Admin required", http.StatusForbidden)
+			writeJSONError(w, "Manager or Lead role required", http.StatusForbidden)
 			return
 		}
 		var req struct {
@@ -130,6 +140,11 @@ func registerSystemRoutes(config *core.Config) {
 	http.HandleFunc("/api/plugins/active", jwtAuthMiddleware(config, "", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		claims := claimsFromRequest(r)
+		if claims == nil || !core.CanAccessPlugins(claims.Role) {
+			writeJSONError(w, "Lead or Manager role required", http.StatusForbidden)
 			return
 		}
 		_ = core.ReloadRemediationRegistry(config.Plugins.Directory)

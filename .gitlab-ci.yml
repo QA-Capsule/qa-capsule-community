@@ -1,0 +1,48 @@
+# GitLab CI — Robot Framework + QA Capsule (même modèle que .github/workflows/robot-tests.yml)
+#
+# Variables CI/CD (Settings → CI/CD → Variables, masquées) :
+#   QA_CAPSULE_URL
+#   QA_CAPSULE_API_ROBOT_KEY  (ou QA_CAPSULE_API_KEY)
+
+stages:
+  - test
+
+robot-framework:
+  stage: test
+  image: python:3.12
+  variables:
+    SELENIUM_ENABLED: "false"
+    QA_CAPSULE_EXEC_ENV: STAGING
+    QA_CAPSULE_EXEC_TYPE: TEST-RUN
+    PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  cache:
+    paths:
+      - .cache/pip
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq curl
+    - pip install -r tests/requirements.txt
+  script:
+    - mkdir -p tests/results
+    - robot --outputdir tests/results --loglevel INFO tests/robotframework || ROBOT_FAILED=1
+    - |
+      if [ -f tests/results/output.xml ]; then
+        rebot --xunit tests/results/robot-junit.xml --outputdir tests/results tests/results/output.xml
+      fi
+    - |
+      KEY="${QA_CAPSULE_API_ROBOT_KEY:-${QA_CAPSULE_API_KEY:-}}"
+      if [ -n "${QA_CAPSULE_URL:-}" ] && [ -n "$KEY" ] && [ -f tests/results/robot-junit.xml ]; then
+        curl -f -S -X POST "${QA_CAPSULE_URL}/api/webhooks/upload?framework=RobotFramework" \
+          -H "X-API-Key: ${KEY}" \
+          -H "X-Run-Id: ${CI_PIPELINE_ID}" \
+          -H "X-Execution-Env: ${QA_CAPSULE_EXEC_ENV}" \
+          -H "X-Execution-Type: ${QA_CAPSULE_EXEC_TYPE}" \
+          -F "file=@tests/results/robot-junit.xml"
+      else
+        echo "QA Capsule upload skipped (missing URL/key or JUnit file)."
+      fi
+    - test -z "${ROBOT_FAILED:-}"
+  artifacts:
+    when: always
+    paths:
+      - tests/results/
+    expire_in: 7 days

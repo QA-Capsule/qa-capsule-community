@@ -1,5 +1,5 @@
 {
-  "auto_run": true,
+  "auto_run": false,
   "config": {
     "SENDGRID_API_KEY": "",
     "SENDGRID_FROM": "qa-capsule@yourcompany.com",
@@ -8,7 +8,7 @@
   "description": "Sends an HTML alert email via SendGrid v3 Mail Send API.",
   "integration": "sendgrid",
   "name": "Email — SendGrid",
-  "routing_enabled": true,
+  "routing_enabled": false,
   "status": "Active",
   "trigger_on": [
     "CRITICAL",

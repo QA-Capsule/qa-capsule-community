@@ -87,12 +87,19 @@ Sans `QA_CAPSULE_*`, les tests tournent quand même ; l’upload est ignoré (ut
 
 ### GitHub Actions
 
-Un workflow prêt à l’emploi est dans [`.github/workflows/robot-tests.yml`](../.github/workflows/robot-tests.yml).
+Workflow aligné sur **API Pipeline (Pytest)** et **E2E Playwright** : [`.github/workflows/robot-tests.yml`](../.github/workflows/robot-tests.yml)
 
 1. **Settings → Secrets and variables → Actions** → ajouter :
-   - `QA_CAPSULE_URL`
-   - `QA_CAPSULE_API_KEY`
-2. Pousser sur `main` ou lancer **Actions → Robot tests → Run workflow**.
+   - `QA_CAPSULE_URL` — base URL (sans `/` final), ex. `https://qa-capsule.example.com`
+   - `QA_CAPSULE_API_ROBOT_KEY` — clé du projet (ou `QA_CAPSULE_API_KEY`)
+2. Lancer : **Actions → Robot Framework Pipeline → Run workflow** (ou push sur `main`).
+
+Même schéma que les autres pipelines du dépôt :
+
+| Secret | Exemple Pytest | Robot |
+|--------|----------------|-------|
+| URL | `QA_CAPSULE_URL` | `QA_CAPSULE_URL` |
+| Clé API | `QA_CAPSULE_API_PYTEST_KEY` | `QA_CAPSULE_API_ROBOT_KEY` |
 
 Extrait minimal si vous avez déjà un job :
 

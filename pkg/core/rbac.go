@@ -103,9 +103,9 @@ func CanAccessPlugins(role string) bool {
 	return IsManager(role) || IsLead(role)
 }
 
-// CanManagePluginAutoRun allows toggling AUTO-RUN on integrations (Manager or Platform Admin).
+// CanManagePluginAutoRun allows toggling AUTO-RUN / gateway routing on integrations (Manager or Lead).
 func CanManagePluginAutoRun(role string) bool {
-	return IsManager(role) || IsAdmin(role)
+	return IsManager(role) || IsLead(role)
 }
 
 func CanResolveIncidents(role string) bool {
@@ -122,9 +122,9 @@ func CanAccessChartStudio(role string) bool {
 	return r == RoleManager || r == RoleLead || r == RoleObserver
 }
 
-// CanManageWorkflow allows creating/editing visual remediation DAGs (Lead+).
+// CanManageWorkflow allows creating/editing visual remediation DAGs (Lead or Manager).
 func CanManageWorkflow(role string) bool {
-	return HasMinRole(role, RoleLead)
+	return IsManager(role) || IsLead(role)
 }
 
 // CanViewRCA allows reading AI insights (Observer+ on operations roles).

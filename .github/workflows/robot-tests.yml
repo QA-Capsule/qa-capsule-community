@@ -1,14 +1,15 @@
-# Robot Framework → JUnit → QA Capsule
+# Robot Framework → JUnit XML → QA Capsule
+# Aligné sur api-tests-pytest.yml / e2e-tests-playwright.yml
 #
-# Secrets requis (Settings → Secrets and variables → Actions) :
-#   QA_CAPSULE_URL       ex. https://qa-capsule.mondomaine.com
-#   QA_CAPSULE_API_KEY   clé API du projet (CI/CD Gateway)
-#
-# Déclenchement : push/PR sur main, ou manuel (workflow_dispatch).
+# Secrets GitHub (Settings → Secrets and variables → Actions) :
+#   QA_CAPSULE_URL              Base URL sans slash final (ex. https://qa-capsule.example.com)
+#   QA_CAPSULE_API_ROBOT_KEY    Clé API du projet Robot (CI/CD Gateways)
+#   — ou QA_CAPSULE_API_KEY si vous réutilisez une seule clé pour tous les workflows
 
-name: Robot tests
+name: Robot Framework Pipeline
 
 on:
+  workflow_dispatch:
   push:
     branches: [main, master]
     paths:
@@ -17,45 +18,90 @@ on:
       - '.github/workflows/robot-tests.yml'
   pull_request:
     branches: [main, master]
-  workflow_dispatch:
+    paths:
+      - 'tests/**'
+      - 'scripts/run-tests.sh'
+      - '.github/workflows/robot-tests.yml'
 
 jobs:
-  robot:
+  run-robot:
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
-    env:
-      QA_CAPSULE_URL: ${{ secrets.QA_CAPSULE_URL }}
-      QA_CAPSULE_API_KEY: ${{ secrets.QA_CAPSULE_API_KEY }}
-      QA_CAPSULE_EXEC_ENV: STAGING
-      QA_CAPSULE_EXEC_TYPE: TEST-RUN
-      CI_PIPELINE_ID: ${{ github.run_id }}
-      # Tests UI désactivés par défaut en CI (pas de navigateur)
-      SELENIUM_ENABLED: 'false'
-
     steps:
-      - name: Checkout
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
           cache: pip
           cache-dependency-path: tests/requirements.txt
 
-      - name: Run Robot suite and upload to QA Capsule
-        run: |
-          chmod +x scripts/run-tests.sh
-          ./scripts/run-tests.sh
+      - name: Install Dependencies
+        run: pip install -r tests/requirements.txt
 
-      - name: Upload Robot artifacts (debug)
+      - name: Run Robot Framework Tests
+        id: robot
+        env:
+          SELENIUM_ENABLED: 'false'
+        run: |
+          mkdir -p tests/results
+          robot --outputdir tests/results --loglevel INFO tests/robotframework
+        continue-on-error: true
+
+      - name: Convert Robot output to JUnit XML
+        if: always()
+        run: |
+          if [ -f tests/results/output.xml ]; then
+            echo "Converting Robot output.xml → JUnit (robot-junit.xml)..."
+            rebot --xunit tests/results/robot-junit.xml \
+              --outputdir tests/results \
+              tests/results/output.xml
+          else
+            echo "No Robot output.xml found — skip JUnit conversion."
+          fi
+
+      - name: Send Alert to QA Capsule
+        if: always()
+        env:
+          WEBHOOK_URL: ${{ secrets.QA_CAPSULE_URL }}
+          API_KEY: ${{ secrets.QA_CAPSULE_API_ROBOT_KEY }}
+          API_KEY_FALLBACK: ${{ secrets.QA_CAPSULE_API_KEY }}
+          QA_CAPSULE_EXEC_ENV: STAGING
+          QA_CAPSULE_EXEC_TYPE: TEST-RUN
+        run: |
+          KEY="${API_KEY:-$API_KEY_FALLBACK}"
+          if [ -z "$WEBHOOK_URL" ] || [ -z "$KEY" ]; then
+            echo "Skip upload: set QA_CAPSULE_URL and QA_CAPSULE_API_ROBOT_KEY (or QA_CAPSULE_API_KEY)."
+            exit 0
+          fi
+          if [ ! -f tests/results/robot-junit.xml ]; then
+            echo "Skip upload: robot-junit.xml not found."
+            exit 0
+          fi
+          echo "Uploading Robot JUnit XML to QA Capsule..."
+          curl -f -S -X POST "${WEBHOOK_URL}/api/webhooks/upload?framework=RobotFramework" \
+            -H "X-API-Key: ${KEY}" \
+            -H "X-Run-Id: ${GITHUB_RUN_ID}" \
+            -H "X-Execution-Env: ${QA_CAPSULE_EXEC_ENV}" \
+            -H "X-Execution-Type: ${QA_CAPSULE_EXEC_TYPE}" \
+            -F "file=@tests/results/robot-junit.xml"
+
+      - name: Upload Robot artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: robot-results
           path: |
-            tests/results/output.xml
+            tests/results/robot-junit.xml
             tests/results/log.html
             tests/results/report.html
           if-no-files-found: ignore
+
+      - name: Fail pipeline if tests failed
+        if: steps.robot.outcome == 'failure'
+        run: |
+          echo "Robot tests failed — see log.html artifact."
+          exit 1

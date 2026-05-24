@@ -40,6 +40,8 @@ Thumbs.db
 # Robot Framework
 .venv-robot/
 tests/results/
+tests/results-ci/
+tests/results-ci2/
 log.html
 report.html
 output.xml

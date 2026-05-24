@@ -18,9 +18,14 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+# Aliases used by other QA Capsule workflows (Pytest, Playwright, Cypress)
+QA_CAPSULE_URL="${QA_CAPSULE_URL:-${WEBHOOK_URL:-}}"
+QA_CAPSULE_API_KEY="${QA_CAPSULE_API_KEY:-${API_KEY:-}}"
+
 VENV_DIR="${VENV_DIR:-.venv-robot}"
 OUTPUT_DIR="${OUTPUT_DIR:-tests/results}"
-JUNIT_FILE="${OUTPUT_DIR}/output.xml"
+ROBOT_OUTPUT="${OUTPUT_DIR}/output.xml"
+JUNIT_FILE="${JUNIT_FILE:-${OUTPUT_DIR}/robot-junit.xml}"
 ROBOT_EXIT=0
 
 echo "==> QA Capsule Robot test runner"
@@ -52,12 +57,12 @@ ROBOT_EXIT=$?
 set -e
 
 # Robot writes native output.xml; QA Capsule expects JUnit XML → convert with rebot.
-if [[ -f "${OUTPUT_DIR}/output.xml" ]]; then
+if [[ -f "${ROBOT_OUTPUT}" ]]; then
   echo "==> Converting Robot output to JUnit XML: ${JUNIT_FILE}"
   rebot \
     --xunit "${JUNIT_FILE}" \
     --outputdir "${OUTPUT_DIR}" \
-    "${OUTPUT_DIR}/output.xml"
+    "${ROBOT_OUTPUT}"
 else
   echo "WARN: Robot output.xml not found; skipping JUnit conversion."
 fi

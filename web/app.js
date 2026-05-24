@@ -20,10 +20,10 @@ import * as quarantine from './js/quarantine.js';
 import * as runbooks from './js/runbooks.js';
 import * as dora from './js/dora.js';
 import { setupAutocomplete } from './js/autocomplete.js';
-import { initTheme } from './js/ui.js';
+import { initTheme, applyTheme } from './js/ui.js';
 
 // EXPORT GLOBALLY FOR HTML INLINE HANDLERS
-Object.assign(window, { notify, showConfirmModal, showPromptModal, closeModal, toggleTheme, initSidebar, toggleSidebar, parseJwt, performLogout, fetchWithAuth });
+Object.assign(window, { notify, showConfirmModal, showPromptModal, closeModal, toggleTheme, initSidebar, toggleSidebar, parseJwt, performLogout, fetchWithAuth, applyTheme });
 
 // Bind all module functions to the window so HTML 'onclick' can find them
 for (const [key, value] of Object.entries(iam)) {
@@ -1310,7 +1310,7 @@ window.switchView = function (id, el) {
     if (id === 'settings' && payload && canManageIAM(payload.role)) {
         if (window.loadConfig) window.loadConfig();
     }
-    if (id === 'ingestion' && payload && hasMinRole(payload.role, 'lead')) {
+    if (id === 'ingestion' && payload && canAccessView(payload.role, 'ingestion')) {
         if (window.loadGatewaysData) window.loadGatewaysData();
     }
     if (id === 'finops' && payload && canAccessFinOps(payload.role)) {
