@@ -4,6 +4,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"strings"
+	"time"
 )
 
 // UnifiedAlert represents the standardized format for all telemetry events
@@ -26,12 +27,20 @@ type UnifiedAlert struct {
 // JUnitTestSuites represents the root of a JUnit XML report (for multiple suites)
 type JUnitTestSuites struct {
 	XMLName    xml.Name         `xml:"testsuites"`
+	Tests      int              `xml:"tests,attr"`
+	Failures   int              `xml:"failures,attr"`
+	Skipped    int              `xml:"skipped,attr"`
+	Time       float64          `xml:"time,attr"`
 	TestSuites []JUnitTestSuite `xml:"testsuite"`
 }
 
 // JUnitTestSuite represents a group of test cases
 type JUnitTestSuite struct {
 	Name      string          `xml:"name,attr"`
+	Tests     int             `xml:"tests,attr"`
+	Failures  int             `xml:"failures,attr"`
+	Skipped   int             `xml:"skipped,attr"`
+	Time      float64         `xml:"time,attr"`
 	TestCases []JUnitTestCase `xml:"testcase"`
 }
 
@@ -39,10 +48,17 @@ type JUnitTestSuite struct {
 type JUnitTestCase struct {
 	Name      string        `xml:"name,attr"`
 	ClassName string        `xml:"classname,attr"`
+	Time      float64       `xml:"time,attr"`
 	Failure   *JUnitFailure `xml:"failure"`
-	Error     *JUnitFailure `xml:"error"`      // Support for framework using <error> instead of <failure>
-	SystemOut string        `xml:"system-out"` // Captures standard console outputs
-	SystemErr string        `xml:"system-err"` // Captures standard console errors
+	Error     *JUnitFailure `xml:"error"`
+	Skipped   *JUnitSkipped `xml:"skipped"`
+	SystemOut string        `xml:"system-out"`
+	SystemErr string        `xml:"system-err"`
+}
+
+// JUnitSkipped marks a skipped testcase.
+type JUnitSkipped struct {
+	Message string `xml:"message,attr"`
 }
 
 // JUnitFailure holds the crash details, type, and stacktrace
@@ -157,25 +173,48 @@ func int64Field(raw map[string]interface{}, key string) int64 {
 	return 0
 }
 
-// ParseJUnitXML parses raw XML bytes and extracts ONLY failed tests into UnifiedAlerts
-// It now perfectly separates STDOUT and STDERR into respective fields
-func ParseJUnitXML(data []byte, framework string) []UnifiedAlert {
-	var suites JUnitTestSuites
-	var alerts []UnifiedAlert
+// JUnitParseResult contains failure alerts and the full execution report.
+type JUnitParseResult struct {
+	Failures []UnifiedAlert
+	Report   UnifiedExecutionReport
+}
 
+// ParseJUnitXML parses JUnit XML and returns failure alerts (backward compatible).
+func ParseJUnitXML(data []byte, framework string) []UnifiedAlert {
+	return ParseJUnitReport(data, framework).Failures
+}
+
+// ParseJUnitReport parses all testcases and builds a unified execution report.
+func ParseJUnitReport(data []byte, framework string) JUnitParseResult {
 	if framework == "" {
 		framework = "JUnit"
 	}
-
-	err := xml.Unmarshal(data, &suites)
-	if err != nil || len(suites.TestSuites) == 0 {
+	var suites JUnitTestSuites
+	_ = xml.Unmarshal(data, &suites)
+	if len(suites.TestSuites) == 0 {
 		var single JUnitTestSuite
-		xml.Unmarshal(data, &single)
-		suites.TestSuites = []JUnitTestSuite{single}
+		if xml.Unmarshal(data, &single) == nil {
+			suites.TestSuites = []JUnitTestSuite{single}
+		}
 	}
+
+	report := UnifiedExecutionReport{
+		SchemaVersion: executionReportSchemaVersion,
+		Flags:         ExecutionFlags{Env: ExecutionEnvUnknown, Type: ExecutionTypeReal},
+		Framework:     framework,
+		ParsedAt:      time.Now().UTC(),
+	}
+	var failures []UnifiedAlert
 
 	for _, suite := range suites.TestSuites {
 		for _, tc := range suite.TestCases {
+			alertName := tc.Name
+			if tc.ClassName != "" {
+				alertName = fmt.Sprintf("%s > %s", tc.ClassName, tc.Name)
+			}
+			fullName := fmt.Sprintf("[%s] %s", framework, alertName)
+			durationMs := int64(tc.Time * 1000)
+
 			var failureNode *JUnitFailure
 			if tc.Failure != nil {
 				failureNode = tc.Failure
@@ -183,42 +222,74 @@ func ParseJUnitXML(data []byte, framework string) []UnifiedAlert {
 				failureNode = tc.Error
 			}
 
+			status := "passed"
+			if tc.Skipped != nil {
+				status = "skip"
+			} else if failureNode != nil {
+				status = "CRITICAL"
+			}
+
+			tcResult := TestCaseResult{
+				Name:       fullName,
+				Status:     normalizeTestMatrixStatus(status, fullName),
+				DurationMs: durationMs,
+			}
+
 			if failureNode != nil {
 				var stdoutBuilder strings.Builder
 				var stderrBuilder strings.Builder
-
-				// 1. Build the Error / Crash Log (STDERR + Stacktrace)
 				stderrBuilder.WriteString(fmt.Sprintf("[INFO] Source: XML JUnit Report\n[FATAL] Type: %s\n", failureNode.Type))
-
 				if strings.TrimSpace(failureNode.Contents) != "" {
 					stderrBuilder.WriteString(fmt.Sprintf("\n--- STACKTRACE ---\n%s\n", strings.TrimSpace(failureNode.Contents)))
 				}
 				if strings.TrimSpace(tc.SystemErr) != "" {
 					stderrBuilder.WriteString(fmt.Sprintf("\n--- CONSOLE STDERR ---\n%s\n", strings.TrimSpace(tc.SystemErr)))
 				}
-
-				// 2. Build the Standard Output Log (STDOUT)
 				if strings.TrimSpace(tc.SystemOut) != "" {
 					stdoutBuilder.WriteString(fmt.Sprintf("--- CONSOLE STDOUT ---\n%s\n", strings.TrimSpace(tc.SystemOut)))
 				} else {
 					stdoutBuilder.WriteString("[INFO] No standard output (stdout) captured for this test.")
 				}
+				tcResult.ErrorMessage = failureNode.Message
+				tcResult.ConsoleLogs = stdoutBuilder.String()
+				tcResult.ErrorLogs = stderrBuilder.String()
+				tcResult.Fingerprint = IncidentFingerprint(fullName, failureNode.Message)
 
-				alertName := tc.Name
-				if tc.ClassName != "" {
-					alertName = fmt.Sprintf("%s > %s", tc.ClassName, tc.Name)
-				}
-
-				alerts = append(alerts, UnifiedAlert{
-					Name:        fmt.Sprintf("[%s] %s", framework, alertName),
-					Error:       failureNode.Message,
-					Browser:     "CI/Artifact",
-					ConsoleLogs: stdoutBuilder.String(), // Populated with only standard logs
-					ErrorLogs:   stderrBuilder.String(), // Populated with crashes and trace
-					Status:      "CRITICAL",
+				failures = append(failures, UnifiedAlert{
+					Name:            fullName,
+					Error:           failureNode.Message,
+					Browser:         "CI/Artifact",
+					ConsoleLogs:     tcResult.ConsoleLogs,
+					ErrorLogs:       tcResult.ErrorLogs,
+					Status:          "CRITICAL",
+					ExecutionTimeMs: durationMs,
 				})
+			} else if tcResult.Status == "pass" || tcResult.Status == "skip" {
+				tcResult.Fingerprint = IncidentFingerprint(fullName, "")
 			}
+			report.Tests = append(report.Tests, tcResult)
 		}
 	}
-	return alerts
+
+	report.Summary = summarizeTests(report.Tests)
+	if suites.Tests > 0 && report.Summary.Total == 0 {
+		report.Summary.Total = suites.Tests
+	}
+	if suites.Failures > 0 && report.Summary.Failed == 0 {
+		report.Summary.Failed = suites.Failures
+	}
+	if suites.Skipped > 0 && report.Summary.Skipped == 0 {
+		report.Summary.Skipped = suites.Skipped
+	}
+	if suites.Time > 0 && report.Summary.DurationMs == 0 {
+		report.Summary.DurationMs = int64(suites.Time * 1000)
+	}
+	if report.Summary.Passed == 0 && report.Summary.Total > 0 {
+		report.Summary.Passed = report.Summary.Total - report.Summary.Failed - report.Summary.Skipped
+		if report.Summary.Passed < 0 {
+			report.Summary.Passed = 0
+		}
+	}
+
+	return JUnitParseResult{Failures: failures, Report: report}
 }

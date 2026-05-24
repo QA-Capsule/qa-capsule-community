@@ -143,6 +143,11 @@ func CanManageQuarantine(role string) bool {
 	return HasMinRole(role, RoleLead)
 }
 
+// CanPatchExecutionFlags allows tagging pipeline runs (Lead+).
+func CanPatchExecutionFlags(role string) bool {
+	return HasMinRole(role, RoleLead)
+}
+
 // CanConfigureAI allows changing LLM provider settings (Manager+).
 func CanConfigureAI(role string) bool {
 	return IsManager(role) || IsAdmin(role)

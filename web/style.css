@@ -2636,6 +2636,309 @@ body[data-theme="dark"] .ci-card.active {
     z-index: 100;
 }
 
+/* ==========================================
+   SRE COMMAND CENTER (ops dashboard)
+   ========================================== */
+.ops-dashboard {
+    --cmd-bg: #0c1222;
+    --cmd-surface: #111b2e;
+    --cmd-border: rgba(56, 189, 248, 0.14);
+    --cmd-accent: #38bdf8;
+    --cmd-text: #cbd5e1;
+    --cmd-muted: #64748b;
+}
+
+[data-theme="dark"] .ops-dashboard,
+.ops-dashboard {
+    background: linear-gradient(180deg, var(--cmd-bg) 0%, #070b14 100%);
+    border-radius: var(--radius-lg);
+    padding: 4px 0 24px;
+}
+
+.ops-dashboard .ops-page-head h1,
+.ops-dashboard .incident-log-toolbar h3,
+.ops-dashboard .exec-matrix-title {
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--cmd-accent);
+}
+
+.ops-dashboard .ops-page-head p,
+.ops-dashboard .pipeline-exec-submeta,
+.ops-dashboard .metric-label {
+    color: var(--cmd-muted);
+    font-size: 11px;
+}
+
+.ops-dashboard .login-input,
+.ops-dashboard .dashboard-control,
+.ops-dashboard .exec-flag-select {
+    max-width: none;
+    font-size: 11px;
+    padding: 6px 10px;
+    min-height: 30px;
+    background: var(--cmd-surface);
+    border-color: var(--cmd-border);
+    color: var(--cmd-text);
+    font-family: inherit;
+}
+
+.ops-dashboard .data-card,
+.ops-dashboard .pipeline-exec-card,
+.ops-dashboard .ops-metric-tile,
+.ops-dashboard .bulk-action-bar {
+    background: var(--cmd-surface);
+    border-color: var(--cmd-border);
+    box-shadow: inset 0 1px 0 rgba(56, 189, 248, 0.06);
+}
+
+.ops-dashboard .pipeline-exec-title {
+    color: #e2e8f0;
+    font-size: 14px;
+}
+
+.ops-dashboard .incident-log-panel,
+.ops-dashboard .exec-side-sheet__logs {
+    background: #060a12;
+    border-color: var(--cmd-border);
+    color: #94a3b8;
+    font-size: 10px;
+    max-height: 280px;
+}
+
+/* Execution hub flags & matrix */
+.exec-hub-flags {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.exec-flag-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    border: 1px solid transparent;
+}
+
+.exec-flag--prod { background: rgba(239, 68, 68, 0.15); color: #fca5a5; border-color: rgba(239, 68, 68, 0.35); }
+.exec-flag--staging { background: rgba(251, 191, 36, 0.12); color: #fcd34d; border-color: rgba(251, 191, 36, 0.3); }
+.exec-flag--canary { background: rgba(168, 85, 247, 0.12); color: #d8b4fe; border-color: rgba(168, 85, 247, 0.3); }
+.exec-flag--dev { background: rgba(52, 211, 153, 0.12); color: #6ee7b7; border-color: rgba(52, 211, 153, 0.3); }
+.exec-flag--unknown { background: rgba(100, 116, 139, 0.2); color: #94a3b8; border-color: rgba(100, 116, 139, 0.35); }
+.exec-flag--real { background: rgba(56, 189, 248, 0.12); color: #7dd3fc; border-color: rgba(56, 189, 248, 0.35); }
+.exec-flag--testrun { background: rgba(249, 115, 22, 0.12); color: #fdba74; border-color: rgba(249, 115, 22, 0.35); }
+.exec-flag--nightly { background: rgba(99, 102, 241, 0.15); color: #a5b4fc; border-color: rgba(99, 102, 241, 0.35); }
+.exec-flag--smoke { background: rgba(148, 163, 184, 0.15); color: #cbd5e1; border-color: rgba(148, 163, 184, 0.35); }
+
+.exec-hub-summary {
+    font-size: 10px;
+    color: var(--cmd-muted, var(--text-muted));
+}
+
+.exec-flag-editors {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.exec-flag-edit-label {
+    font-size: 9px;
+    color: var(--cmd-muted, var(--text-muted));
+    letter-spacing: 0.06em;
+}
+
+.exec-flag-select {
+    width: auto;
+    min-width: 88px;
+}
+
+.exec-matrix-section {
+    margin-bottom: 14px;
+    padding-bottom: 12px;
+    border-bottom: 1px dashed var(--cmd-border, var(--border-main));
+}
+
+.exec-matrix-section--empty {
+    padding: 8px 0;
+}
+
+.exec-matrix-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
+.exec-matrix-title {
+    font-size: 10px;
+    font-weight: 700;
+}
+
+.exec-matrix-hint {
+    font-size: 9px;
+    color: var(--cmd-muted, var(--text-muted));
+}
+
+.exec-test-matrix-grid {
+    display: grid;
+    grid-template-columns: repeat(var(--matrix-cols, 12), minmax(0, 1fr));
+    gap: 4px;
+}
+
+.exec-matrix-cell {
+    aspect-ratio: 1;
+    min-height: 28px;
+    padding: 2px 4px;
+    font-size: 8px;
+    line-height: 1.1;
+    border: 1px solid var(--cmd-border, var(--border-main));
+    border-radius: 3px;
+    background: #0a101c;
+    color: #94a3b8;
+    cursor: pointer;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: inherit;
+}
+
+.exec-matrix-cell:hover {
+    border-color: var(--cmd-accent, var(--accent));
+    color: #e2e8f0;
+    z-index: 1;
+}
+
+.exec-matrix-cell--pass { background: rgba(16, 185, 129, 0.2); border-color: rgba(16, 185, 129, 0.4); color: #6ee7b7; }
+.exec-matrix-cell--fail { background: rgba(239, 68, 68, 0.2); border-color: rgba(239, 68, 68, 0.45); color: #fca5a5; }
+.exec-matrix-cell--skip { background: rgba(100, 116, 139, 0.2); color: #94a3b8; }
+.exec-matrix-cell--flaky { background: rgba(245, 158, 11, 0.2); border-color: rgba(245, 158, 11, 0.45); color: #fcd34d; }
+
+.exec-matrix-empty,
+.exec-matrix-overflow {
+    font-size: 10px;
+    color: var(--text-muted);
+    padding: 8px 0;
+}
+
+.incident-test-row-actions {
+    margin-top: 8px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.exec-detail-btn {
+    font-size: 10px !important;
+    padding: 4px 10px !important;
+}
+
+/* Execution detail side-sheet */
+.exec-side-sheet {
+    position: fixed;
+    inset: 0;
+    z-index: 5000;
+    pointer-events: none;
+}
+
+.exec-side-sheet.is-open {
+    pointer-events: auto;
+}
+
+.exec-side-sheet__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(2, 6, 23, 0.65);
+}
+
+.exec-side-sheet__panel {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: min(480px, 92vw);
+    height: 100%;
+    background: #0c1222;
+    border-left: 1px solid rgba(56, 189, 248, 0.2);
+    display: flex;
+    flex-direction: column;
+    box-shadow: -12px 0 40px rgba(0, 0, 0, 0.5);
+    font-family: inherit;
+}
+
+.exec-side-sheet__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px 18px;
+    border-bottom: 1px solid rgba(56, 189, 248, 0.15);
+}
+
+.exec-side-sheet__header h3 {
+    margin: 0;
+    font-size: 13px;
+    color: #38bdf8;
+    letter-spacing: 0.04em;
+    word-break: break-word;
+}
+
+.exec-side-sheet__close {
+    background: transparent;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    color: #94a3b8;
+    width: 32px;
+    height: 32px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+}
+
+.exec-side-sheet__meta {
+    padding: 10px 18px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.exec-sheet-meta-item {
+    font-size: 9px;
+    padding: 2px 8px;
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    border-radius: 4px;
+    color: #7dd3fc;
+}
+
+.exec-side-sheet__logs {
+    flex: 1;
+    margin: 0 18px;
+    padding: 14px;
+    overflow: auto;
+    border-radius: 6px;
+    font-family: ui-monospace, 'Cascadia Code', 'Consolas', monospace;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.exec-side-sheet__actions {
+    padding: 14px 18px 20px;
+    display: flex;
+    gap: 10px;
+    border-top: 1px solid rgba(56, 189, 248, 0.12);
+}
+
+body.exec-sheet-open {
+    overflow: hidden;
+}
+
 .incident-log-panel {
     font-family: ui-monospace, 'Cascadia Code', 'Consolas', monospace;
     font-size: 11px;

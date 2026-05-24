@@ -12,7 +12,8 @@ import * as profile from './js/profile.js';
 import * as finops from './js/finops.js';
 import * as about from './js/about.js';
 import * as analyticsLayout from './js/analytics-layout.js';
-import { applyRoleVisibility, canAccessFinOps, canAccessPlugins, canResolveIncidents, canDeleteIncidents, hasMinRole, roleLabel, canManageTeams, canManageIAM, isAdmin, canAccessView, accessDeniedMessage, defaultViewForRole, canManagePluginAutoRun } from './js/roles.js';
+import { applyRoleVisibility, canAccessFinOps, canAccessPlugins, canResolveIncidents, canDeleteIncidents, hasMinRole, roleLabel, canManageTeams, canManageIAM, isAdmin, canAccessView, accessDeniedMessage, defaultViewForRole, canManagePluginAutoRun, canPatchExecutionFlags } from './js/roles.js';
+import * as executionHub from './js/execution-hub.js';
 import * as workflowEditor from './js/workflow-editor.js';
 import * as rca from './js/rca.js';
 import * as quarantine from './js/quarantine.js';
@@ -56,6 +57,9 @@ for (const [key, value] of Object.entries(runbooks)) {
     if (typeof value === 'function') window[key] = value;
 }
 for (const [key, value] of Object.entries(dora)) {
+    if (typeof value === 'function') window[key] = value;
+}
+for (const [key, value] of Object.entries(executionHub)) {
     if (typeof value === 'function') window[key] = value;
 }
 // ==========================================
@@ -406,8 +410,14 @@ window.toggleSubAlerts = function (groupId, event) {
     window.pausePollingUntil = Date.now() + 15000;
     const container = document.getElementById(`sub-alerts-${groupId}`);
     const icon = document.getElementById(`toggle-icon-${groupId}`);
-    if (container.style.display === 'none') { container.style.display = 'block'; icon.style.transform = 'rotate(180deg)'; }
-    else { container.style.display = 'none'; icon.style.transform = 'rotate(0deg)'; }
+    if (container.style.display === 'none') {
+        container.style.display = 'block';
+        if (icon) icon.style.transform = 'rotate(180deg)';
+        if (typeof window.onExecGroupExpanded === 'function') window.onExecGroupExpanded(groupId);
+    } else {
+        container.style.display = 'none';
+        if (icon) icon.style.transform = 'rotate(0deg)';
+    }
 }
 
 window.__logsExpandAll = null;
@@ -838,6 +848,9 @@ window.fetchIncidents = function (forceRender = false, opts = {}) {
                     window.playCriticalAlertSound();
                 }
                 window.currentIncidents = safeData;
+                if (typeof executionHub.clearExecutionReportCache === 'function') {
+                    executionHub.clearExecutionReportCache();
+                }
                 window.renderIncidentsList();
             }
             return safeData;
@@ -921,7 +934,9 @@ window.renderIncidentsList = function () {
         if (!normalizeIsResolved(inc)) currentGroup.is_resolved = false;
     });
 
-    groupsArray.reverse(); window.groupedIncidents = {};
+    groupsArray.reverse();
+    groupsArray.forEach(g => executionHub.enrichExecutionGroup(g));
+    window.groupedIncidents = {};
     groupsArray.forEach(g => {
         window.groupedIncidents[g.id] = g;
         openGroups.add(String(g.id));
@@ -930,6 +945,7 @@ window.renderIncidentsList = function () {
     const userRole = parseJwt(localStorage.getItem('sre-jwt')).role;
     const canResolve = canResolveIncidents(userRole);
     const canDelete = canDeleteIncidents(userRole);
+    const canPatchFlags = canPatchExecutionFlags(userRole);
 
     const iconCheck = `<svg style="width:12px;height:12px;margin-right:4px;vertical-align:middle;stroke:currentColor;fill:none;" viewBox="0 0 24 24" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
     const iconAlert = `<svg style="width:12px;height:12px;margin-right:4px;vertical-align:middle;stroke:currentColor;fill:none;" viewBox="0 0 24 24" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>`;
@@ -994,7 +1010,8 @@ window.renderIncidentsList = function () {
                     </div>
                     ${subAlertFlag}
                 </div>
-                <div style="margin-top: 8px; text-align: left;">
+                <div class="incident-test-row-actions">
+                    <button type="button" class="btn btn-secondary btn-sm exec-detail-btn" onclick="openExecutionSheetFromIncident('${inc.id}', event)">Command panel</button>
                     <button type="button" class="log-toggle-btn" onclick="window.toggleIncidentLog('${inc.id}', event)">
                         <svg id="log-icon-${inc.id}" style="width:12px;height:12px;stroke:currentColor;fill:none;transition: transform 0.2s; transform: ${iconTransform};" viewBox="0 0 24 24" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
                         <span id="log-text-${inc.id}">${textLabel}</span>
@@ -1027,7 +1044,8 @@ window.renderIncidentsList = function () {
                     <div>
                         <span class="pipeline-exec-label">Pipeline execution</span>
                         <span class="pipeline-exec-title">${group.project_name}</span>
-                        <span class="pipeline-exec-submeta">${group.created_at} · ${group.incidents.length} failed test(s)</span>
+                        <span class="pipeline-exec-submeta">${group.created_at} · ${group.incidents.length} alert(s)${group.has_real_run ? ` · run ${String(group.pipeline_run_id).slice(0, 20)}` : ''}</span>
+                        ${executionHub.renderGroupExecFlagsHtml(group, canPatchFlags)}
                     </div>
                 </div>
                 <div class="pipeline-exec-toolbar">
@@ -1038,7 +1056,10 @@ window.renderIncidentsList = function () {
                     </button>
                 </div>
             </div>
-            <div id="sub-alerts-${group.id}" class="pipeline-exec-body" style="display: none;">${subAlertsHTML}</div>
+            <div id="sub-alerts-${group.id}" class="pipeline-exec-body" style="display: none;">
+                ${executionHub.renderMatrixSectionHtml(group)}
+                ${subAlertsHTML}
+            </div>
         </div>`;
     }).join('');
 
@@ -1048,7 +1069,11 @@ window.renderIncidentsList = function () {
     openGroups.forEach(groupId => {
         const el = document.getElementById(`sub-alerts-${groupId}`);
         const icon = document.getElementById(`toggle-icon-${groupId}`);
-        if (el) { el.style.display = 'block'; if (icon) icon.style.transform = 'rotate(180deg)'; }
+        if (el) {
+            el.style.display = 'block';
+            if (icon) icon.style.transform = 'rotate(180deg)';
+            executionHub.onExecGroupExpanded(groupId);
+        }
     });
 };
 

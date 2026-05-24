@@ -1,0 +1,4 @@
+# Robot Framework test suite (see tests/README.md)
+robotframework>=6.1.1,<8
+robotframework-requests>=0.9.6
+robotframework-seleniumlibrary>=6.3.0

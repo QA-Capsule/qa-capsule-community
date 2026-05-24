@@ -16,6 +16,8 @@ type IngestResult struct {
 	Flaky       bool
 	PerfAlert   bool
 	Quarantined bool
+	Fingerprint string
+	FinalName   string
 }
 
 // ProcessAlert handles dedup, flaky detection, perf regression, DB insert, and plugins.
@@ -46,7 +48,7 @@ func ProcessAlert(cfg Config, projectName, runID string, alert UnifiedAlert, rou
 	}
 	if recentCount > 0 {
 		slog.Info("correlation duplicate skipped", "test", alert.Name, "run", runID)
-		return IngestResult{Skipped: true}
+		return IngestResult{Skipped: true, Fingerprint: fp, FinalName: alert.Name}
 	}
 
 	status := alert.Status
@@ -65,7 +67,7 @@ func ProcessAlert(cfg Config, projectName, runID string, alert UnifiedAlert, rou
 			if alert.ExecutionTimeMs > 0 {
 				RecordExecutionMetric(projectName, alert.Name, fp, alert.ExecutionTimeMs, alert.Status)
 			}
-			return IngestResult{Skipped: true}
+			return IngestResult{Skipped: true, Fingerprint: fp, FinalName: alert.Name}
 		}
 	} else if isFlakyTest(projectName, fp, runID) {
 		flaky = true
@@ -110,7 +112,13 @@ func ProcessAlert(cfg Config, projectName, runID string, alert UnifiedAlert, rou
 
 	PostIncidentHooks(id, projectName, runID, alert.CommitSHA, alert, flaky)
 
-	return IngestResult{IncidentID: id, Flaky: flaky, PerfAlert: perf}
+	return IngestResult{
+		IncidentID:  id,
+		Flaky:       flaky,
+		PerfAlert:   perf,
+		Fingerprint: fp,
+		FinalName:   finalName,
+	}
 }
 
 // isFlakyTest tags failures that oscillate pass/fail or fail across multiple pipeline runs (48h window).

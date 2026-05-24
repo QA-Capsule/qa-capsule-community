@@ -37,6 +37,13 @@ vendor/
 .DS_Store
 Thumbs.db
 
+# Robot Framework
+.venv-robot/
+tests/results/
+log.html
+report.html
+output.xml
+
 # Logs
 *.log
 

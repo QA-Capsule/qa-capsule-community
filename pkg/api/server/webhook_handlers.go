@@ -18,6 +18,29 @@ func lastID(ids []int64) int64 {
 	return ids[len(ids)-1]
 }
 
+func executionFlagsFromRequest(r *http.Request, raw map[string]interface{}) core.ExecutionFlags {
+	flags := core.ExecutionFlagsFromPayload(raw)
+	if v := strings.TrimSpace(r.Header.Get("X-Execution-Env")); v != "" {
+		flags.Env = core.NormalizeExecutionEnv(v)
+	}
+	if v := strings.TrimSpace(r.Header.Get("X-Execution-Type")); v != "" {
+		flags.Type = core.NormalizeExecutionType(v)
+	}
+	return flags
+}
+
+func appendIngested(ingested []core.IngestedCase, res core.IngestResult) []core.IngestedCase {
+	if res.IncidentID <= 0 {
+		return ingested
+	}
+	return append(ingested, core.IngestedCase{
+		Fingerprint: res.Fingerprint,
+		FinalName:   res.FinalName,
+		IncidentID:  res.IncidentID,
+		Flaky:       res.Flaky,
+	})
+}
+
 // registerWebhookRoutes binds the endpoints responsible for CI/CD telemetry ingestion
 func registerWebhookRoutes(config *core.Config) {
 
@@ -46,6 +69,9 @@ func registerWebhookRoutes(config *core.Config) {
 		}
 
 		var alerts []core.UnifiedAlert
+		var report core.UnifiedExecutionReport
+		var rawPayload map[string]interface{}
+		framework := r.URL.Query().Get("framework")
 
 		if strings.HasSuffix(r.URL.Path, "/upload") {
 			err = r.ParseMultipartForm(10 << 20)
@@ -64,13 +90,10 @@ func registerWebhookRoutes(config *core.Config) {
 				http.Error(w, "Failed to read file", http.StatusInternalServerError)
 				return
 			}
-			framework := r.URL.Query().Get("framework")
-			alerts = core.ParseJUnitXML(fileBytes, framework)
-			for i := range alerts {
-				alerts[i].CommitSHA = commitSHA
-			}
+			junit := core.ParseJUnitReport(fileBytes, framework)
+			alerts = junit.Failures
+			report = junit.Report
 		} else {
-			var rawPayload map[string]interface{}
 			if err := json.NewDecoder(r.Body).Decode(&rawPayload); err != nil {
 				http.Error(w, "Invalid JSON payload format", http.StatusBadRequest)
 				return
@@ -80,25 +103,18 @@ func registerWebhookRoutes(config *core.Config) {
 					commitSHA = v
 				}
 			}
+			flags := executionFlagsFromRequest(r, rawPayload)
+			report = core.BuildReportFromPayload(rawPayload, flags, framework)
 			alerts = core.ParseAlertsFromRaw(rawPayload)
-			for i := range alerts {
-				if alerts[i].CommitSHA == "" {
-					alerts[i].CommitSHA = commitSHA
-				}
+		}
+
+		for i := range alerts {
+			if alerts[i].CommitSHA == "" {
+				alerts[i].CommitSHA = commitSHA
 			}
 		}
 
-		nonSkipped := 0
-		for _, a := range alerts {
-			if a.Status == "PASSED" || a.Status == "passed" {
-				if a.ExecutionTimeMs > 0 {
-					nonSkipped++
-				}
-			} else {
-				nonSkipped++
-			}
-		}
-		if nonSkipped == 0 {
+		if len(alerts) == 0 && len(report.Tests) == 0 {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			json.NewEncoder(w).Encode(map[string]string{"status": "success", "message": "No actionable events detected."})
@@ -115,6 +131,12 @@ func registerWebhookRoutes(config *core.Config) {
 		branch := r.Header.Get("X-Branch")
 		if branch == "" {
 			branch = r.Header.Get("X-Git-Branch")
+		}
+
+		flags := executionFlagsFromRequest(r, rawPayload)
+		report.Flags = core.ExecutionFlags{
+			Env:  flags.Env,
+			Type: flags.Type,
 		}
 
 		alertContext, allowedPlugins := core.ProjectAlertContext(projectName)
@@ -134,8 +156,10 @@ func registerWebhookRoutes(config *core.Config) {
 		processed := 0
 		quarantined := 0
 		var incidentIDs []int64
+		var ingested []core.IngestedCase
 		for _, alert := range alerts {
 			res := core.ProcessAlert(*config, projectName, runID, alert, alertContext, allowedPlugins)
+			ingested = appendIngested(ingested, res)
 			if res.Quarantined {
 				quarantined++
 				continue
@@ -152,7 +176,15 @@ func registerWebhookRoutes(config *core.Config) {
 		if processed > 0 {
 			outcome = "failure"
 		}
-		core.RecordPipelineRun(projectName, runID, commitSHA, branch, outcome)
+
+		ctx := core.IngestExecutionContext{
+			ProjectName:   projectName,
+			PipelineRunID: runID,
+			CommitSHA:     commitSHA,
+			Branch:        branch,
+			Flags:         flags,
+		}
+		_ = core.FinalizePipelineExecution(ctx, outcome, report, ingested)
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusAccepted)

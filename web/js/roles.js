@@ -83,6 +83,10 @@ export function canManageQuarantine(role) {
     return hasMinRole(role, 'lead');
 }
 
+export function canPatchExecutionFlags(role) {
+    return hasMinRole(role, 'lead');
+}
+
 export function canConfigureAI(role) {
     const r = normalizeRole(role);
     return r === 'manager' || r === 'admin';

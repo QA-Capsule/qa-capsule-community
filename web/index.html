@@ -647,6 +647,18 @@
                     </div>
                 </div>
                 <div id="incident-list" class="loading-placeholder">Loading telemetry…</div>
+                <div id="exec-side-sheet" class="exec-side-sheet" hidden>
+                    <div class="exec-side-sheet__backdrop" onclick="closeExecutionSheet()" aria-hidden="true"></div>
+                    <aside class="exec-side-sheet__panel" role="dialog" aria-labelledby="exec-sheet-title">
+                        <header class="exec-side-sheet__header">
+                            <h3 id="exec-sheet-title">Test detail</h3>
+                            <button type="button" class="exec-side-sheet__close" onclick="closeExecutionSheet()" aria-label="Close">×</button>
+                        </header>
+                        <div id="exec-sheet-meta" class="exec-side-sheet__meta"></div>
+                        <pre id="exec-sheet-logs" class="exec-side-sheet__logs"></pre>
+                        <div id="exec-sheet-actions" class="exec-side-sheet__actions"></div>
+                    </aside>
+                </div>
                 <button type="button" id="scroll-top-btn" class="scroll-top-btn" onclick="scrollDashboardToTop()" title="Back to top" aria-label="Back to top">↑</button>
             </section>
 

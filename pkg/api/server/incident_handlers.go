@@ -65,19 +65,51 @@ func registerIncidentRoutes(config *core.Config) {
 			defer rows.Close()
 
 			var incidents []map[string]interface{}
+			runIDsByProject := make(map[string]map[string]struct{})
 			for rows.Next() {
 				var id, isResolved int
 				var pName, name, status, errMsg, cLogs, eLogs string
 				var resolvedBy, createdAt, resolvedAt, pipelineRunID sql.NullString
 
 				rows.Scan(&id, &pName, &name, &status, &errMsg, &cLogs, &eLogs, &isResolved, &resolvedBy, &createdAt, &resolvedAt, &pipelineRunID)
-				incidents = append(incidents, map[string]interface{}{
+				inc := map[string]interface{}{
 					"id": id, "project_name": pName, "name": name, "status": status,
 					"error_message": errMsg, "console_logs": cLogs, "error_logs": eLogs, "is_resolved": isResolved == 1,
 					"resolved_by": resolvedBy.String, "created_at": createdAt.String, "resolved_at": resolvedAt.String,
 					"pipeline_run_id": pipelineRunID.String,
-				})
+				}
+				if pipelineRunID.Valid && pipelineRunID.String != "" {
+					if runIDsByProject[pName] == nil {
+						runIDsByProject[pName] = make(map[string]struct{})
+					}
+					runIDsByProject[pName][pipelineRunID.String] = struct{}{}
+				}
+				incidents = append(incidents, inc)
 			}
+
+			pipelineMeta := make(map[string]core.PipelineRunRecord)
+			for proj, runSet := range runIDsByProject {
+				var runIDs []string
+				for rid := range runSet {
+					runIDs = append(runIDs, rid)
+				}
+				for runID, rec := range core.LoadPipelineFlagsByRuns(proj, runIDs) {
+					pipelineMeta[proj+"|"+runID] = rec
+				}
+			}
+			for _, inc := range incidents {
+				pName, _ := inc["project_name"].(string)
+				runID, _ := inc["pipeline_run_id"].(string)
+				if runID == "" {
+					continue
+				}
+				if rec, ok := pipelineMeta[pName+"|"+runID]; ok {
+					inc["execution_env"] = rec.Flags.Env
+					inc["execution_type"] = rec.Flags.Type
+					inc["execution_summary"] = rec.Summary
+				}
+			}
+
 			json.NewEncoder(w).Encode(incidents)
 
 		} else if r.Method == http.MethodPut {
