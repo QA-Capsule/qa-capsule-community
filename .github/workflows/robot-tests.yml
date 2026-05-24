@@ -1,4 +1,4 @@
-name: Frontend E2E Tests - QA Capsule
+name: Robot tests
 
 on:
   push:
