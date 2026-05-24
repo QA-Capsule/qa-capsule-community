@@ -37,7 +37,7 @@ jobs:
         if: always()
         env:
           WEBHOOK_URL: ${{ secrets.QA_CAPSULE_URL }}
-          API_KEY: ${{ secrets.QA_CAPSULE_API_ROBOT_KEY != '' && secrets.QA_CAPSULE_API_ROBOT_KEY || secrets.QA_CAPSULE_API_KEY }}
+          API_KEY: ${{ secrets.QA_CAPSULE_API_ROBOT_KEY }}
         run: |
           JUNIT_FILE="tests/results/robot-junit.xml"
           if [ ! -f "$JUNIT_FILE" ]; then
