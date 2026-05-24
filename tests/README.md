@@ -88,7 +88,7 @@ Sans `QA_CAPSULE_*`, les tests tournent quand même ; l’upload est ignoré (ut
 
 ### GitHub Actions
 
-Workflow aligné sur **API Pipeline (Pytest)** et **E2E Playwright** : [`.github/workflows/robot-tests.yml`](../.github/workflows/robot-tests.yml)
+Workflow aligné sur **API Pipeline (Pytest)** et **E2E Playwright** : [`.github/workflows/robot-tests.yml`](../.github/workflows/robot-tests.yml) — exécution Robot puis étape **`Send Alert to QA Capsule`** (`if: always()`), comme les autres pipelines.
 
 1. **Settings → Secrets and variables → Actions** → ajouter :
    - `QA_CAPSULE_URL` — base URL (sans `/` final), ex. `https://qa-capsule.example.com`

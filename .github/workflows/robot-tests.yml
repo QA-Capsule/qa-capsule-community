@@ -7,9 +7,7 @@ jobs:
   robot:
     runs-on: ubuntu-latest
     env:
-      QA_CAPSULE_URL: ${{ secrets.QA_CAPSULE_URL }}
-      # Prefer Robot-specific key; fall back to generic project key if configured.
-      QA_CAPSULE_API_KEY: ${{ secrets.QA_CAPSULE_API_ROBOT_KEY != '' && secrets.QA_CAPSULE_API_ROBOT_KEY || secrets.QA_CAPSULE_API_KEY }}
+      QA_CAPSULE_SKIP_UPLOAD: "true"
       CI_PIPELINE_ID: ${{ github.run_id }}
       QA_CAPSULE_EXEC_ENV: STAGING
       QA_CAPSULE_EXEC_TYPE: TEST-RUN
@@ -29,9 +27,40 @@ jobs:
         run: sudo apt-get update -qq && sudo apt-get install -y -qq curl
 
       - name: Run Robot Framework suites
+        id: robot
         run: |
           chmod +x scripts/run-tests.sh
           ./scripts/run-tests.sh
+        continue-on-error: true
+
+      - name: Send Alert to QA Capsule
+        if: always()
+        env:
+          WEBHOOK_URL: ${{ secrets.QA_CAPSULE_URL }}
+          API_KEY: ${{ secrets.QA_CAPSULE_API_ROBOT_KEY != '' && secrets.QA_CAPSULE_API_ROBOT_KEY || secrets.QA_CAPSULE_API_KEY }}
+        run: |
+          JUNIT_FILE="tests/results/robot-junit.xml"
+          if [ ! -f "$JUNIT_FILE" ]; then
+            echo "::error::JUnit report not found at ${JUNIT_FILE}. Check Robot/rebot logs above."
+            exit 1
+          fi
+          if [ -z "${WEBHOOK_URL}" ] || [ -z "${API_KEY}" ]; then
+            echo "::error::Set secrets QA_CAPSULE_URL and QA_CAPSULE_API_ROBOT_KEY in repository settings."
+            exit 1
+          fi
+          echo "Uploading Robot Framework JUnit XML to QA Capsule..."
+          curl -f -S -X POST "${WEBHOOK_URL}/api/webhooks/upload?framework=RobotFramework" \
+            -H "X-API-Key: ${API_KEY}" \
+            -H "X-Run-Id: ${{ github.run_id }}" \
+            -H "X-Execution-Env: STAGING" \
+            -H "X-Execution-Type: TEST-RUN" \
+            -F "file=@${JUNIT_FILE}"
+
+      - name: Fail job if Robot tests failed
+        if: steps.robot.outcome == 'failure'
+        run: |
+          echo "Robot Framework reported test failures (expected for demo_failure.robot)."
+          exit 1
 
       - name: Upload Robot artifacts
         if: always()

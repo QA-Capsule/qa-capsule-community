@@ -57,32 +57,48 @@ ROBOT_EXIT=$?
 set -e
 
 # Robot writes native output.xml; QA Capsule expects JUnit XML → convert with rebot.
+# rebot exits non-zero when the suite had failures — must not abort before upload.
 if [[ -f "${ROBOT_OUTPUT}" ]]; then
   echo "==> Converting Robot output to JUnit XML: ${JUNIT_FILE}"
+  set +e
   rebot \
     --xunit "${JUNIT_FILE}" \
     --outputdir "${OUTPUT_DIR}" \
     "${ROBOT_OUTPUT}"
+  REBOT_EXIT=$?
+  set -e
+  if [[ "${REBOT_EXIT}" -ne 0 ]]; then
+    echo "WARN: rebot exit code ${REBOT_EXIT} (expected when tests failed); JUnit may still be valid."
+  fi
 else
   echo "WARN: Robot output.xml not found; skipping JUnit conversion."
 fi
 
-# --- Upload to QA Capsule ---
-if [[ -n "${QA_CAPSULE_URL:-}" && -n "${QA_CAPSULE_API_KEY:-}" ]]; then
+# --- Upload to QA Capsule (skip when CI workflow uploads in a dedicated step) ---
+SKIP_UPLOAD="${QA_CAPSULE_SKIP_UPLOAD:-false}"
+if [[ "${SKIP_UPLOAD}" == "true" || "${SKIP_UPLOAD}" == "1" ]]; then
+  echo "==> QA_CAPSULE_SKIP_UPLOAD set — upload deferred to CI workflow step."
+elif [[ -n "${QA_CAPSULE_URL:-}" && -n "${QA_CAPSULE_API_KEY:-}" ]]; then
   if [[ -f "${JUNIT_FILE}" ]]; then
     RUN_ID="${CI_PIPELINE_ID:-${GITHUB_RUN_ID:-${GITLAB_CI_PIPELINE_ID:-local-$(date +%s)}}}"
     EXEC_ENV="${QA_CAPSULE_EXEC_ENV:-DEV}"
     EXEC_TYPE="${QA_CAPSULE_EXEC_TYPE:-TEST-RUN}"
 
     echo "==> Uploading JUnit report to QA Capsule (${QA_CAPSULE_URL})"
+    set +e
     curl -f -S -X POST "${QA_CAPSULE_URL}/api/webhooks/upload?framework=RobotFramework" \
       -H "X-API-Key: ${QA_CAPSULE_API_KEY}" \
       -H "X-Run-Id: ${RUN_ID}" \
       -H "X-Execution-Env: ${EXEC_ENV}" \
       -H "X-Execution-Type: ${EXEC_TYPE}" \
       -F "file=@${JUNIT_FILE}"
-
-    echo "==> QA Capsule ingest accepted."
+    CURL_EXIT=$?
+    set -e
+    if [[ "${CURL_EXIT}" -ne 0 ]]; then
+      echo "ERROR: QA Capsule upload failed (curl exit ${CURL_EXIT})."
+    else
+      echo "==> QA Capsule ingest accepted."
+    fi
   else
     echo "WARN: JUnit file missing; upload skipped."
   fi
