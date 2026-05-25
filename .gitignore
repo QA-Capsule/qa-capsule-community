@@ -72,6 +72,13 @@ temp/
 # Docker
 *.tar
 
+# MkDocs build output (regenerate with: mkdocs build)
+site/
+
+# Local scratch (never commit)
+file.txt
+env.txt
+
 # Air (live reload tool)
 .air/
 

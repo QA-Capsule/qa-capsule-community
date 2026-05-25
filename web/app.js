@@ -634,11 +634,11 @@ function updateDashboardRefreshHint() {
     if (!el) return;
     const ms = dashboardRefreshIntervalMs();
     if (!ms) {
-        el.textContent = 'Auto ↻ off';
+        el.textContent = 'Auto-refresh off';
         return;
     }
     const sec = Math.round(ms / 1000);
-    el.textContent = `Auto ↻ ${sec}s`;
+    el.textContent = `Auto-refresh ${sec}s`;
 }
 
 window.stopDashboardAutoRefresh = function () {

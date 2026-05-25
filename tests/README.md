@@ -1,16 +1,16 @@
-# Tests automatisés (Robot Framework)
+# Automated tests (Robot Framework)
 
-Suite d’exemples exécutables en local ou en CI/CD, avec envoi des résultats vers **QA Capsule** au format JUnit XML.
+Sample suite runnable locally or in CI/CD, with optional JUnit XML upload to **QA Capsule**.
 
-**Documentation :** [Tous les frameworks de tests](https://qa-capsule.github.io/qa-capsule-community/integration/test-frameworks/) (Playwright, Cypress, Pytest, Robot, Newman, Selenium, JUnit, …) · [CI/CD providers](https://qa-capsule.github.io/qa-capsule-community/integration/cicd-providers/)
+**Docs:** [Test frameworks catalog](https://qa-capsule.github.io/qa-capsule-community/integration/test-frameworks/) · [CI/CD providers](https://qa-capsule.github.io/qa-capsule-community/integration/cicd-providers/)
 
-## Prérequis
+## Prerequisites
 
 - Python 3.10+
-- `bash` (Git Bash sur Windows, ou Linux/macOS)
-- Pour `ui_navigation.robot` : Chrome/Chromium + WebDriver, et `SELENIUM_ENABLED=true`
+- `bash` (Git Bash on Windows, or Linux/macOS)
+- For `ui_navigation.robot`: Chrome/Chromium + WebDriver and `SELENIUM_ENABLED=true`
 
-## Structure
+## Layout
 
 ```
 tests/
@@ -19,43 +19,43 @@ tests/
 │   ├── resources/common.robot
 │   ├── smoke_tests.robot
 │   ├── api_health.robot
-│   ├── demo_failure.robot   # échec volontaire (alerte QA Capsule en CI)
+│   ├── demo_failure.robot   # intentional failure (QA Capsule alert in CI)
 │   └── ui_navigation.robot
-└── results/          # généré (ignoré par git)
+└── results/          # generated (gitignored)
 ```
 
-## Lancer en local
+## Run locally
 
-Depuis la racine du dépôt :
+From the repository root:
 
 ```bash
 chmod +x scripts/run-tests.sh
 ./scripts/run-tests.sh
 ```
 
-Sans variables QA Capsule, seuls les tests Robot sont exécutés ; l’upload est ignoré.
+Without QA Capsule env vars, only Robot tests run; upload is skipped.
 
-### Upload vers QA Capsule
+### Upload to QA Capsule
 
 ```bash
 export QA_CAPSULE_URL="http://localhost:9000"
-export QA_CAPSULE_API_KEY="votre-clé-api-projet"
+export QA_CAPSULE_API_KEY="your-project-api-key"
 export QA_CAPSULE_EXEC_ENV="DEV"
 export QA_CAPSULE_EXEC_TYPE="TEST-RUN"
 
 ./scripts/run-tests.sh
 ```
 
-### Cible API (optionnel)
+### API target (optional)
 
-Par défaut `api_health.robot` utilise `jsonplaceholder.typicode.com`. Pour votre API :
+By default `api_health.robot` uses `jsonplaceholder.typicode.com`. For your API:
 
 ```bash
 export API_HEALTH_HOST=api.example.com
 ./scripts/run-tests.sh
 ```
 
-### Tests UI (optionnel)
+### UI tests (optional)
 
 ```bash
 export SELENIUM_ENABLED=true
@@ -63,115 +63,39 @@ export SELENIUM_BROWSER=headlesschrome
 ./scripts/run-tests.sh
 ```
 
-## Lancer depuis un pipeline CI/CD
+## CI/CD
 
-Le point d’entrée unique est **`scripts/run-tests.sh`** : il installe les deps, exécute Robot, convertit en JUnit, puis appelle QA Capsule si les secrets sont présents.
+Entry point: **`scripts/run-tests.sh`** — installs deps, runs Robot, converts to JUnit, uploads when secrets are set.
 
-### Prérequis côté QA Capsule
+### QA Capsule requirements
 
-1. Instance QA Capsule **accessible depuis Internet** (ou réseau du runner) — `localhost` ne fonctionne que sur un runner self-hosted.
-2. Dans **CI/CD Gateways** : copier la **clé API** du projet.
-3. URL d’upload : `{QA_CAPSULE_URL}/api/webhooks/upload?framework=RobotFramework`
+1. Instance reachable from the runner (`localhost` only works on self-hosted runners).
+2. Copy the project **API key** from **CI/CD Gateways**.
+3. Upload URL: `{QA_CAPSULE_URL}/api/webhooks/upload?framework=RobotFramework`
 
-### Variables d’environnement du pipeline
+### Pipeline variables
 
-| Variable | Obligatoire | Exemple |
-|----------|-------------|---------|
-| `QA_CAPSULE_URL` | Oui (pour upload) | `https://qa-capsule.example.com` |
-| `QA_CAPSULE_API_KEY` | Oui (pour upload) | `sk-...` |
-| `CI_PIPELINE_ID` | Recommandé | ID du job (→ `X-Run-Id`) |
-| `QA_CAPSULE_EXEC_ENV` | Non | `STAGING`, `PROD`, `DEV` |
-| `QA_CAPSULE_EXEC_TYPE` | Non | `TEST-RUN`, `SMOKE`, `NIGHTLY` |
-| `SELENIUM_ENABLED` | Non (CI: `true`) | Le workflow GitHub installe Chrome et exécute **tous** les `.robot` (hors `resources/`) |
+| Variable | Required | Example |
+|----------|----------|---------|
+| `QA_CAPSULE_URL` | For upload | `https://qa-capsule.example.com` |
+| `QA_CAPSULE_API_KEY` | For upload | project key |
+| `CI_PIPELINE_ID` | Recommended | job id (`X-Run-Id`) |
+| `QA_CAPSULE_EXEC_ENV` | Optional | `STAGING`, `PROD`, `DEV` |
+| `QA_CAPSULE_EXEC_TYPE` | Optional | `TEST-RUN`, `SMOKE`, `NIGHTLY` |
+| `SELENIUM_ENABLED` | Optional | `true` in GitHub workflow |
 
-Sans `QA_CAPSULE_*`, les tests tournent quand même ; l’upload est ignoré (utile pour valider le job avant de brancher les secrets).
-
----
+Without `QA_CAPSULE_*`, tests still run; upload is skipped.
 
 ### GitHub Actions
 
-Workflow Robot : [`.github/workflows/e2e-tests-robot.yml`](../.github/workflows/e2e-tests-robot.yml).  
-Quarantaine CI : `scripts/quarantine-ci-gate.sh` (appelé par `scripts/run-tests.sh` si `QA_CAPSULE_URL` + clé API sont définis).  
-Autres exemples : Playwright, Cypress, Pytest dans `.github/workflows/`.  
-**Tous les frameworks** : [documentation](https://qa-capsule.github.io/qa-capsule-community/integration/test-frameworks/).
+Workflow: [`.github/workflows/e2e-tests-robot.yml`](../.github/workflows/e2e-tests-robot.yml).  
+Quarantine gate: `scripts/quarantine-ci-gate.sh` (when URL + API key are set).
 
-1. **Settings → Secrets and variables → Actions** → ajouter :
-   - `QA_CAPSULE_URL` — base URL (sans `/` final), ex. `https://qa-capsule.example.com`
-   - `QA_CAPSULE_API_ROBOT_KEY` — clé du projet (ou `QA_CAPSULE_API_KEY`)
-2. Lancer : **Actions → Robot Framework Pipeline → Run workflow**.
-
-Le pipeline exécute **tous** les fichiers suite : `smoke_tests.robot`, `api_health.robot`, `demo_failure.robot` (échec volontaire), `ui_navigation.robot` (pass avec Chrome headless). `resources/common.robot` n’est pas exécuté (fichier ressource partagé).
-
-Même schéma que les autres pipelines du dépôt :
-
-| Secret | Exemple Pytest | Robot |
-|--------|----------------|-------|
-| URL | `QA_CAPSULE_URL` | `QA_CAPSULE_URL` |
-| Clé API | `QA_CAPSULE_API_PYTEST_KEY` | `QA_CAPSULE_API_ROBOT_KEY` |
-
-Extrait minimal si vous avez déjà un job :
-
-```yaml
-jobs:
-  robot:
-    runs-on: ubuntu-latest
-    env:
-      QA_CAPSULE_URL: ${{ secrets.QA_CAPSULE_URL }}
-      QA_CAPSULE_API_KEY: ${{ secrets.QA_CAPSULE_API_KEY }}
-      CI_PIPELINE_ID: ${{ github.run_id }}
-      QA_CAPSULE_EXEC_ENV: STAGING
-      QA_CAPSULE_EXEC_TYPE: TEST-RUN
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - run: chmod +x scripts/run-tests.sh && ./scripts/run-tests.sh
-```
-
----
-
-### GitLab CI
-
-Ajoutez un job dans `.gitlab-ci.yml` :
-
-```yaml
-robot-tests:
-  image: python:3.12
-  stage: test
-  variables:
-    QA_CAPSULE_EXEC_ENV: STAGING
-    QA_CAPSULE_EXEC_TYPE: TEST-RUN
-    CI_PIPELINE_ID: $CI_PIPELINE_ID
-    SELENIUM_ENABLED: "false"
-  before_script:
-    - apt-get update -qq && apt-get install -y -qq curl
-  script:
-    - chmod +x scripts/run-tests.sh
-    - ./scripts/run-tests.sh
-  artifacts:
-    when: always
-    paths:
-      - tests/results/
-    expire_in: 7 days
-```
-
-Secrets GitLab : **Settings → CI/CD → Variables** (masquées) :
+Add secrets:
 
 - `QA_CAPSULE_URL`
-- `QA_CAPSULE_API_KEY`
+- `QA_CAPSULE_API_ROBOT_KEY` (or `QA_CAPSULE_API_KEY`)
 
----
+Run **Actions → Robot Framework Pipeline → Run workflow**.
 
-### Azure DevOps / Jenkins (principe identique)
-
-```bash
-export QA_CAPSULE_URL="$(QA_CAPSULE_URL)"
-export QA_CAPSULE_API_KEY="$(QA_CAPSULE_API_KEY)"
-export CI_PIPELINE_ID="$(Build.BuildId)"   # Azure
-# export CI_PIPELINE_ID="$BUILD_NUMBER"    # Jenkins
-chmod +x scripts/run-tests.sh
-./scripts/run-tests.sh
-```
-
-Les résultats apparaissent dans **Operations → Telemetry Stream** (groupe par `pipeline_run_id` = ID du pipeline).
+Suites executed: `smoke_tests.robot`, `api_health.robot`, `demo_failure.robot` (intentional fail), `ui_navigation.robot`. `resources/common.robot` is a shared resource file only.

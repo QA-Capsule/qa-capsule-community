@@ -42,7 +42,7 @@ func registerAuthRoutes(config *core.Config) {
 			}
 			json.NewDecoder(r.Body).Decode(&req)
 
-			// Crée la table si elle n'existe pas
+			// Ensure enterprise_config exists (idempotent).
 			core.DB.Exec("CREATE TABLE IF NOT EXISTS enterprise_config (id INTEGER PRIMARY KEY, license_key TEXT)")
 			core.DB.Exec("INSERT OR REPLACE INTO enterprise_config (id, license_key) VALUES (1, ?)", req.LicenseKey)
 

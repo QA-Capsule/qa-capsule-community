@@ -25,7 +25,7 @@
                     <h2 id="analytics-modal-title">Customize analytics layout</h2>
                     <p>Drag widgets to reorder. Add widgets below, then click <strong>Save layout</strong> to apply.</p>
                 </div>
-                <button type="button" class="btn btn-secondary btn-sm" onclick="closeAnalyticsLayoutModal(true)" aria-label="Close">✕</button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="closeAnalyticsLayoutModal(true)" aria-label="Close">Close</button>
             </header>
             <div class="analytics-layout-modal-body">
                 <div id="analytics-customize-bar" class="analytics-customize-bar">
@@ -154,7 +154,7 @@
         <div class="login-box modal-panel--wide">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                 <h2 class="modal-panel__title">Group Memberships</h2>
-                <button type="button" class="modal-close-btn" onclick="closeUserTeamsModal()">✖</button>
+                <button type="button" class="modal-close-btn" onclick="closeUserTeamsModal()" aria-label="Close">Close</button>
             </div>
             <div class="identity-box">
                 <span class="identity-box__label">MANAGING IDENTITY:</span>
@@ -394,7 +394,7 @@
                             </div>
                         </div>
 
-                        <button type="button" class="btn btn-secondary" onclick="refreshDashboard()">↻ Refresh</button>
+                        <button type="button" class="btn btn-secondary" onclick="refreshDashboard()">Refresh</button>
                         <button type="button" class="btn btn-secondary btn-accent" onclick="toggleAnalytics()">
                             <svg style="width:14px;height:14px;stroke:currentColor;fill:none;flex-shrink:0;" viewBox="0 0 24 24" stroke-width="2">
                                 <line x1="18" y1="20" x2="18" y2="10"></line>
@@ -944,7 +944,7 @@
                         <p>Weekly cost evolution, flaky waste, and CI spend — executive view.</p>
                         <p id="finops-range-hint" class="finops-range-hint"></p>
                     </div>
-                    <button type="button" class="btn btn-secondary finops-refresh-btn" onclick="refreshFinOpsView()" title="Reload KPIs, charts, and weekly table">↻ Refresh</button>
+                    <button type="button" class="btn btn-secondary finops-refresh-btn" onclick="refreshFinOpsView()" title="Reload KPIs, charts, and weekly table">Refresh</button>
                 </div>
 
                 <div class="kpi-card-grid executive-kpi-grid finops-kpi-grid">

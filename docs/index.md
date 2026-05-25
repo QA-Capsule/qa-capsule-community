@@ -97,6 +97,12 @@ go build -o bin/qacapsule-cli ./cmd/cli
 
 | Section | What you will learn |
 |---|---|
+| [**Feature catalog**](reference/feature-catalog.md) | **Complete list** of UI, API, CLI, and ops features |
+| [Security & JWT](setup/security-authentication.md) | Login, API keys, MCP token, production checklist |
+| [Utility binaries](reference/utility-binaries.md) | `qacapsule`, agent, listusers, resetpass |
+| [Editions](guides/editions-community-enterprise.md) | Community vs Enterprise build tags |
+| [MCP & self-healing testing](guides/mcp-self-healing-testing.md) | UI, API, MCP, CLI validation guide |
+| [Operations & health API](api/operations-health.md) | `/healthz`, `/readyz`, `/metrics` |
 | [Design Schemas & Diagrams](guides/design-diagrams.md) | **C4, ER, sequences, state machines, RBAC, deployment** (18 diagrams) |
 | [System Architecture](guides/architecture.md) | Packages, data flows, remediation modes, concurrency |
 | [Platform User Guide](guides/platform-user-guide.md) | Every feature step-by-step (dashboard → DORA) |

@@ -140,7 +140,6 @@ flowchart LR
         subgraph container [qa-capsule container]
             GO[Go binary :9000]
             WEB[./web static]
-            DATA[/data volume]
         end
     end
 

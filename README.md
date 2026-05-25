@@ -1,94 +1,58 @@
-# QA Flight Recorder (QA Capsule)
+# QA Flight Recorder (QA Capsule) — Community
 
-[![Version](https://img.shields.io/badge/version-v1.0.12--beta-blue.svg)](https://ashraf-khabar.github.io/qa-capsule/)
-![Go Version](https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go)
+[![Version](https://img.shields.io/badge/version-v1.0.12--beta-blue.svg)](https://qa-capsule.github.io/qa-capsule-community/)
+![Go](https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go)
 ![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker)
-[![Doc](https://img.shields.io/badge/docs-available-brightgreen.svg)](https://qa-capsule.github.io/qa-capsule-community/)
+[![Documentation](https://img.shields.io/badge/docs-MkDocs-brightgreen.svg)](https://qa-capsule.github.io/qa-capsule-community/)
 
+**QA Capsule** is an SRE control plane for CI/CD and E2E test failures: ingest, correlate, quarantine flaky tests, run native integrations (no shell plugins), AI RCA, FinOps, DORA, and a full web dashboard.
 
-**QA Flight Recorder** is an enterprise-grade, SRE-oriented control plane designed to monitor CI/CD test failures, detect flaky and slow tests, store visual evidence, and automate incident response via native Go integrations.
+<p align="center">
+  <img src="./images/ui-1.png" width="800" alt="Dashboard">
+</p>
 
 <p align="center">
-  <img src="./images/ui-1.png" width="800px" alt="Dashboard View">
+  <img src="./images/ui-2.png" width="800" alt="Dashboard">
 </p>
+
 <p align="center">
-  <img src="./images/ui-2.png" width="800px" alt="Analytics View">
+  <img src="./images/ui-3.png" width="800" alt="Dashboard">
 </p>
+
 <p align="center">
-  <img src="./images/ui-3.png" width="800px" alt="Plugin Engine">
+  <img src="./images/ui-4.png" width="800" alt="Dashboard">
 </p>
+
 <p align="center">
-  <img src="./images/ui-4.png" width="800px" alt="Plugin Engine">
-</p>
-<p align="center">
-  <img src="./images/ui-5.png" width="800px" alt="Plugin Engine">
+  <img src="./images/ui-5.png" width="800" alt="Dashboard">
 </p>
 
 ---
 
 ## Why QA Capsule?
 
-Modern CI/CD pipelines generate too much noise. When a database goes down, 100 tests fail, generating 100 identical alerts. **QA Capsule reduces alert fatigue** by correlating identical events, tagging flaky and performance regressions, and triggering Slack/Jira/Teams actions without shell scripts.
-
-## Key Features
-
-### Smart Event Correlation
-* **Deduplication:** SHA-256 fingerprinting per test + pipeline run (`X-Run-Id`).
-* **Flakiness:** `[FLAKY]` tag when a resolved test fails again within 48h; CLI can query flaky status by hash.
-* **Performance:** `[PERF]` alerts when a passed test exceeds 150% of its 30-day average duration.
-* **Analytics & MTTR:** Dashboards and FinOps (Chart.js, QCL, PDF export).
-
-### Test Artifacts
-* Upload Playwright traces, screenshots, videos: `POST /api/incidents/{id}/artifacts` (max 50MB).
-* Local storage under `data/artifacts/`; S3 provider stub for enterprise.
-
-### Native Integration Engine (no shell RCE)
-* **Go HTTP integrations:** Slack, Jira, Teams, PagerDuty, Opsgenie, webhooks, email, GitHub.
-* JSON manifests in `plugins/` with `"integration": "slack"` (legacy `.sh` commands are ignored).
-* Secrets via environment variables; loaded once at startup.
-
-### Developer Experience
-* **CLI:** `qacapsule run` wraps local tests and warns on known flaky fingerprints.
-* **Playwright reporter:** Real-time failure POST + optional trace zip upload.
-
-### Multi-Tenancy & IAM
-* Hierarchical teams and RBAC: Platform Admin, Manager, Lead, Observer.
-* Domain lock and forced password reset.
-
-### Universal CI/CD Gateways
-* JSON webhooks with `browser`, `os`, `viewport`, `execution_time_ms`, batch `tests[]`.
-* JUnit XML upload for Playwright, Cypress, Pytest, and more.
+When a shared dependency fails, hundreds of tests can fail at once. QA Capsule **deduplicates** by fingerprint and pipeline run, tags **flaky** and **performance** regressions, stores **artifacts**, and routes alerts through **Slack, Jira, Teams**, and more — without bash remotes on the server.
 
 ---
 
-## Documentation
+## Feature highlights
 
-Full official docs (MkDocs): **[docs/index.md](docs/index.md)** — published at [qa-capsule.github.io/qa-capsule-community](https://qa-capsule.github.io/qa-capsule-community/)
+| Area | Capability |
+|------|------------|
+| **Ingestion** | JSON webhooks, JUnit XML, async queue (`202 queued`) |
+| **Intelligence** | `[FLAKY]`, `[PERF]`, quarantine CI API, AI RCA |
+| **Integrations** | Go HTTP engine + visual workflow DAG |
+| **Operations** | Dashboard, Execution Hub, runbooks, FinOps, DORA |
+| **Security** | JWT sessions, RBAC, per-project API keys, optional MCP token |
+| **Developer tools** | `qacapsule run` CLI, Playwright reporter, JUnit agent |
 
-| Topic | Link |
-|---|---|
-| Webhooks & enriched payloads | [docs/api/webhooks.md](docs/api/webhooks.md) |
-| Artifacts & CLI | [docs/guides/artifacts-and-cli.md](docs/guides/artifacts-and-cli.md) |
-| Playwright reporter | [docs/integration/playwright-reporter.md](docs/integration/playwright-reporter.md) |
-| Plugin engine (Go) | [docs/plugins/overview.md](docs/plugins/overview.md) |
-| Configuration deux côtés (QA Capsule + fournisseur) | [docs/plugins/configuration-guide.md](docs/plugins/configuration-guide.md) |
-| Catalogue intégrations (logos) | [docs/plugins/integrations-catalog.md](docs/plugins/integrations-catalog.md) |
-
----
-
-## Technology Stack
-
-* **Backend:** Go 1.25+ — `pkg/integrations`, `pkg/storage`, `pkg/service`
-* **CLI:** Cobra (`cmd/cli`)
-* **Database:** SQLite (`modernc.org/sqlite`)
-* **Frontend:** Vanilla JavaScript (ES6+)
-* **Reporter:** TypeScript (`examples/playwright-reporter/`)
+**Full list:** [docs/reference/feature-catalog.md](docs/reference/feature-catalog.md)
 
 ---
 
-## Quick Start (Docker — recommended)
+## Quick start (Docker — recommended)
 
-Works the same on **Linux, macOS, and Windows** (Docker Desktop or Engine).
+Works on **Linux, macOS, and Windows** (Docker Desktop or Engine).
 
 ```bash
 git clone https://github.com/QA-Capsule/qa-capsule-community.git
@@ -97,75 +61,130 @@ docker compose up -d --build
 docker compose ps   # wait until healthy
 ```
 
-Open **http://localhost:9000** — sign in with **`admin`** / **`admin`** (you must set a new password on first login).
+Open **http://localhost:9000** — sign in with **`admin`** / **`admin`**, then set a new password.
 
-After pulling UI updates, rebuild so the container serves the latest login screen:
+After UI updates:
 
 ```bash
 docker compose down
 docker compose up -d --build --force-recreate
 ```
 
-| Variable | Default in Compose | Purpose |
-|---|---|---|
-| `QACAPSULE_DATA_DIR` | `/app/data` | SQLite + artifacts (named volume `qacapsule_data`) |
-| `QACAPSULE_JWT_SECRET` | `dev-compose-change-me` | JWT signing (set in `.env` for real deployments) |
-| `APP_ENV` | `development` | Dev login without `jwt_secret` in `config.yaml` |
+| Variable | Compose default | Purpose |
+|----------|-----------------|--------|
+| `QACAPSULE_DATA_DIR` | `/app/data` | SQLite + artifacts (volume `qacapsule_data`) |
+| `QACAPSULE_JWT_SECRET` | `dev-compose-change-me` | JWT signing — change in `.env` for real deployments |
+| `APP_ENV` | `development` | Dev JWT fallback when `jwt_secret` is empty |
 
-**Persist data on the host** (optional, for inspecting `qacapsule.db`):
+Host bind mount for DB inspection:
 
 ```bash
 mkdir -p data && chmod u+w data
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
 ```
 
-### Local development (`go run`)
+---
+
+## Local development (`go run`)
 
 ```bash
 go run ./cmd/qacapsule/main.go
-go build -o bin/qacapsule-cli ./cmd/cli
+go build -o bin/qacapsule ./cmd/cli
 ```
 
-If you see `attempt to write a readonly database`, `./data` was probably created by Docker as **root**. Either use Docker Compose above, or fix permissions and retry:
+| Issue | Fix |
+|-------|-----|
+| `readonly database` | `chmod -R u+w data` or use Docker; or fallback to `~/.qa-capsule/data` |
+| JWT fatal on start | `export APP_ENV=development` or set `QACAPSULE_JWT_SECRET` |
 
 ```bash
-# Linux / macOS
-chmod -R u+w data
-rm -f data/qacapsule.db data/qacapsule.db-wal data/qacapsule.db-shm
-go run ./cmd/qacapsule/main.go
+export QACAPSULE_DATA_DIR=./data
+export QACAPSULE_JWT_SECRET="$(openssl rand -hex 32)"   # production
 ```
-
-Without fixing `./data`, the server automatically uses `~/.qa-capsule/data` and logs a warning.
-
-Override storage explicitly: `export QACAPSULE_DATA_DIR=/path/to/writable/data`
 
 ---
 
+## CLI example
 
-## Integration manifest example
+```bash
+export QACAPSULE_API_URL=http://localhost:9000
+export QACAPSULE_API_KEY=your_project_key
+
+bin/qacapsule run --test-name "Login" --test-error "assert failed" -- npx playwright test
+```
+
+On failure, the CLI warns if the fingerprint is already marked **flaky** in the control plane.
+
+---
+
+## Documentation
+
+| Topic | Link |
+|-------|------|
+| **Published docs** | https://qa-capsule.github.io/qa-capsule-community/ |
+| Home / map | [docs/index.md](docs/index.md) |
+| Security & JWT | [docs/setup/security-authentication.md](docs/setup/security-authentication.md) |
+| Webhooks | [docs/api/webhooks.md](docs/api/webhooks.md) |
+| Incidents API | [docs/api/incidents-api.md](docs/api/incidents-api.md) |
+| MCP & self-healing tests | [docs/guides/mcp-self-healing-testing.md](docs/guides/mcp-self-healing-testing.md) |
+| Plugin engine | [docs/plugins/overview.md](docs/plugins/overview.md) |
+| Configuration (two-sided) | [docs/plugins/configuration-guide.md](docs/plugins/configuration-guide.md) |
+
+Build docs locally:
+
+```bash
+pip install -r docs/requirements.txt  # or site/requirements.txt
+mkdocs serve
+```
+
+Generated HTML goes to `site/` (gitignored — do not commit).
+
+---
+
+## Technology stack
+
+| Layer | Stack |
+|-------|--------|
+| Backend | Go 1.25+, SQLite (`modernc.org/sqlite`) |
+| API | `net/http`, JWT (`github.com/golang-jwt/jwt/v5`) |
+| Frontend | Vanilla ES modules, Chart.js |
+| CLI | Cobra (`cmd/cli`) |
+| Docs | MkDocs Material, Roboto 13px compact theme |
+
+---
+
+## Configuration
+
+Copy [config.yaml.example](config.yaml.example) to `config.yaml`. **Never commit** real SMTP passwords or JWT secrets — use environment variables and CI secrets.
+
+Integration secrets (Slack, Jira, …) belong in the **server environment**, not in git.
+
+Example plugin manifest:
 
 ```json
 {
   "integration": "slack",
-  "name": "Smart Slack Routing",
-  "version": "1.2",
-  "description": "Alerts the project Slack channel on critical failures.",
-  "status": "Active",
-  "trigger_on": ["CRITICAL", "Timeout", "FLAKY"],
+  "name": "Critical failures",
+  "trigger_on": ["CRITICAL", "FLAKY"],
   "env": {}
 }
 ```
 
-Set `SLACK_WEBHOOK_URL` in the server environment — not in git.
+Set `SLACK_WEBHOOK_URL` on the server host.
 
 ---
 
 ## Security
 
-If you discover a security vulnerability, please do not open a public issue. Contact the maintainers directly.
+- Shell-based plugin execution was **removed** (no RCE via `.sh` plugins).
+- Use HTTPS and strong `QACAPSULE_JWT_SECRET` in production.
+- Restrict `/metrics` and `/mcp` at the network edge.
+- Report vulnerabilities privately — do not open public issues for security flaws.
 
-Shell-based plugin execution was removed to prevent remote code execution; use native integrations or outbound webhooks only.
+See [Security & authentication](docs/setup/security-authentication.md) for the full checklist.
+
+---
 
 ## License
 
-MIT License — see `LICENSE`.
+MIT — see [LICENSE](LICENSE).

@@ -2,22 +2,24 @@ server:
     port: "9000"
     log_level: info
 smtp:
-    host: sandbox.smtp.mailtrap.io
-    port: 2525
-    user: 11a704f61d6563
-    password: 5768cda5d786f5
-    from: admin@arkom.com
+    host: ""
+    port: 587
+    user: ""
+    password: ""
+    from: "sre-bot@example.com"
 security:
     enabled: true
     # Required in production (or set QACAPSULE_JWT_SECRET). Omit + APP_ENV=development for local go run.
     jwt_secret: ""
     admin_user: ""
     admin_pass: ""
-    allowed_domain: '@qa-cap.com'
+    allowed_domain: ""
 telemetry:
     report_path: ./reports/cypress-crash.json
     websocket_timeout_sec: 60
     webhook_token: ""
+storage:
+    local_path: ./data/artifacts
 projects: []
 plugins:
     directory: ./plugins

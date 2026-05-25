@@ -1,5 +1,5 @@
 ---
-icon: material/redirect
+icon: material/link-variant
 ---
 
 # Robot Framework

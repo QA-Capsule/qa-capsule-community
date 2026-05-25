@@ -143,5 +143,8 @@ Real-time reporter: [Playwright Reporter](../integration/playwright-reporter.md)
 
 ## Related
 
+- [Utility binaries](../reference/utility-binaries.md) — agent, listusers, resetpass
+- [Security & JWT](../setup/security-authentication.md) — API keys and CLI auth
 - [Incidents API](../api/incidents-api.md)
 - [System Configuration](../setup/config.md) — `storage` block
+- [Feature catalog](../reference/feature-catalog.md) — full capability map

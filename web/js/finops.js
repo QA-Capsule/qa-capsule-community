@@ -103,7 +103,7 @@ export function refreshFinOpsView() {
     window.setTimeout(() => {
         if (btn) {
             btn.disabled = false;
-            btn.textContent = btn.dataset.label || '↻ Refresh';
+            btn.textContent = btn.dataset.label || 'Refresh';
         }
     }, 600);
 }

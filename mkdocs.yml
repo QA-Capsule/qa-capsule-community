@@ -66,10 +66,15 @@ markdown_extensions:
 
 nav:
   - Home: index.md
+  - Reference:
+      - Feature catalog: reference/feature-catalog.md
+      - Utility binaries: reference/utility-binaries.md
   - Setup & Installation:
       - Docker Deployment: setup/docker.md
       - System Configuration: setup/config.md
+      - Security & JWT: setup/security-authentication.md
       - RBAC & Teams: setup/rbac-teams.md
+      - Editions (Community / Enterprise): guides/editions-community-enterprise.md
   - CI/CD Integration:
       - Overview & Architecture: integration/cicd-overview.md
       - All test frameworks (catalog): integration/test-frameworks.md
@@ -77,6 +82,7 @@ nav:
       - Cypress: integration/frameworks/cypress.md
       - Pytest: integration/frameworks/pytest.md
       - Robot Framework: integration/frameworks/robot-framework.md
+      - Robot Framework (legacy redirect): integration/robot-framework.md
       - Selenium: integration/frameworks/selenium.md
       - Postman / Newman: integration/frameworks/postman-newman.md
       - JUnit / Maven / Gradle: integration/frameworks/junit-java.md
@@ -110,6 +116,7 @@ nav:
       - Artifacts & Developer CLI: guides/artifacts-and-cli.md
       - Analytics & FinOps: guides/finops-analytics.md
       - End-to-End Testing: guides/testing.md
+      - MCP & self-healing testing: guides/mcp-self-healing-testing.md
   - Plugin Engine:
       - Native Integrations Overview: plugins/overview.md
       - Configuration Guide: plugins/configuration-guide.md
@@ -130,8 +137,11 @@ nav:
   - API Reference:
       - Webhooks API: api/webhooks.md
       - Incidents API: api/incidents-api.md
+      - Operations & health: api/operations-health.md
   - Deployment:
       - Documentation CI/CD: deployment/docs-pipeline.md
+  - Project:
+      - Audit report: AUDIT-REPORT.md
 
 extra:
   social:

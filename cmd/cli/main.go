@@ -75,7 +75,7 @@ func runCmd() *cobra.Command {
 			}
 			hash := core.IncidentFingerprint(name, errText)
 			if flaky, msg := checkFlaky(hash); flaky {
-				fmt.Fprintf(os.Stderr, "\n\x1b[33m⚠️  Ce test a échoué, mais il est instable en CI. Vous pouvez l'ignorer.\x1b[0m\n   %s\n", msg)
+				fmt.Fprintf(os.Stderr, "\n\x1b[33m[FLAKY] This test failed locally but is marked unstable in CI — you may ignore it.\x1b[0m\n   %s\n", msg)
 			}
 			return err
 		},

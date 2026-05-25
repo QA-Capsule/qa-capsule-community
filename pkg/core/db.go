@@ -28,11 +28,7 @@ func InitDB(ignoredPath string) {
 		log.Fatalf("[FATAL] Failed to open SQLite database: %v", err)
 	}
 
-	// ====================================================================
-	// SRE CRITICAL FIX: SÉRIALISATION STRICTE ET PROTECTION ANTI-CONTENTION
-	// ====================================================================
-	// SQLite ne gère pas nativement les accès concurrents multi-connexions en écriture.
-	// Limiter à 1 connexion active élimine à 100% l'isolement périmé des lectures/écritures.
+	// SQLite write concurrency: cap pool size to reduce WAL contention under parallel ingest.
 	DB.SetMaxOpenConns(4)
 	DB.SetMaxIdleConns(4)
 	DB.SetConnMaxLifetime(time.Hour)
