@@ -2240,8 +2240,28 @@ pre {
     opacity: 0.65;
     font-size: 12px;
     letter-spacing: 0.12em;
-    margin-bottom: 30px;
+    margin-bottom: 8px;
     color: var(--text-muted);
+}
+
+.login-edition-badge {
+    display: inline-block;
+    margin: 0 auto 20px;
+    padding: 4px 12px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.login-hint--credentials {
+    margin-top: 18px;
+    text-align: center;
+    line-height: 1.5;
 }
 
 .login-btn-full {

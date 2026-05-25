@@ -1351,11 +1351,25 @@ export function checkSSOStatus() {
     fetch('/api/sso/status')
         .then(res => res.json())
         .then(data => {
+            const edition = String(data.edition || 'community').toLowerCase();
+            const badge = document.getElementById('login-edition-badge');
+            const communityHint = document.getElementById('login-community-hint');
+            const ssoSection = document.getElementById('login-sso-section');
             const ssoContainer = document.getElementById('sso-container');
             const ssoLocked = document.getElementById('sso-locked');
 
+            if (badge) {
+                badge.textContent = edition === 'enterprise' ? 'Enterprise Edition' : 'Community Edition';
+            }
+            if (edition === 'community') {
+                if (communityHint) communityHint.style.display = 'block';
+                if (ssoSection) ssoSection.classList.add('u-hidden');
+                return;
+            }
+            if (communityHint) communityHint.style.display = 'none';
+            if (ssoSection) ssoSection.classList.remove('u-hidden');
             if (ssoContainer && ssoLocked) {
-                if (data.enterprise_active) {
+                if (data.enterprise_active || data.sso_available) {
                     ssoContainer.classList.remove('u-hidden');
                     ssoLocked.classList.add('u-hidden');
                 } else {
@@ -1363,7 +1377,7 @@ export function checkSSOStatus() {
                     ssoLocked.classList.remove('u-hidden');
                 }
             }
-        }).catch(err => console.log("Enterprise check failed"));
+        }).catch(err => console.log("Edition check failed", err));
 }
 
 export function triggerSSO() {

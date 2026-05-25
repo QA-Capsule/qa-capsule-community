@@ -6,6 +6,8 @@ import "strings"
 
 type enterpriseEdition struct{}
 
+func (enterpriseEdition) ID() string { return "enterprise" }
+
 func (enterpriseEdition) Active() bool {
 	if DB == nil {
 		return false

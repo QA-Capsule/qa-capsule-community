@@ -155,8 +155,8 @@ func Start(initialConfig core.Config) {
 		http.ServeFile(w, r, "./web/assets/logo.png")
 	})
 
-	// Serve static frontend files
-	http.Handle("/", http.FileServer(http.Dir("./web")))
+	// Serve static frontend files (HTML uncached so Docker rebuilds show new UI immediately)
+	http.Handle("/", staticWebHandler())
 
 	log.Printf("[SERVER] Started on port %s", config.Server.Port)
 	log.Fatal(http.ListenAndServe(":"+config.Server.Port, nil))

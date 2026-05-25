@@ -97,7 +97,14 @@ docker compose up -d --build
 docker compose ps   # wait until healthy
 ```
 
-Open **http://localhost:9000** — login `admin` / `admin` (change password on first login).
+Open **http://localhost:9000** — sign in with **`admin`** / **`admin`** (you must set a new password on first login).
+
+After pulling UI updates, rebuild so the container serves the latest login screen:
+
+```bash
+docker compose down
+docker compose up -d --build --force-recreate
+```
 
 | Variable | Default in Compose | Purpose |
 |---|---|---|

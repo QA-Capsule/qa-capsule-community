@@ -50,12 +50,15 @@ func registerAuthRoutes(config *core.Config) {
 		}
 	}))
 
-	// Public endpoint to check SSO / enterprise availability (SSO login is enterprise-build only).
+	// Public endpoint for edition / SSO discovery (login screen).
 	http.HandleFunc("/api/sso/status", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]bool{
-				"enterprise_active": core.EditionActive(),
+			active := core.EditionActive()
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"edition":            core.EditionID(),
+				"enterprise_active":  active,
+				"sso_available":      active && core.EditionID() == "enterprise",
 			})
 		}
 	})

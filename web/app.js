@@ -1248,7 +1248,7 @@ window.performLogin = function () {
     if (errEl) errEl.style.display = 'none';
 
     const loginBtn = document.querySelector('#login-screen .btn-primary');
-    if (loginBtn) { loginBtn.disabled = true; loginBtn.textContent = 'SIGNING IN…'; }
+    if (loginBtn) { loginBtn.disabled = true; loginBtn.textContent = 'Signing in…'; }
 
     const controller = new AbortController();
     const loginTimeout = setTimeout(() => controller.abort(), 30000);
@@ -1286,7 +1286,7 @@ window.performLogin = function () {
         })
         .finally(() => {
             clearTimeout(loginTimeout);
-            if (loginBtn) { loginBtn.disabled = false; loginBtn.textContent = 'INITIALIZE SESSION'; }
+            if (loginBtn) { loginBtn.disabled = false; loginBtn.textContent = 'Sign in'; }
         });
 }
 
@@ -1297,7 +1297,7 @@ window.probeLoginServer = function () {
         if (ok) hint.style.display = 'none';
         else {
             hint.style.display = 'block';
-            hint.textContent = 'Backend not reachable. Use http://localhost:9000 (run: go run ./cmd/qacapsule).';
+            hint.textContent = 'Backend not reachable at this URL. Start with: docker compose up -d --build (or go run ./cmd/qacapsule).';
         }
     });
 }
