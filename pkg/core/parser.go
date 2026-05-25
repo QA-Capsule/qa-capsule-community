@@ -138,6 +138,20 @@ func NormalizePayload(raw map[string]interface{}) UnifiedAlert {
 			logs = append(logs, logStr)
 		}
 
+		stack := stringField(raw, "stack", "")
+		if stack == "" {
+			stack = stringField(raw, "stacktrace", "")
+		}
+		if stack == "" {
+			stack = stringField(raw, "stack_trace", "")
+		}
+		if stack == "" {
+			stack = stringField(raw, "trace", "")
+		}
+		errorLogs := stack
+		if errorLogs == "" {
+			errorLogs = errStr
+		}
 		return UnifiedAlert{
 			Name:            name,
 			Error:           errStr,
@@ -145,7 +159,7 @@ func NormalizePayload(raw map[string]interface{}) UnifiedAlert {
 			OS:              osName,
 			Viewport:        viewport,
 			ConsoleLogs:     strings.Join(logs, "\n"),
-			ErrorLogs:       errStr,
+			ErrorLogs:       errorLogs,
 			Status:          status,
 			ExecutionTimeMs: int64Field(raw, "execution_time_ms"),
 			JiraIssueKey:    stringField(raw, "jira_issue_key", ""),
@@ -306,6 +320,24 @@ func ParseJUnitReport(data []byte, framework string) JUnitParseResult {
 				})
 			} else if tcResult.Status == "pass" || tcResult.Status == "skip" {
 				tcResult.Fingerprint = IncidentFingerprint(fullName, "")
+				var stdoutBuilder strings.Builder
+				var stderrBuilder strings.Builder
+				if strings.TrimSpace(tc.SystemOut) != "" {
+					stdoutBuilder.WriteString(fmt.Sprintf("--- CONSOLE STDOUT ---\n%s\n", strings.TrimSpace(tc.SystemOut)))
+				}
+				if strings.TrimSpace(tc.SystemErr) != "" {
+					stderrBuilder.WriteString(fmt.Sprintf("--- CONSOLE STDERR ---\n%s\n", strings.TrimSpace(tc.SystemErr)))
+				}
+				if tcResult.Status == "pass" {
+					stdoutBuilder.WriteString(fmt.Sprintf("[INFO] Test passed (%d ms).\n", durationMs))
+					if strings.TrimSpace(tc.SystemOut) == "" && strings.TrimSpace(tc.SystemErr) == "" {
+						stdoutBuilder.WriteString("[INFO] JUnit has no <system-out>/<system-err> for this case. Enable Robot listener/log output or re-export output.xml with stdout enabled.\n")
+					}
+				} else {
+					stdoutBuilder.WriteString("[INFO] Test skipped.\n")
+				}
+				tcResult.ConsoleLogs = stdoutBuilder.String()
+				tcResult.ErrorLogs = stderrBuilder.String()
 			}
 			report.Tests = append(report.Tests, tcResult)
 		}

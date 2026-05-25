@@ -1,4 +1,4 @@
-# GitLab CI — Robot Framework + QA Capsule (même modèle que .github/workflows/robot-tests.yml)
+# GitLab CI — Robot Framework + QA Capsule (même modèle que .github/workflows/e2e-tests-robot.yml)
 #
 # Variables CI/CD (Settings → CI/CD → Variables, masquées) :
 #   QA_CAPSULE_URL
@@ -22,24 +22,18 @@ robot-framework:
     - apt-get update -qq && apt-get install -y -qq curl
     - pip install -r tests/requirements.txt
   script:
-    - mkdir -p tests/results
-    - robot --outputdir tests/results --loglevel INFO tests/robotframework || ROBOT_FAILED=1
+    - chmod +x scripts/run-tests.sh scripts/quarantine-ci-gate.sh
     - |
-      if [ -f tests/results/output.xml ]; then
-        rebot --xunit tests/results/robot-junit.xml --outputdir tests/results tests/results/output.xml
+      KEY="${QA_CAPSULE_API_ROBOT_KEY:-${QA_CAPSULE_API_KEY:-}}"
+      export QA_CAPSULE_API_KEY="$KEY"
+      if [ -n "${QA_CAPSULE_URL:-}" ] && [ -n "$KEY" ]; then
+        echo "Quarantined tests:"
+        ./scripts/quarantine-ci-gate.sh list || true
       fi
     - |
       KEY="${QA_CAPSULE_API_ROBOT_KEY:-${QA_CAPSULE_API_KEY:-}}"
-      if [ -n "${QA_CAPSULE_URL:-}" ] && [ -n "$KEY" ] && [ -f tests/results/robot-junit.xml ]; then
-        curl -f -S -X POST "${QA_CAPSULE_URL}/api/webhooks/upload?framework=RobotFramework" \
-          -H "X-API-Key: ${KEY}" \
-          -H "X-Run-Id: ${CI_PIPELINE_ID}" \
-          -H "X-Execution-Env: ${QA_CAPSULE_EXEC_ENV}" \
-          -H "X-Execution-Type: ${QA_CAPSULE_EXEC_TYPE}" \
-          -F "file=@tests/results/robot-junit.xml"
-      else
-        echo "QA Capsule upload skipped (missing URL/key or JUnit file)."
-      fi
+      export QA_CAPSULE_URL QA_CAPSULE_API_KEY="$KEY" CI_PIPELINE_ID="${CI_PIPELINE_ID}"
+    - ./scripts/run-tests.sh || ROBOT_FAILED=1
     - test -z "${ROBOT_FAILED:-}"
   artifacts:
     when: always

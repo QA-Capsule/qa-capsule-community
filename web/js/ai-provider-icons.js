@@ -18,11 +18,53 @@ export const AI_PROVIDERS = [
         defaultKeyEnv: 'OPENAI_API_KEY'
     },
     {
+        id: 'anthropic',
+        label: 'Anthropic',
+        defaultModel: 'claude-3-5-haiku-20241022',
+        defaultBaseUrl: 'https://api.anthropic.com',
+        defaultKeyEnv: 'ANTHROPIC_API_KEY'
+    },
+    {
+        id: 'gemini',
+        label: 'Google Gemini',
+        defaultModel: 'gemini-1.5-flash',
+        defaultBaseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+        defaultKeyEnv: 'GEMINI_API_KEY'
+    },
+    {
+        id: 'mistral',
+        label: 'Mistral',
+        defaultModel: 'mistral-small-latest',
+        defaultBaseUrl: 'https://api.mistral.ai/v1',
+        defaultKeyEnv: 'MISTRAL_API_KEY'
+    },
+    {
+        id: 'groq',
+        label: 'Groq',
+        defaultModel: 'llama-3.1-8b-instant',
+        defaultBaseUrl: 'https://api.groq.com/openai/v1',
+        defaultKeyEnv: 'GROQ_API_KEY'
+    },
+    {
+        id: 'openrouter',
+        label: 'OpenRouter',
+        defaultModel: 'openai/gpt-4o-mini',
+        defaultBaseUrl: 'https://openrouter.ai/api/v1',
+        defaultKeyEnv: 'OPENROUTER_API_KEY'
+    },
+    {
+        id: 'azure',
+        label: 'Azure OpenAI',
+        defaultModel: 'gpt-4o-mini',
+        defaultBaseUrl: 'https://YOUR-RESOURCE.openai.azure.com/openai/deployments/YOUR-DEPLOYMENT',
+        defaultKeyEnv: 'AZURE_OPENAI_API_KEY'
+    },
+    {
         id: 'ollama',
         label: 'Ollama',
         defaultModel: 'llama3.2',
         defaultBaseUrl: 'http://localhost:11434',
-        defaultKeyEnv: 'OPENAI_API_KEY'
+        defaultKeyEnv: 'OLLAMA_API_KEY'
     }
 ];
 
@@ -40,11 +82,35 @@ export function logoForProvider(providerId) {
     switch (providerId) {
         case 'openai':
             return logoOpenAI();
+        case 'anthropic':
+            return logoLetter('A', '#d97757');
+        case 'gemini':
+            return logoLetter('G', '#4285f4');
+        case 'mistral':
+            return logoLetter('M', '#f97316');
+        case 'groq':
+            return logoLetter('Q', '#111827');
+        case 'openrouter':
+            return logoLetter('OR', '#3d6b8c');
+        case 'azure':
+            return logoLetter('Az', '#0078d4');
         case 'ollama':
             return logoOllama();
         default:
             return logoDisabled();
     }
+}
+
+function logoLetter(text, accent) {
+    const t = escapeXml(text);
+    return `<svg class="ai-svg ai-svg--logo ai-svg--letter" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <rect width="24" height="24" rx="6" fill="var(--bg-muted)" stroke="var(--border-main)"/>
+        <text x="12" y="15" text-anchor="middle" font-size="${text.length > 2 ? '7' : '10'}" font-weight="700" fill="${accent}" font-family="system-ui,sans-serif">${t}</text>
+    </svg>`;
+}
+
+function escapeXml(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 function logoOpenAI() {

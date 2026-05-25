@@ -50,21 +50,13 @@ func registerAuthRoutes(config *core.Config) {
 		}
 	}))
 
-	// Public endpoint to check SSO status
+	// Public endpoint to check SSO / enterprise availability (SSO login is enterprise-build only).
 	http.HandleFunc("/api/sso/status", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(map[string]bool{
-				"enterprise_active": IsEnterpriseActive(),
+				"enterprise_active": core.EditionActive(),
 			})
-		}
-	})
-
-	// Protected SSO Login Route
-	http.HandleFunc("/api/sso/login", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodGet {
-			// Appelle la variable globale (qui sera écrasée par l'Enterprise)
-			SSOLoginHandler(w, r)
 		}
 	})
 

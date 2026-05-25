@@ -45,6 +45,7 @@ func incidentTimeWindowFromRequest(r *http.Request) incidentTimeWindow {
 		if to.Second() == 0 {
 			to = to.Add(59*time.Second + 999*time.Millisecond)
 		}
+		to = to.Add(2 * time.Minute)
 		return formatIncidentWindow(from, to)
 	}
 
@@ -62,6 +63,9 @@ func incidentTimeWindowFromRequest(r *http.Request) incidentTimeWindow {
 			from = now.Add(-d)
 		}
 	}
+
+	// Small forward buffer so incidents created "now" are not excluded by clock skew / async ingest delay.
+	to = to.Add(2 * time.Minute)
 
 	return formatIncidentWindow(from, to)
 }

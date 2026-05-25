@@ -1,5 +1,5 @@
 {
-  "auto_run": false,
+  "auto_run": true,
   "config": {
     "GITHUB_OWNER": "",
     "GITHUB_REF": "main",
@@ -10,6 +10,7 @@
   "description": "Dispatches a GitHub Actions workflow (e.g. re-run failed E2E suite) after a critical failure.",
   "integration": "github",
   "name": "GitHub Actions — Re-run workflow",
+  "routing_enabled": true,
   "status": "Active",
   "trigger_on": [
     "CRITICAL",

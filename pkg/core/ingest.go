@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+
+	"github.com/QA-Capsule/qa-capsule-community/pkg/quarantine"
 )
 
 // PipelineCrashDefaultName is used when a CI webhook reports failure without a test name.
@@ -30,12 +32,12 @@ func ProcessAlert(cfg Config, projectName, runID string, alert UnifiedAlert, rou
 	alert = EnsurePipelineCrashName(alert)
 
 	if IsTestQuarantined(projectName, alert.Name) {
-		fp := IncidentFingerprint(alert.Name, alert.Error)
+		identityFP := quarantine.TestIdentityFingerprint(projectName, alert.Name)
 		// Keep execution metrics flowing so DORA / flaky oscillation logic can recover when the test goes green.
-		RecordExecutionMetric(projectName, alert.Name, fp, alert.ExecutionTimeMs, alert.Status)
+		RecordExecutionMetric(projectName, quarantine.NormalizeTestName(alert.Name), identityFP, alert.ExecutionTimeMs, alert.Status)
 		recordQuarantinedIngest(projectName, runID, alert)
 		slog.Info("ingest suppressed: test quarantined", "project", projectName, "test", alert.Name)
-		return IngestResult{Skipped: true, Quarantined: true}
+		return IngestResult{Skipped: true, Quarantined: true, Fingerprint: identityFP, FinalName: alert.Name}
 	}
 
 	fp := IncidentFingerprint(alert.Name, alert.Error)
@@ -65,13 +67,14 @@ func ProcessAlert(cfg Config, projectName, runID string, alert UnifiedAlert, rou
 			slog.Warn("performance degradation detected", "test", alert.Name, "ms", alert.ExecutionTimeMs)
 		} else {
 			if alert.ExecutionTimeMs > 0 {
-				RecordExecutionMetric(projectName, alert.Name, fp, alert.ExecutionTimeMs, alert.Status)
+				identityFP := quarantine.TestIdentityFingerprint(projectName, alert.Name)
+				RecordExecutionMetric(projectName, quarantine.NormalizeTestName(alert.Name), identityFP, alert.ExecutionTimeMs, alert.Status)
 			}
 			return IngestResult{Skipped: true, Fingerprint: fp, FinalName: alert.Name}
 		}
-	} else if isFlakyTest(projectName, fp, runID) {
+	} else if isFlakyTest(projectName, alert.Name) {
 		flaky = true
-		finalName = "[FLAKY] " + alert.Name
+		finalName = "[FLAKY] " + quarantine.NormalizeTestName(alert.Name)
 		slog.Info("flaky test detected", "test", alert.Name, "project", projectName)
 	}
 
@@ -101,7 +104,16 @@ func ProcessAlert(cfg Config, projectName, runID string, alert UnifiedAlert, rou
 	id, _ := res.LastInsertId()
 
 	if alert.ExecutionTimeMs > 0 {
-		RecordExecutionMetric(projectName, finalName, fp, alert.ExecutionTimeMs, status)
+		identityFP := quarantine.TestIdentityFingerprint(projectName, alert.Name)
+		RecordExecutionMetric(projectName, quarantine.NormalizeTestName(alert.Name), identityFP, alert.ExecutionTimeMs, status)
+	}
+
+	// Post-insert: tag all repeated failures (covers parallel ingest workers and name variants).
+	if !isPassStatus(status) {
+		if n := reconcileFlakyTagsForTest(projectName, alert.Name); n >= 2 {
+			flaky = true
+			finalName = "[FLAKY] " + quarantine.NormalizeTestName(alert.Name)
+		}
 	}
 
 	alert.Name = finalName
@@ -121,64 +133,101 @@ func ProcessAlert(cfg Config, projectName, runID string, alert UnifiedAlert, rou
 	}
 }
 
-// isFlakyTest tags failures that oscillate pass/fail or fail across multiple pipeline runs (48h window).
-// Does not depend on is_resolved — human triage is not required.
-func isFlakyTest(projectName, fingerprint, currentRunID string) bool {
-	if fingerprint == "" || projectName == "" {
+// isFlakyTest tags failures that oscillate pass/fail or repeat for the same test identity (48h window).
+// Uses normalized test name — not incident fingerprint (name+error), so CI stack traces do not break detection.
+func isFlakyTest(projectName, testName string) bool {
+	if projectName == "" || strings.TrimSpace(testName) == "" {
 		return false
 	}
-	if hasFlakyStateOscillation(projectName, fingerprint) {
+	if hasFlakyStateOscillation(projectName, testName) {
 		return true
 	}
-	return hasMultipleFailureRuns(projectName, fingerprint, currentRunID)
+	return hasPriorFailureForTest(projectName, testName)
 }
 
-func hasMultipleFailureRuns(projectName, fingerprint, currentRunID string) bool {
-	const q = `
-		SELECT COUNT(DISTINCT pipeline_run_id) FROM incidents
-		WHERE fingerprint = ? AND project_name = ?
-		AND created_at > datetime('now', '-48 hours')
-		AND TRIM(COALESCE(pipeline_run_id, '')) != ''
-		AND UPPER(COALESCE(status, '')) NOT IN ('PASSED', 'PASS')`
-
-	var distinctRuns int
-	if err := DB.QueryRow(q, fingerprint, projectName).Scan(&distinctRuns); err != nil {
-		slog.Error("flaky multi-run check failed", "error", err)
-		return false
-	}
-	if distinctRuns >= 2 {
-		return true
-	}
-	if distinctRuns == 1 && strings.TrimSpace(currentRunID) != "" {
-		var inSameRun int
-		err := DB.QueryRow(`
-			SELECT COUNT(*) FROM incidents
-			WHERE fingerprint = ? AND project_name = ? AND pipeline_run_id = ?
-			AND created_at > datetime('now', '-48 hours')
-			AND UPPER(COALESCE(status, '')) NOT IN ('PASSED', 'PASS')`,
-			fingerprint, projectName, currentRunID).Scan(&inSameRun)
-		if err != nil {
-			slog.Error("flaky run-id check failed", "error", err)
-			return false
-		}
-		return inSameRun == 0
-	}
-	return false
+// flakyNameVariants returns incident name values that refer to the same logical test.
+func flakyNameVariants(testName string) (string, string, string) {
+	norm := quarantine.NormalizeTestName(testName)
+	return norm, "[FLAKY] " + norm, "[PERF] " + norm
 }
 
-func hasFlakyStateOscillation(projectName, fingerprint string) bool {
+// failureIncidentIDsForTest returns recent failure incident ids for the same logical test (normalized name).
+func failureIncidentIDsForTest(projectName, testName string) []int64 {
+	target := quarantine.NormalizeTestName(testName)
+	if target == "" || projectName == "" || DB == nil {
+		return nil
+	}
 	rows, err := DB.Query(`
-		SELECT status FROM (
-			SELECT status, created_at FROM test_execution_metrics
-			WHERE project_name = ? AND fingerprint = ?
+		SELECT id, name FROM incidents
+		WHERE project_name = ?
+		AND created_at > datetime('now', '-48 hours')
+		AND UPPER(COALESCE(status, '')) NOT IN ('PASSED', 'PASS')`,
+		projectName)
+	if err != nil {
+		slog.Error("flaky failure scan failed", "error", err)
+		return nil
+	}
+	defer rows.Close()
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		var name string
+		if err := rows.Scan(&id, &name); err != nil {
+			continue
+		}
+		if quarantine.NormalizeTestName(name) == target {
+			ids = append(ids, id)
+		}
+	}
+	return ids
+}
+
+// hasPriorFailureForTest is true when the test already failed once in the last 48h (this ingest is the 2nd+ failure).
+func hasPriorFailureForTest(projectName, testName string) bool {
+	return len(failureIncidentIDsForTest(projectName, testName)) >= 1
+}
+
+// reconcileFlakyTagsForTest marks all failure rows for this test as [FLAKY] when count >= 2 (fixes async worker races).
+func reconcileFlakyTagsForTest(projectName, testName string) int {
+	ids := failureIncidentIDsForTest(projectName, testName)
+	if len(ids) < 2 {
+		return 0
+	}
+	flakyName := "[FLAKY] " + quarantine.NormalizeTestName(testName)
+	updated := 0
+	for _, id := range ids {
+		res, err := DB.Exec(`UPDATE incidents SET name = ? WHERE id = ? AND name NOT LIKE '[FLAKY]%'`,
+			flakyName, id)
+		if err != nil {
+			continue
+		}
+		if n, _ := res.RowsAffected(); n > 0 {
+			updated++
+		}
+	}
+	if updated > 0 {
+		slog.Info("flaky tags reconciled", "project", projectName, "test", quarantine.NormalizeTestName(testName), "incidents", len(ids))
+	}
+	return len(ids)
+}
+
+func hasFlakyStateOscillation(projectName, testName string) bool {
+	target := quarantine.NormalizeTestName(testName)
+	if target == "" {
+		return false
+	}
+	rows, err := DB.Query(`
+		SELECT status, name FROM (
+			SELECT status, test_name AS name, created_at FROM test_execution_metrics
+			WHERE project_name = ?
 			AND created_at > datetime('now', '-48 hours')
 			UNION ALL
-			SELECT status, created_at FROM incidents
-			WHERE project_name = ? AND fingerprint = ?
+			SELECT status, name, created_at FROM incidents
+			WHERE project_name = ?
 			AND created_at > datetime('now', '-48 hours')
 		)
 		ORDER BY created_at ASC`,
-		projectName, fingerprint, projectName, fingerprint)
+		projectName, projectName)
 	if err != nil {
 		slog.Error("flaky oscillation check failed", "error", err)
 		return false
@@ -187,8 +236,11 @@ func hasFlakyStateOscillation(projectName, fingerprint string) bool {
 
 	var buckets []string
 	for rows.Next() {
-		var status string
-		if err := rows.Scan(&status); err != nil {
+		var status, name string
+		if err := rows.Scan(&status, &name); err != nil {
+			continue
+		}
+		if quarantine.NormalizeTestName(name) != target {
 			continue
 		}
 		b := statusBucket(status)

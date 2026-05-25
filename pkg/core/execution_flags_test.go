@@ -7,6 +7,8 @@ func TestNormalizeExecutionEnv(t *testing.T) {
 		{"prod", ExecutionEnvProd},
 		{"PRODUCTION", ExecutionEnvProd},
 		{"staging", ExecutionEnvStaging},
+		{"integration", ExecutionEnvIntegration},
+		{"CANARY", ExecutionEnvIntegration},
 		{"", ExecutionEnvUnknown},
 		{"invalid", ExecutionEnvUnknown},
 	}

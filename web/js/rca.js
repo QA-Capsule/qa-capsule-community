@@ -129,9 +129,11 @@ export async function loadRCAInsights() {
     const { ok, data } = await parseApiJson(res);
     if (!ok) {
         listEl.innerHTML = '<p class="modern-data-grid__empty">Failed to load insights.</p>';
+        updateRCAStats([]);
         return;
     }
     const rows = Array.isArray(data) ? data : [];
+    updateRCAStats(rows);
     if (!rows.length) {
         listEl.innerHTML = '<p class="modern-data-grid__empty">No AI summaries yet. Failures enqueue RCA when AI is enabled.</p>';
         return;
@@ -139,29 +141,39 @@ export async function loadRCAInsights() {
     listEl.innerHTML = rows.map(r => renderRCAInsightCard(r)).join('');
 }
 
+function updateRCAStats(rows) {
+    const set = (id, v) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = String(v);
+    };
+    const total = rows.length;
+    const completed = rows.filter(r => (r.rca_status || '').toLowerCase() === 'completed').length;
+    const pending = total - completed;
+    set('rca-stat-total', total);
+    set('rca-stat-completed', completed);
+    set('rca-stat-pending', pending);
+}
+
 function renderRCAInsightCard(r) {
     const status = escapeHtml(r.rca_status || 'pending');
     return `
-        <article class="ai-insight-panel rca-insight-card" role="listitem">
-            <div class="ai-insight-panel__inner">
-                <header class="rca-insight-card__head">
-                    <div class="rca-insight-card__title-wrap">
-                        <h3 class="rca-insight-card__title">
-                            <span class="ai-insight-panel__icon" aria-hidden="true">${iconAiInsight()}</span>
-                            ${escapeHtml(r.test_name || 'Unknown test')}
-                        </h3>
-                        <p class="rca-insight-card__meta">
-                            ${escapeHtml(r.project_name || '—')}
-                            <span class="rca-insight-card__status">${status}</span>
-                        </p>
-                    </div>
-                    <button type="button" class="btn-secondary btn-sm" onclick="window.triggerRCA(${Number(r.incident_id) || 0})">Re-run</button>
-                </header>
-                <p class="rca-insight-card__body">${escapeHtml(r.summary || 'No summary generated yet.')}</p>
-            </div>
+        <article class="data-card rca-insight-card" role="listitem">
+            <header class="rca-insight-card__head">
+                <div class="rca-insight-card__title-wrap">
+                    <h3 class="rca-insight-card__title">${escapeHtml(r.test_name || 'Unknown test')}</h3>
+                    <p class="rca-insight-card__meta">
+                        ${escapeHtml(r.project_name || '—')}
+                        <span class="rca-insight-card__status">${status}</span>
+                    </p>
+                </div>
+                <button type="button" class="btn-secondary btn-sm" onclick="window.triggerRCA(${Number(r.incident_id) || 0})">Re-run</button>
+            </header>
+            <p class="rca-insight-card__body">${escapeHtml(r.summary || 'No summary generated yet.')}</p>
         </article>
     `;
 }
+
+window.loadRCAInsights = loadRCAInsights;
 
 export async function triggerRCA(incidentId) {
     const res = await fetchWithAuth(`/api/incidents/${incidentId}/rca`, { method: 'POST' });

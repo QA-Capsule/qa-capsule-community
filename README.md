@@ -15,7 +15,13 @@
   <img src="./images/ui-2.png" width="800px" alt="Analytics View">
 </p>
 <p align="center">
-  <img src="./images/ui-3-1.png" width="800px" alt="Plugin Engine">
+  <img src="./images/ui-3.png" width="800px" alt="Plugin Engine">
+</p>
+<p align="center">
+  <img src="./images/ui-4.png" width="800px" alt="Plugin Engine">
+</p>
+<p align="center">
+  <img src="./images/ui-5.png" width="800px" alt="Plugin Engine">
 </p>
 
 ---

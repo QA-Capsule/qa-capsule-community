@@ -97,7 +97,20 @@ func testCaseFromPayloadMap(m map[string]interface{}) TestCaseResult {
 		errStr, _ = m["error_message"].(string)
 	}
 	if errStr == "" {
+		errStr = stringField(m, "message", "")
+	}
+	if errStr == "" {
 		errStr = stringField(m, "longrepr", "")
+	}
+	stack := stringField(m, "stack", "")
+	if stack == "" {
+		stack = stringField(m, "stacktrace", "")
+	}
+	if stack == "" {
+		stack = stringField(m, "stack_trace", "")
+	}
+	if stack == "" {
+		stack = stringField(m, "trace", "")
 	}
 	if errStr == "" {
 		errStr = stringField(m, "failure_reason", "")
@@ -119,8 +132,10 @@ func testCaseFromPayloadMap(m map[string]interface{}) TestCaseResult {
 	if logs, ok := m["console_logs"].(string); ok {
 		tc.ConsoleLogs = logs
 	}
-	if logs, ok := m["error_logs"].(string); ok {
+	if logs, ok := m["error_logs"].(string); ok && logs != "" {
 		tc.ErrorLogs = logs
+	} else if stack != "" {
+		tc.ErrorLogs = stack
 	}
 	if tc.Name != "" {
 		tc.Fingerprint = IncidentFingerprint(tc.Name, tc.ErrorMessage)

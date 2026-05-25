@@ -6,7 +6,7 @@
 #   QA_CAPSULE_API_KEY   Project API key (Settings → CI/CD Gateway)
 #
 # Optional:
-#   QA_CAPSULE_EXEC_ENV   PROD | STAGING | CANARY | DEV (default: DEV)
+#   QA_CAPSULE_EXEC_ENV   PROD | STAGING | INTEGRATION | DEV (default: DEV)
 #   QA_CAPSULE_EXEC_TYPE  REAL | TEST-RUN | NIGHTLY | SMOKE (default: TEST-RUN)
 #   CI_PIPELINE_ID        Used as X-Run-Id when set
 #   OUTPUT_DIR            Robot output directory (default: tests/results)
@@ -59,22 +59,65 @@ if [[ "${#ROBOT_SUITE_FILES[@]}" -eq 0 ]]; then
   exit 1
 fi
 
+GATE_SCRIPT="${ROOT_DIR}/scripts/quarantine-ci-gate.sh"
+QUARANTINE_GATE=false
+if [[ -x "${GATE_SCRIPT}" ]] && [[ -n "${QA_CAPSULE_URL:-}" && -n "${QA_CAPSULE_API_KEY:-}" ]]; then
+  QUARANTINE_GATE=true
+  echo "==> CI quarantine gate enabled (${QA_CAPSULE_URL})"
+fi
+
 echo "==> Running all Robot suites (${#ROBOT_SUITE_FILES[@]} files):"
 for suite in "${ROBOT_SUITE_FILES[@]}"; do
   echo "    - ${suite}"
 done
 
-# --- Execute Robot Framework ---
+# --- Execute Robot Framework (per suite; respects quarantine deny-list) ---
+PARTIAL_OUTPUTS=()
+ROBOT_EXIT=0
 set +e
-robot \
-  --outputdir "${OUTPUT_DIR}" \
-  --loglevel INFO \
-  "${ROBOT_SUITE_FILES[@]}"
-ROBOT_EXIT=$?
+for suite in "${ROBOT_SUITE_FILES[@]}"; do
+  suite_base="$(basename "${suite}" .robot)"
+  partial_output="${suite_base}-output.xml"
+  robot_args=(
+    --outputdir "${OUTPUT_DIR}"
+    --output "${partial_output}"
+    --log NONE
+    --report NONE
+    --loglevel INFO
+  )
+
+  if [[ "${QUARANTINE_GATE}" == "true" ]]; then
+    if ! mapfile -t RUNNABLE_TESTS < <("${GATE_SCRIPT}" robot-tests "${suite}" 2>/dev/null); then
+      echo "==> SKIP suite (all tests quarantined): ${suite}"
+      continue
+    fi
+    for t in "${RUNNABLE_TESTS[@]}"; do
+      robot_args+=(--test "${t}")
+    done
+    echo "==> Running ${suite} (${#RUNNABLE_TESTS[@]} test(s) after quarantine filter)"
+  else
+    echo "==> Running ${suite}"
+  fi
+
+  robot "${robot_args[@]}" "${suite}"
+  suite_exit=$?
+  if [[ "${suite_exit}" -ne 0 ]]; then
+    ROBOT_EXIT="${suite_exit}"
+  fi
+  if [[ -f "${OUTPUT_DIR}/${partial_output}" ]]; then
+    PARTIAL_OUTPUTS+=("${OUTPUT_DIR}/${partial_output}")
+  fi
+done
 set -e
 
-# Robot writes native output.xml; QA Capsule expects JUnit XML → convert with rebot.
-# rebot exits non-zero when the suite had failures — must not abort before upload.
+# Robot writes native output.xml per suite; merge then convert to JUnit for QA Capsule.
+if [[ "${#PARTIAL_OUTPUTS[@]}" -gt 0 ]]; then
+  echo "==> Merging ${#PARTIAL_OUTPUTS[@]} Robot output(s) → ${ROBOT_OUTPUT}"
+  set +e
+  rebot --outputdir "${OUTPUT_DIR}" --output output.xml "${PARTIAL_OUTPUTS[@]}"
+  set -e
+fi
+
 if [[ -f "${ROBOT_OUTPUT}" ]]; then
   echo "==> Converting Robot output to JUnit XML: ${JUNIT_FILE}"
   set +e

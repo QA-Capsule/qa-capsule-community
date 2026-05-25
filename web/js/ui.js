@@ -45,7 +45,7 @@ export function notify(message, type = 'success') {
     if (!container) return alert(message);
 
     const toast = document.createElement('div');
-    const bgColor = type === 'error' ? 'var(--log-fatal, #dc2626)' : 'var(--log-pass, #059669)';
+    const bgColor = type === 'error' ? 'var(--log-fatal, #b54a4a)' : 'var(--log-pass, #4a7c59)';
 
     toast.style.cssText = `background-color: ${bgColor}; color: #fff; padding: 12px 18px; border-radius: var(--radius-sm, 8px); box-shadow: var(--shadow-md, 0 8px 24px rgba(0,0,0,0.2)); font-weight: 600; font-size: 13px; transition: opacity 0.5s ease; margin-top: 10px; z-index: 100001; max-width: min(420px, 90vw); line-height: 1.4;`;
     toast.innerHTML = `<span>${message}</span>`;

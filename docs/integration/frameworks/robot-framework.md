@@ -8,7 +8,7 @@ icon: material/robot
 |---|---|
 | **Upload param** | `?framework=RobotFramework` |
 | **Report** | `tests/results/robot-junit.xml` |
-| **Repo workflow** | `.github/workflows/robot-tests.yml` |
+| **Repo workflow** | `.github/workflows/e2e-tests-robot.yml` |
 | **Runner script** | `scripts/run-tests.sh` |
 
 ## Suites in this repository
@@ -32,8 +32,10 @@ chmod +x scripts/run-tests.sh && ./scripts/run-tests.sh
 ## 2. JUnit (rebot)
 
 ```bash
-robot --outputdir tests/results tests/robotframework
-rebot --xunit robot-junit.xml --outputdir tests/results tests/results/output.xml
+chmod +x scripts/run-tests.sh scripts/quarantine-ci-gate.sh
+export QA_CAPSULE_URL=https://your-capsule.example.com
+export QA_CAPSULE_API_KEY=your-project-key
+./scripts/run-tests.sh
 ```
 
 !!! warning "`--xunit` path"

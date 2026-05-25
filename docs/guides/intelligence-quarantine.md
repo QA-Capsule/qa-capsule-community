@@ -29,7 +29,7 @@ Turn raw failure logs into a **short human summary** (probable cause, impact, su
 
 | Field | Description |
 |-------|-------------|
-| Provider | `openai`, `ollama`, or `disabled` |
+| Provider | `openai`, `anthropic`, `gemini`, `mistral`, `groq`, `openrouter`, `azure`, `ollama`, or `disabled` |
 | Model | e.g. `gpt-4o-mini`, `llama3.2` |
 | Base URL | Ollama default `http://localhost:11434` |
 | API key env | Name of env var on server (e.g. `OPENAI_API_KEY`) |
@@ -118,11 +118,15 @@ When a test is quarantined **before** insert:
 - Webhook response: `"quarantined_skipped": N`.
 - Stability stats still updated in background.
 
-### CI API
+### CI API (X-API-Key)
+
+Project is resolved from the API key (same key as webhook ingest). No JWT required.
+
+#### List all quarantined tests
 
 ```http
-GET /api/ci/quarantine?project=my-e2e-suite
-X-API-Key: <same-as-webhook>
+GET /api/ci/quarantine
+X-API-Key: <project-api-key>
 ```
 
 Response shape:
@@ -134,7 +138,7 @@ Response shape:
   "tests": [
     {
       "test_name": "checkout payment",
-      "test_identity_fingerprint": "...",
+      "fingerprint": "64-char-hex-test-identity",
       "reason": "flaky",
       "since": "2026-05-23T12:00:00Z"
     }
@@ -142,7 +146,75 @@ Response shape:
 }
 ```
 
-Use in pipeline to `skip` or `mark flaky` before running expensive suites.
+#### Per-test gate (skip before execution)
+
+```http
+GET /api/ci/quarantine/status?test=checkout%20payment
+X-API-Key: <project-api-key>
+```
+
+Or with the stable fingerprint from the list endpoint:
+
+```http
+GET /api/ci/quarantine/status?hash=<64-char-hex>
+X-API-Key: <project-api-key>
+```
+
+Alias (same handler): `GET /api/quarantine/status?…`
+
+Response when quarantined:
+
+```json
+{
+  "project_name": "my-e2e-suite",
+  "quarantined": true,
+  "skip": true,
+  "test_name": "checkout payment",
+  "fingerprint": "...",
+  "reason": "flaky",
+  "source": "auto",
+  "since": "2026-05-23T12:00:00Z",
+  "message": "Test is quarantined; skip execution in CI."
+}
+```
+
+When not quarantined, `quarantined` and `skip` are `false` — run the test normally.
+
+#### GitHub Actions example
+
+```yaml
+- name: Skip if quarantined
+  env:
+    QACAPSULE_URL: https://qa-capsule.example.com
+    QACAPSULE_API_KEY: ${{ secrets.QACAPSULE_API_KEY }}
+    TEST_NAME: "Checkout.Payment"
+  run: |
+    resp=$(curl -fsS -H "X-API-Key: $QACAPSULE_API_KEY" \
+      "$QACAPSULE_URL/api/ci/quarantine/status?test=$(python -c "import urllib.parse; print(urllib.parse.quote('$TEST_NAME'))")")
+    if echo "$resp" | grep -q '"skip":true'; then
+      echo "Skipping quarantined test: $TEST_NAME"
+      exit 0
+    fi
+    # run the test step here
+```
+
+Fetch the full deny-list once per job if you prefer caching fingerprints locally.
+
+### Repo integration (Robot Framework)
+
+This repository wires the gate automatically:
+
+| File | Role |
+|------|------|
+| `scripts/quarantine-ci-gate.sh` | `list`, `should-skip`, `robot-tests` helpers |
+| `scripts/run-tests.sh` | Skips quarantined Robot test cases before `robot` runs |
+| `.github/workflows/e2e-tests-robot.yml` | Prints deny-list, passes secrets into `run-tests.sh` |
+
+Set GitHub secrets `QA_CAPSULE_URL` and `QA_CAPSULE_API_ROBOT_KEY`. To skip a demo failure in CI, quarantine test name **`Simulated Payment Gateway Rejection`** (from `demo_failure.robot`) in the QA Capsule UI or via auto-quarantine after flaky detection.
+
+### Auto-lift
+
+After **5 consecutive passes** (default `AutoLiftAfterPasses`), an auto-quarantined test is lifted so CI and ingest resume without manual action.
 
 ### API (JWT)
 

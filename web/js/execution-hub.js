@@ -5,7 +5,7 @@ import { fetchWithAuth, parseApiJson, parseJwt } from './api.js';
 import { notify } from './ui.js';
 import { canPatchExecutionFlags, canViewRCA } from './roles.js';
 
-const ENV_OPTIONS = ['UNKNOWN', 'PROD', 'STAGING', 'CANARY', 'DEV'];
+const ENV_OPTIONS = ['UNKNOWN', 'PROD', 'STAGING', 'INTEGRATION', 'DEV'];
 const TYPE_OPTIONS = ['REAL', 'TEST-RUN', 'NIGHTLY', 'SMOKE'];
 const MATRIX_MAX = 144;
 const MATRIX_COLS = 12;
@@ -28,11 +28,18 @@ function isRealRunId(runId) {
     return runId && !String(runId).startsWith('legacy-');
 }
 
-function envBadgeClass(env) {
+/** UI label for execution env (CANARY legacy → INTEGRATION). */
+function displayExecutionEnv(env) {
     const e = String(env || 'UNKNOWN').toUpperCase();
+    if (e === 'CANARY') return 'INTEGRATION';
+    return e;
+}
+
+function envBadgeClass(env) {
+    const e = displayExecutionEnv(env);
     if (e === 'PROD') return 'exec-flag--prod';
     if (e === 'STAGING') return 'exec-flag--staging';
-    if (e === 'CANARY') return 'exec-flag--canary';
+    if (e === 'INTEGRATION') return 'exec-flag--integration';
     if (e === 'DEV') return 'exec-flag--dev';
     return 'exec-flag--unknown';
 }
@@ -59,14 +66,15 @@ export function renderGroupExecFlagsHtml(group, canPatch) {
     const typ = group.execution_type || 'REAL';
     const sum = group.execution_summary || {};
     let html = `<div class="exec-hub-flags">`;
-    html += `<span class="exec-flag-badge ${envBadgeClass(env)}" title="Execution environment">${escapeHtml(env)}</span>`;
+    html += `<span class="exec-flag-badge ${envBadgeClass(env)}" title="Execution environment">${escapeHtml(displayExecutionEnv(env))}</span>`;
     html += `<span class="exec-flag-badge ${typeBadgeClass(typ)}" title="Execution type">${escapeHtml(typ)}</span>`;
     if (sum.total > 0) {
         html += `<span class="exec-hub-summary">${sum.passed}/${sum.total} pass · ${sum.failed} fail · ${sum.skipped} skip</span>`;
     }
     if (canPatch && group.has_real_run) {
+        const envLabel = displayExecutionEnv(env);
         const envOpts = ENV_OPTIONS.map(v =>
-            `<option value="${v}" ${v === env ? 'selected' : ''}>${v}</option>`).join('');
+            `<option value="${v}" ${v === envLabel ? 'selected' : ''}>${v}</option>`).join('');
         const typeOpts = TYPE_OPTIONS.map(v =>
             `<option value="${v}" ${v === typ ? 'selected' : ''}>${v}</option>`).join('');
         html += `<div class="exec-flag-editors">
@@ -127,8 +135,8 @@ export async function fetchExecutionReport(projectName, runId) {
     const res = await fetchWithAuth(
         `/api/executions/${encodeURIComponent(runId)}/report?project=${encodeURIComponent(projectName)}`
     );
-    const data = await parseApiJson(res);
-    if (!res.ok) throw new Error(data?.error || 'Failed to load execution report');
+    const { ok, data } = await parseApiJson(res);
+    if (!ok) throw new Error((data && data.error) || 'Failed to load execution report');
     reportCache.set(key, data);
     return data;
 }
@@ -167,9 +175,9 @@ export async function patchGroupExecFlags(groupId, env, type) {
         `/api/executions/${encodeURIComponent(group.pipeline_run_id)}/flag?project=${encodeURIComponent(group.project_name)}`,
         { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
     );
-    const data = await parseApiJson(res);
-    if (!res.ok) {
-        notify(data?.error || 'Failed to update execution flags', 'error');
+    const { ok, data } = await parseApiJson(res);
+    if (!ok) {
+        notify((data && data.error) || 'Failed to update execution flags', 'error');
         return;
     }
     reportCache.delete(cacheKey(group.project_name, group.pipeline_run_id));
@@ -192,11 +200,28 @@ export function openExecutionSheetFromCell(btn) {
     openExecutionSheet({
         incidentId: 0,
         name: tc ? tc.name : 'Test case',
+        status: tc ? tc.status : '',
+        duration_ms: tc ? tc.duration_ms : 0,
         error_message: tc ? tc.error_message : '',
         console_logs: tc ? tc.console_logs : '',
         error_logs: tc ? tc.error_logs : '',
         project_name: matrixEl ? matrixEl.dataset.project : ''
     });
+}
+
+function formatExecutionSheetLogs(detail) {
+    const st = String(detail.status || '').toLowerCase();
+    const chunks = [];
+    if (detail.console_logs) chunks.push(String(detail.console_logs).trim());
+    if (detail.error_logs) chunks.push(String(detail.error_logs).trim());
+    if (detail.error_message && st !== 'pass') chunks.push(String(detail.error_message).trim());
+    if (chunks.length) return chunks.join('\n\n');
+    if (st === 'pass') {
+        const ms = detail.duration_ms ? ` (${detail.duration_ms} ms)` : '';
+        return `[INFO] Test passed${ms}. No stdout/stderr in the stored report — enable framework logging in CI to capture output here.`;
+    }
+    if (st === 'skip') return '[INFO] Test skipped. No logs in report.';
+    return 'No logs captured for this test.';
 }
 
 export function openExecutionSheetFromIncident(incidentId, event) {
@@ -233,8 +258,7 @@ export async function openExecutionSheet(detail) {
         meta.innerHTML += `<span class="exec-sheet-meta-item">INC #${detail.incidentId}</span>`;
     }
 
-    const logBody = detail.error_logs || detail.error_message || detail.console_logs || 'No logs captured.';
-    logs.textContent = logBody;
+    logs.textContent = formatExecutionSheetLogs(detail);
 
     if (rcaEl) {
         rcaEl.hidden = true;

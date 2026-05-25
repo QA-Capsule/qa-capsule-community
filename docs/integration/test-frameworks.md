@@ -41,7 +41,7 @@ QA Capsule ingests **any runner that produces JUnit XML** (recommended) or **JSO
 | **K6** | [K6](frameworks/k6.md) | — (JSON) | N/A |
 | **Gatling** | [K6](frameworks/k6.md#gatling) | JSON | N/A |
 
-**Example workflows in this repo:** `robot-tests.yml`, `e2e-tests-playwright.yml`, `e2e-tests-cypress.yml`, `api-tests-pytest.yml`
+**Example workflows in this repo:** `e2e-tests-robot.yml`, `e2e-tests-playwright.yml`, `e2e-tests-cypress.yml`, `api-tests-pytest.yml`
 
 ---
 
@@ -60,7 +60,7 @@ curl -f -S -X POST "${QA_CAPSULE_URL}/api/webhooks/upload?framework=Playwright" 
 |--------|---------|
 | `X-API-Key` | Project key from **CI/CD Gateways** |
 | `X-Run-Id` | `github.run_id`, `$CI_PIPELINE_ID`, `$BUILD_NUMBER`, … |
-| `X-Execution-Env` | `PROD`, `STAGING`, `DEV`, `CANARY` |
+| `X-Execution-Env` | `PROD`, `STAGING`, `DEV`, `INTEGRATION` |
 | `X-Execution-Type` | `TEST-RUN`, `SMOKE`, `NIGHTLY`, `REAL` |
 
 !!! tip "Always upload after tests"

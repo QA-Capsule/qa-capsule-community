@@ -3,7 +3,7 @@
  */
 import { fetchWithAuth, parseApiJson } from './api.js';
 import { notify } from './ui.js';
-import { CHART_PALETTE, defaultWidgetColors } from './chart-palette.js';
+import { CHART_PALETTE_LIGHT, getChartPalette, defaultWidgetColors } from './chart-palette.js';
 import { getChartTheme, getExportChartTheme } from './chart-theme.js';
 
 export const METRIC_CATALOG = {
@@ -26,12 +26,12 @@ const PDF_CHART_SIZES = {
 };
 
 export const DEFAULT_ANALYTICS_LAYOUT = [
-    { id: 'm1', type: 'metric', metric: 'total_incidents', title: 'Total incidents', color: CHART_PALETTE.semantic.info, span: 1 },
-    { id: 'm2', type: 'metric', metric: 'active_backlog', title: 'Active backlog', color: CHART_PALETTE.semantic.danger, span: 1 },
-    { id: 'm3', type: 'metric', metric: 'resolution_rate', title: 'Resolution rate', color: CHART_PALETTE.semantic.success, span: 1 },
-    { id: 'm4', type: 'metric', metric: 'flaky_ratio', title: 'Flaky ratio', color: CHART_PALETTE.semantic.warning, span: 1 },
-    { id: 'c1', type: 'doughnut', title: 'Failure taxonomy', color: CHART_PALETTE.doughnut[0], color2: CHART_PALETTE.doughnut[1], span: 2 },
-    { id: 'c2', type: 'evolution', title: 'Incident evolution', color: CHART_PALETTE.series[0], color2: CHART_PALETTE.series[2], color3: CHART_PALETTE.series[1], span: 4 }
+    { id: 'm1', type: 'metric', metric: 'total_incidents', title: 'Total incidents', color: CHART_PALETTE_LIGHT.semantic.info, span: 1 },
+    { id: 'm2', type: 'metric', metric: 'active_backlog', title: 'Active backlog', color: CHART_PALETTE_LIGHT.semantic.danger, span: 1 },
+    { id: 'm3', type: 'metric', metric: 'resolution_rate', title: 'Resolution rate', color: CHART_PALETTE_LIGHT.semantic.success, span: 1 },
+    { id: 'm4', type: 'metric', metric: 'flaky_ratio', title: 'Flaky ratio', color: CHART_PALETTE_LIGHT.semantic.warning, span: 1 },
+    { id: 'c1', type: 'doughnut', title: 'Failure taxonomy', color: CHART_PALETTE_LIGHT.doughnut[0], color2: CHART_PALETTE_LIGHT.doughnut[1], span: 2 },
+    { id: 'c2', type: 'evolution', title: 'Incident evolution', color: CHART_PALETTE_LIGHT.series[0], color2: CHART_PALETTE_LIGHT.series[2], color3: CHART_PALETTE_LIGHT.series[1], span: 4 }
 ];
 
 let currentLayout = [...DEFAULT_ANALYTICS_LAYOUT];
@@ -189,8 +189,9 @@ export function addAnalyticsWidgetFromForm() {
     const type = document.getElementById('aw-type')?.value || 'metric';
     const title = document.getElementById('aw-title')?.value?.trim() || 'New widget';
     const metric = document.getElementById('aw-metric')?.value || 'total_incidents';
-    const color = document.getElementById('aw-color')?.value || CHART_PALETTE.semantic.info;
-    const color2 = document.getElementById('aw-color2')?.value || CHART_PALETTE.semantic.warning;
+    const pal = getChartPalette();
+    const color = document.getElementById('aw-color')?.value || pal.semantic.info;
+    const color2 = document.getElementById('aw-color2')?.value || pal.semantic.warning;
     const span = parseInt(document.getElementById('aw-span')?.value || '1', 10);
     const defaults = defaultWidgetColors(type, draftLayout.length);
     const w = {
@@ -307,6 +308,7 @@ function formatBucketLabel(raw, bucket) {
 export { getExportChartTheme };
 
 function renderDoughnut(canvas, data, widget, theme, key, { forPdf = false } = {}) {
+    const pal = getChartPalette();
     const stable = data.stable_failures ?? 0;
     const flaky = data.flaky_tests ?? 0;
     return new Chart(canvas.getContext('2d'), {
@@ -315,7 +317,7 @@ function renderDoughnut(canvas, data, widget, theme, key, { forPdf = false } = {
             labels: ['Stable Failures', 'Flaky Tests'],
             datasets: [{
                 data: [stable, flaky],
-                backgroundColor: [widget.color || CHART_PALETTE.doughnut[0], widget.color2 || CHART_PALETTE.doughnut[1]],
+                backgroundColor: [widget.color || pal.doughnut[0], widget.color2 || pal.doughnut[1]],
                 borderColor: theme.border,
                 borderWidth: 2
             }]
@@ -354,17 +356,21 @@ function renderDoughnut(canvas, data, widget, theme, key, { forPdf = false } = {
 }
 
 function renderEvolution(canvas, data, widget, theme, key, { forPdf = false } = {}) {
+    const pal = getChartPalette();
     const evo = data.evolution || [];
     const bucket = data.evolution_bucket || 'week';
     const labels = evo.map(e => formatBucketLabel(e.week_start, bucket));
+    const barTotal = widget.color || pal.series[0];
+    const barFlaky = widget.color2 || pal.series[2];
+    const lineMttr = widget.color3 || pal.semantic.success;
     return new Chart(canvas.getContext('2d'), {
         type: 'bar',
         data: {
             labels,
             datasets: [
-                { label: 'Total', type: 'bar', data: evo.map(e => e.total_failures), backgroundColor: widget.color || 'rgba(59,130,246,0.75)', yAxisID: 'y', borderRadius: forPdf ? 3 : 0 },
-                { label: 'Flaky', type: 'bar', data: evo.map(e => e.flaky_count), backgroundColor: widget.color2 || 'rgba(217,119,6,0.75)', yAxisID: 'y', borderRadius: forPdf ? 3 : 0 },
-                { label: 'MTTR (min)', type: 'line', data: evo.map(e => Math.round(e.mttr)), borderColor: widget.color3 || CHART_PALETTE.semantic.success, backgroundColor: 'rgba(5,150,105,0.08)', fill: forPdf, tension: 0.35, yAxisID: 'y1', borderWidth: 2.5, pointRadius: forPdf ? 4 : 0, pointHoverRadius: forPdf ? 4 : 5 }
+                { label: 'Total', type: 'bar', data: evo.map(e => e.total_failures), backgroundColor: barTotal, yAxisID: 'y', borderRadius: forPdf ? 3 : 0 },
+                { label: 'Flaky', type: 'bar', data: evo.map(e => e.flaky_count), backgroundColor: barFlaky, yAxisID: 'y', borderRadius: forPdf ? 3 : 0 },
+                { label: 'MTTR (min)', type: 'line', data: evo.map(e => Math.round(e.mttr)), borderColor: lineMttr, backgroundColor: 'rgba(74,124,89,0.12)', fill: forPdf, tension: 0.35, yAxisID: 'y1', borderWidth: 2.5, pointRadius: forPdf ? 4 : 0, pointHoverRadius: forPdf ? 4 : 5 }
             ]
         },
         options: {
@@ -404,9 +410,9 @@ function renderEvolution(canvas, data, widget, theme, key, { forPdf = false } = 
                     position: 'right',
                     beginAtZero: true,
                     grace: forPdf ? '8%' : undefined,
-                    ticks: { color: widget.color3 || CHART_PALETTE.semantic.success, font: { size: forPdf ? 9 : 10 } },
+                    ticks: { color: lineMttr, font: { size: forPdf ? 9 : 10 } },
                     grid: { drawOnChartArea: false },
-                    title: forPdf ? { display: true, text: 'MTTR (min)', color: widget.color3 || CHART_PALETTE.semantic.success, font: { size: 9 } } : undefined
+                    title: forPdf ? { display: true, text: 'MTTR (min)', color: lineMttr, font: { size: 9 } } : undefined
                 }
             }
         }

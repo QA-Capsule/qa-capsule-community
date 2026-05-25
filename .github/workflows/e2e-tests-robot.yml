@@ -31,11 +31,24 @@ jobs:
       - name: Install curl
         run: sudo apt-get update -qq && sudo apt-get install -y -qq curl
 
+      - name: CI quarantine deny-list
+        if: ${{ secrets.QA_CAPSULE_URL != '' && secrets.QA_CAPSULE_API_ROBOT_KEY != '' }}
+        env:
+          QA_CAPSULE_URL: ${{ secrets.QA_CAPSULE_URL }}
+          QA_CAPSULE_API_KEY: ${{ secrets.QA_CAPSULE_API_ROBOT_KEY }}
+        run: |
+          chmod +x scripts/quarantine-ci-gate.sh
+          echo "Quarantined tests (skip in Robot run):"
+          ./scripts/quarantine-ci-gate.sh list || echo "(none or gate unreachable)"
+
       - name: Run all Robot Framework suites
         id: robot
+        env:
+          QA_CAPSULE_URL: ${{ secrets.QA_CAPSULE_URL }}
+          QA_CAPSULE_API_KEY: ${{ secrets.QA_CAPSULE_API_ROBOT_KEY }}
         run: |
           echo "Suites: smoke_tests, api_health, demo_failure (fail), ui_navigation"
-          chmod +x scripts/run-tests.sh
+          chmod +x scripts/run-tests.sh scripts/quarantine-ci-gate.sh
           ./scripts/run-tests.sh
         continue-on-error: true
 

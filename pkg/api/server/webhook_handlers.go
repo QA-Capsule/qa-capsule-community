@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,13 +11,6 @@ import (
 
 	"github.com/QA-Capsule/qa-capsule-community/pkg/core"
 )
-
-func lastID(ids []int64) int64 {
-	if len(ids) == 0 {
-		return 0
-	}
-	return ids[len(ids)-1]
-}
 
 func executionFlagsFromRequest(r *http.Request, raw map[string]interface{}) core.ExecutionFlags {
 	flags := core.ExecutionFlagsFromPayload(raw)
@@ -27,35 +21,6 @@ func executionFlagsFromRequest(r *http.Request, raw map[string]interface{}) core
 		flags.Type = core.NormalizeExecutionType(v)
 	}
 	return flags
-}
-
-// pipelineOutcomeFromReport marks the run failed when JUnit/XML reports failures, even if incidents were deduplicated.
-func pipelineOutcomeFromReport(processed int, report core.UnifiedExecutionReport) string {
-	if processed > 0 {
-		return "failure"
-	}
-	if report.Summary.Failed > 0 || report.Summary.Flaky > 0 {
-		return "failure"
-	}
-	for _, tc := range report.Tests {
-		st := strings.ToLower(strings.TrimSpace(tc.Status))
-		if st == "fail" || st == "flaky" {
-			return "failure"
-		}
-	}
-	return "success"
-}
-
-func appendIngested(ingested []core.IngestedCase, res core.IngestResult) []core.IngestedCase {
-	if res.IncidentID <= 0 {
-		return ingested
-	}
-	return append(ingested, core.IngestedCase{
-		Fingerprint: res.Fingerprint,
-		FinalName:   res.FinalName,
-		IncidentID:  res.IncidentID,
-		Flaky:       res.Flaky,
-	})
 }
 
 // registerWebhookRoutes binds the endpoints responsible for CI/CD telemetry ingestion
@@ -145,6 +110,9 @@ func registerWebhookRoutes(config *core.Config) {
 			}
 		}
 
+		if len(alerts) == 0 {
+			alerts = core.AlertsFromReport(report, nil)
+		}
 		if len(alerts) == 0 && len(report.Tests) == 0 {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
@@ -184,46 +152,35 @@ func registerWebhookRoutes(config *core.Config) {
 			alertContext["TEAMS_WEBHOOK_URL"] = teamsHook
 		}
 
-		processed := 0
-		quarantined := 0
-		var incidentIDs []int64
-		var ingested []core.IngestedCase
-		for _, alert := range alerts {
-			res := core.ProcessAlert(*config, projectName, runID, alert, alertContext, allowedPlugins)
-			ingested = appendIngested(ingested, res)
-			if res.Quarantined {
-				quarantined++
-				continue
-			}
-			if !res.Skipped {
-				processed++
-				if res.IncidentID > 0 {
-					incidentIDs = append(incidentIDs, res.IncidentID)
-				}
-			}
+		job := core.IngestBatchJob{
+			Config:         *config,
+			ProjectName:    projectName,
+			PipelineRunID:  runID,
+			CommitSHA:      commitSHA,
+			Branch:         branch,
+			Flags:          flags,
+			Alerts:         alerts,
+			Report:         report,
+			AlertContext:   alertContext,
+			AllowedPlugins: allowedPlugins,
 		}
-
-		outcome := pipelineOutcomeFromReport(processed, report)
-
-		ctx := core.IngestExecutionContext{
-			ProjectName:   projectName,
-			PipelineRunID: runID,
-			CommitSHA:     commitSHA,
-			Branch:        branch,
-			Flags:         flags,
+		if err := core.EnqueueIngest(job); err != nil {
+			if errors.Is(err, core.ErrIngestQueueFull) {
+				http.Error(w, "Ingest queue saturated; retry later", http.StatusServiceUnavailable)
+				return
+			}
+			http.Error(w, "Failed to queue ingest", http.StatusInternalServerError)
+			return
 		}
-		_ = core.FinalizePipelineExecution(ctx, outcome, report, ingested)
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusAccepted)
 		json.NewEncoder(w).Encode(map[string]interface{}{
-			"status":              "success",
-			"failures_processed":  processed,
-			"quarantined_skipped": quarantined,
-			"incident_ids":        incidentIDs,
-			"last_incident_id":    lastID(incidentIDs),
-			"project":             projectName,
-			"pipeline_run_id":     runID,
+			"status":          "queued",
+			"message":         "Payload accepted for asynchronous processing",
+			"project":         projectName,
+			"pipeline_run_id": runID,
+			"alerts_queued":   len(alerts),
 		})
 	})
 }

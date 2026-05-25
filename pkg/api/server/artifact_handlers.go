@@ -50,6 +50,12 @@ func registerArtifactRoutes(config *core.Config) {
 			})(w, r)
 			return
 		}
+		if len(parts) >= 3 && parts[1] == "healing" {
+			jwtAuthMiddleware(config, core.RoleLead, func(w http.ResponseWriter, r *http.Request) {
+				handleIncidentHealingAction(w, r, parts[0], parts[2])
+			})(w, r)
+			return
+		}
 		http.NotFound(w, r)
 	})
 }

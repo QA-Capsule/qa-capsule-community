@@ -58,6 +58,12 @@ func (e *Engine) RecordTransition(ctx context.Context, ev TransitionEvent) (*Dec
 		if ev.CommitSHA != "" {
 			stats.LastCommitSHA = ev.CommitSHA
 		}
+		if e.maybeAutoLiftAfterPasses(ctx, ev.ProjectName, ev.TestIdentityFingerprint, stats.PassCount) {
+			if err := e.repo.UpsertStats(ctx, *stats); err != nil {
+				return nil, err
+			}
+			return &Decision{}, nil
+		}
 	case isFail(toStatus):
 		stats.FailCount++
 		stats.LastStatus = "FAILED"
@@ -113,6 +119,26 @@ func (e *Engine) RecordTransition(ctx context.Context, ev TransitionEvent) (*Dec
 	decision.Entry = &entry
 	slog.Info("test auto-quarantined", "project", ev.ProjectName, "test", entry.TestName)
 	return decision, nil
+}
+
+func (e *Engine) maybeAutoLiftAfterPasses(ctx context.Context, projectName, identityFP string, passCount int) bool {
+	if e == nil || e.repo == nil || e.policy.AutoLiftAfterPasses <= 0 {
+		return false
+	}
+	existing, err := e.repo.ActiveEntry(ctx, projectName, identityFP)
+	if err != nil || existing == nil {
+		return false
+	}
+	if passCount < e.policy.AutoLiftAfterPasses {
+		return false
+	}
+	if err := e.repo.LiftEntry(ctx, projectName, identityFP, "auto-pass-streak"); err != nil {
+		slog.Warn("auto-lift quarantine failed", "error", err)
+		return false
+	}
+	slog.Info("test auto-lifted from quarantine after pass streak",
+		"project", projectName, "fingerprint", identityFP, "passes", passCount)
+	return true
 }
 
 func (e *Engine) ListCI(ctx context.Context, projectName string) (CIResponse, error) {

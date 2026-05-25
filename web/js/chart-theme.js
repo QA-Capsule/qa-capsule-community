@@ -9,11 +9,11 @@ export function cssVar(name, fallback = '') {
 /** Theme for on-screen Chart.js (follows data-theme). */
 export function getChartTheme() {
     return {
-        legend: cssVar('--text-main', '#0b1220'),
-        title: cssVar('--text-main', '#0b1220'),
-        tick: cssVar('--text-muted', '#5c6578'),
+        legend: cssVar('--text-main', '#1c2434'),
+        title: cssVar('--text-main', '#1c2434'),
+        tick: cssVar('--text-muted', '#5e6b7c'),
         border: cssVar('--bg-elevated', '#ffffff'),
-        grid: cssVar('--border-main', 'rgba(15, 23, 42, 0.08)'),
+        grid: cssVar('--border-main', '#d8dee6'),
         background: cssVar('--bg-elevated', '#ffffff'),
     };
 }
@@ -21,11 +21,11 @@ export function getChartTheme() {
 /** Fixed light theme for PDF export (print-friendly). */
 export function getExportChartTheme() {
     return {
-        legend: '#334155',
-        title: '#0f172a',
-        tick: '#64748b',
+        legend: '#5e6b7c',
+        title: '#1c2434',
+        tick: '#5e6b7c',
         border: '#ffffff',
-        grid: 'rgba(203, 213, 225, 0.55)',
+        grid: '#d8dee6',
         background: '#ffffff',
     };
 }
@@ -35,6 +35,7 @@ export function applyChartThemeDefaults() {
     const t = getChartTheme();
     Chart.defaults.color = t.tick;
     Chart.defaults.font.family = "'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+    Chart.defaults.font.size = 11;
 }
 
 /** Shared scale + legend styling for Chart.js options merge. */

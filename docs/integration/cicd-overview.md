@@ -105,7 +105,7 @@ curl -f -X POST "${QA_CAPSULE_URL}/api/webhooks/upload?framework=Playwright" \
 
 | Workflow | Framework | Trigger |
 |----------|-----------|---------|
-| `.github/workflows/robot-tests.yml` | Robot Framework | `workflow_dispatch` |
+| `.github/workflows/e2e-tests-robot.yml` | Robot Framework + quarantine gate | `workflow_dispatch` |
 | `.github/workflows/e2e-tests-playwright.yml` | Playwright | `workflow_dispatch` |
 | `.github/workflows/e2e-tests-cypress.yml` | Cypress | `workflow_dispatch` |
 | `.github/workflows/api-tests-pytest.yml` | Pytest | `workflow_dispatch` |

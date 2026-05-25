@@ -53,25 +53,25 @@
                     <label>Palette
                         <select id="aw-color-preset" class="login-input" onchange="applyAnalyticsColorPreset(1)">
                             <option value="">Pick color 1…</option>
-                            <option value="#2563eb">Blue</option>
-                            <option value="#059669">Emerald</option>
-                            <option value="#d97706">Amber</option>
-                            <option value="#dc2626">Red</option>
-                            <option value="#7c3aed">Violet</option>
-                            <option value="#0891b2">Cyan</option>
+                            <option value="#1e3a5f">Navy</option>
+                            <option value="#4a7c59">Sage</option>
+                            <option value="#9a7b4f">Ochre</option>
+                            <option value="#b54a4a">Brick</option>
+                            <option value="#3d6b8c">Steel</option>
+                            <option value="#6b7785">Slate</option>
                         </select>
                     </label>
-                    <label>Color <input type="color" id="aw-color" value="#2563eb"></label>
+                    <label>Color <input type="color" id="aw-color" value="#1e3a5f"></label>
                     <label>Palette 2
                         <select id="aw-color2-preset" class="login-input" onchange="applyAnalyticsColorPreset(2)">
                             <option value="">Pick color 2…</option>
-                            <option value="#d97706">Amber</option>
-                            <option value="#dc2626">Red</option>
-                            <option value="#2563eb">Blue</option>
-                            <option value="#059669">Emerald</option>
+                            <option value="#9a7b4f">Ochre</option>
+                            <option value="#b54a4a">Brick</option>
+                            <option value="#1e3a5f">Navy</option>
+                            <option value="#4a7c59">Sage</option>
                         </select>
                     </label>
-                    <label>Color 2 <input type="color" id="aw-color2" value="#d97706"></label>
+                    <label>Color 2 <input type="color" id="aw-color2" value="#9a7b4f"></label>
                     <label>Width
                         <select id="aw-span" class="login-input">
                             <option value="1">1 column</option>
@@ -319,12 +319,12 @@
                             </svg>
                             <span>Time range</span>
                         </div>
-                        <span id="dashboard-range-summary" class="dashboard-range-badge">Last 5 minutes</span>
+                        <span id="dashboard-range-summary" class="dashboard-range-badge">Last 1 hour</span>
                     </div>
                     <div class="dashboard-time-quick" id="dashboard-range-quick">
-                        <button type="button" class="range-chip active" data-range="5m" onclick="setDashboardRangePreset('5m')">5m</button>
+                        <button type="button" class="range-chip" data-range="5m" onclick="setDashboardRangePreset('5m')">5m</button>
                         <button type="button" class="range-chip" data-range="15m" onclick="setDashboardRangePreset('15m')">15m</button>
-                        <button type="button" class="range-chip" data-range="1h" onclick="setDashboardRangePreset('1h')">1h</button>
+                        <button type="button" class="range-chip active" data-range="1h" onclick="setDashboardRangePreset('1h')">1h</button>
                         <button type="button" class="range-chip" data-range="24h" onclick="setDashboardRangePreset('24h')">24h</button>
                         <button type="button" class="range-chip" data-range="7d" onclick="setDashboardRangePreset('7d')">7d</button>
                         <button type="button" class="range-chip" data-range="today" onclick="setDashboardRangePreset('today')">Today</button>
@@ -332,10 +332,10 @@
                     <div class="dashboard-time-more">
                         <label class="sr-only" for="dashboard-range-preset">More ranges</label>
                         <select id="dashboard-range-preset" class="login-input dashboard-control dashboard-range-select" onchange="onDashboardRangeChange()">
-                            <option value="5m" selected>Last 5 minutes</option>
+                            <option value="5m">Last 5 minutes</option>
                             <option value="15m">Last 15 minutes</option>
                             <option value="30m">Last 30 minutes</option>
-                            <option value="1h">Last 1 hour</option>
+                            <option value="1h" selected>Last 1 hour</option>
                             <option value="6h">Last 6 hours</option>
                             <option value="24h">Last 24 hours</option>
                             <option value="7d">Last 7 days</option>
@@ -382,7 +382,7 @@
 
                         <div class="dashboard-toolbar-group">
                             <label for="project-filter" class="dashboard-toolbar-label">Filter:</label>
-                            <select id="project-filter" class="login-input dashboard-control" style="width: 200px;" onchange="fetchIncidents()">
+                            <select id="project-filter" class="login-input dashboard-control" style="width: 200px;" onchange="refreshDashboard()">
                                 <option value="all">All My Projects</option>
                             </select>
                         </div>
@@ -396,7 +396,7 @@
                             </div>
                         </div>
 
-                        <button type="button" class="btn btn-secondary" onclick="fetchIncidents(true)">↻ Refresh</button>
+                        <button type="button" class="btn btn-secondary" onclick="refreshDashboard()">↻ Refresh</button>
                         <button type="button" class="btn btn-secondary btn-accent" onclick="toggleAnalytics()">
                             <svg style="width:14px;height:14px;stroke:currentColor;fill:none;flex-shrink:0;" viewBox="0 0 24 24" stroke-width="2">
                                 <line x1="18" y1="20" x2="18" y2="10"></line>
@@ -438,7 +438,7 @@
                         <div class="kpi-value log-fatal" id="kpi-active">0</div>
                     </div>
                     <div class="kpi-card ops-metric-tile metric-success">
-                        <div class="metric-label">Resolved (48h)</div>
+                        <div class="metric-label" id="kpi-resolved-label">Resolved</div>
                         <div class="kpi-value" style="color: var(--log-pass);" id="kpi-resolved">0</div>
                     </div>
                     <div class="kpi-card ops-metric-tile metric-info">
@@ -740,51 +740,72 @@
                         <p class="intelligence-view__subtitle">LLM-generated root cause summaries for test failures.</p>
                     </div>
                 </div>
-                <div id="rca-ai-config-panel" class="ai-insight-panel ai-config-panel" style="margin-bottom:20px;display:none;">
-                    <div class="ai-insight-panel__inner">
-                        <h3 class="ai-insight-panel__heading">
-                            <span class="ai-insight-panel__icon" id="rca-ai-heading-icon" aria-hidden="true"></span>
-                            AI Provider (Manager)
-                        </h3>
-                        <div class="form-field">
-                            <span class="form-field-label">Provider</span>
-                            <div id="rca-ai-provider-picker" class="ai-provider-picker" role="radiogroup" aria-label="AI provider"></div>
+                <div class="kpi-grid intelligence-kpi-grid">
+                    <div class="kpi-card">
+                        <div>Insights</div>
+                        <div class="kpi-value" id="rca-stat-total">—</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div>Completed</div>
+                        <div class="kpi-value" id="rca-stat-completed">—</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div>In progress</div>
+                        <div class="kpi-value" id="rca-stat-pending">—</div>
+                    </div>
+                </div>
+                <div id="rca-ai-config-panel" class="data-card ai-config-panel" style="display:none;">
+                    <h3 class="form-section-title" style="border-top:none;padding-top:0;margin:0 0 16px;">
+                        <span id="rca-ai-heading-icon" aria-hidden="true" style="display:inline-flex;vertical-align:middle;margin-right:8px;"></span>
+                        AI Provider (Manager)
+                    </h3>
+                    <div class="form-field">
+                        <span class="form-field-label">Provider</span>
+                        <div id="rca-ai-provider-picker" class="ai-provider-picker" role="radiogroup" aria-label="AI provider"></div>
                             <select id="rca-ai-provider" class="sr-only" aria-hidden="true" tabindex="-1">
                                 <option value="disabled">disabled</option>
                                 <option value="openai">openai</option>
+                                <option value="anthropic">anthropic</option>
+                                <option value="gemini">gemini</option>
+                                <option value="mistral">mistral</option>
+                                <option value="groq">groq</option>
+                                <option value="openrouter">openrouter</option>
+                                <option value="azure">azure</option>
                                 <option value="ollama">ollama</option>
                             </select>
-                        </div>
-                        <div class="ai-config-grid form-panel">
-                            <div class="form-field">
-                                <label for="rca-ai-model">Model</label>
-                                <div class="ai-model-input-wrap">
-                                    <span class="ai-model-input-wrap__logo" id="rca-ai-provider-logo" aria-hidden="true"></span>
-                                    <input id="rca-ai-model" class="login-input" placeholder="gpt-4o-mini">
-                                </div>
-                            </div>
-                            <div class="form-field">
-                                <label for="rca-ai-base-url">Base URL</label>
-                                <input id="rca-ai-base-url" class="login-input" placeholder="https://api.openai.com/v1">
-                            </div>
-                            <div class="form-field">
-                                <label for="rca-ai-key-env">API key env</label>
-                                <input id="rca-ai-key-env" class="login-input" value="OPENAI_API_KEY">
+                    </div>
+                    <div class="ai-config-grid form-panel">
+                        <div class="form-field">
+                            <label for="rca-ai-model">Model</label>
+                            <div class="ai-model-input-wrap">
+                                <span class="ai-model-input-wrap__logo" id="rca-ai-provider-logo" aria-hidden="true"></span>
+                                <input id="rca-ai-model" class="login-input" placeholder="gpt-4o-mini">
                             </div>
                         </div>
-                        <div class="ai-config-footer">
-                            <label class="pref-toggle-card ai-config-enable" for="rca-ai-enabled">
-                                <input type="checkbox" id="rca-ai-enabled">
-                                <span class="pref-toggle-text"><strong>Enable AI RCA on new failures</strong></span>
-                            </label>
-                            <button type="button" id="rca-save-ai-config" class="btn-primary ai-config-save">Save AI config</button>
+                        <div class="form-field">
+                            <label for="rca-ai-base-url">Base URL</label>
+                            <input id="rca-ai-base-url" class="login-input" placeholder="https://api.openai.com/v1">
+                        </div>
+                        <div class="form-field">
+                            <label for="rca-ai-key-env">API key env</label>
+                            <input id="rca-ai-key-env" class="login-input" value="OPENAI_API_KEY">
                         </div>
                     </div>
+                    <div class="ai-config-footer">
+                        <label class="pref-toggle-card ai-config-enable" for="rca-ai-enabled">
+                            <input type="checkbox" id="rca-ai-enabled">
+                            <span class="pref-toggle-text"><strong>Enable AI RCA on new failures</strong></span>
+                        </label>
+                        <button type="button" id="rca-save-ai-config" class="btn-primary ai-config-save">Save AI config</button>
+                    </div>
                 </div>
-                <div class="data-card intelligence-panel">
-                    <div class="form-field">
-                        <label for="rca-project-filter">Gateway filter</label>
-                        <select id="rca-project-filter" class="login-input"></select>
+                <div class="data-card">
+                    <div class="intelligence-filter-row">
+                        <div class="form-field" style="margin:0;flex:1;min-width:200px;">
+                            <label for="rca-project-filter">Gateway filter</label>
+                            <select id="rca-project-filter" class="login-input" style="max-width:none;width:100%;"></select>
+                        </div>
+                        <button type="button" class="btn-secondary btn-sm" onclick="window.loadRCAInsights && window.loadRCAInsights()">Refresh</button>
                     </div>
                     <div id="rca-insights-body" class="modern-data-grid rca-insights-list" role="list">
                         <p class="modern-data-grid__empty">Open this view to load AI insights.</p>
@@ -799,34 +820,52 @@
                         <p class="intelligence-view__subtitle">DenyList for flaky tests — CI calls <code>GET /api/ci/quarantine</code> with <code>X-API-Key</code>.</p>
                     </div>
                 </div>
-                <div class="data-card form-panel" style="margin-bottom:16px;">
-                    <div class="form-field">
-                        <label for="quarantine-project-filter">Gateway</label>
-                        <select id="quarantine-project-filter" class="login-input"></select>
+                <div class="kpi-grid intelligence-kpi-grid">
+                    <div class="kpi-card">
+                        <div>Active deny-list</div>
+                        <div class="kpi-value" id="quarantine-stat-active">—</div>
                     </div>
-                    <div class="quarantine-add-row role-lead">
-                        <input type="text" id="quarantine-test-name" class="login-input" placeholder="Test name to quarantine">
-                        <button type="button" id="quarantine-add-btn" class="btn-secondary">Add to quarantine</button>
+                    <div class="kpi-card">
+                        <div>Auto-quarantined</div>
+                        <div class="kpi-value" id="quarantine-stat-auto">—</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div>Manual</div>
+                        <div class="kpi-value" id="quarantine-stat-manual">—</div>
                     </div>
                 </div>
-                <div class="data-card intelligence-panel">
-                    <div class="modern-data-grid modern-data-grid--header" aria-hidden="true">
-                        <span>Test</span><span>Fingerprint</span><span>Reason</span><span>Since</span><span></span>
+                <div class="intelligence-split">
+                    <div class="data-card form-panel">
+                        <div class="form-field">
+                            <label for="quarantine-project-filter">Gateway</label>
+                            <select id="quarantine-project-filter" class="login-input" style="max-width:none;width:100%;"></select>
+                        </div>
+                        <div class="quarantine-add-row role-lead">
+                            <input type="text" id="quarantine-test-name" class="login-input" placeholder="Test name to quarantine">
+                            <button type="button" id="quarantine-add-btn" class="btn-secondary">Add to quarantine</button>
+                        </div>
                     </div>
-                    <div id="quarantine-list-body" class="modern-data-grid quarantine-data-grid" role="list"></div>
+                    <div class="data-card">
+                        <div class="modern-data-grid modern-data-grid--header" aria-hidden="true">
+                            <span>Test</span><span>Fingerprint</span><span>Reason</span><span>Since</span><span></span>
+                        </div>
+                        <div id="quarantine-list-body" class="modern-data-grid quarantine-data-grid" role="list"></div>
+                    </div>
                 </div>
             </section>
 
-            <section id="view-runbooks" class="view-section">
+            <section id="view-runbooks" class="view-section intelligence-view">
                 <div class="header-bar">
-                    <h1 style="margin:0;font-size:24px;">Runbooks &amp; Automations</h1>
-                    <p style="margin:8px 0 0;opacity:0.6;font-size:14px;">Apply curated remediation DAGs to a gateway. Actions use registered plugins only (K8s, Slack, Jira, …).</p>
+                    <div>
+                        <h1 class="intelligence-view__title">Runbooks &amp; Automations</h1>
+                        <p class="intelligence-view__subtitle">Apply curated remediation DAGs to a gateway. Actions use registered plugins only (K8s, Slack, Jira, …).</p>
+                    </div>
                 </div>
                 <div class="data-card" style="margin-bottom:16px;">
-                    <label style="font-size:12px;opacity:0.7;">Target CI/CD gateway</label>
-                    <select id="runbooks-project-select" style="width:100%;max-width:400px;margin-top:6px;padding:8px;"></select>
+                    <label class="form-field-label" for="runbooks-project-select">Target CI/CD gateway</label>
+                    <select id="runbooks-project-select" class="login-input" style="max-width:none;width:100%;margin-top:6px;"></select>
                 </div>
-                <div id="runbooks-template-grid"></div>
+                <div id="runbooks-template-grid" class="runbooks-template-grid"></div>
             </section>
 
             <section id="view-dora" class="view-section executive-view">
@@ -902,9 +941,12 @@
 
             <section id="view-finops" class="view-section finops-dashboard">
                 <div class="finops-page-head">
-                    <h1>FinOps Intelligence</h1>
-                    <p>Weekly cost evolution, flaky waste, and CI spend — executive view.</p>
-                    <p id="finops-range-hint" class="finops-range-hint"></p>
+                    <div class="finops-page-head__titles">
+                        <h1>FinOps Intelligence</h1>
+                        <p>Weekly cost evolution, flaky waste, and CI spend — executive view.</p>
+                        <p id="finops-range-hint" class="finops-range-hint"></p>
+                    </div>
+                    <button type="button" class="btn btn-secondary" onclick="refreshFinOpsView()" title="Reload KPIs, charts, and weekly table">↻ Refresh</button>
                 </div>
 
                 <div class="kpi-card-grid executive-kpi-grid finops-kpi-grid">

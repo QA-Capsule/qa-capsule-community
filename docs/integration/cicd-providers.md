@@ -88,7 +88,7 @@ jobs:
 
 | Workflow file | Framework |
 |---------------|-----------|
-| `robot-tests.yml` | Robot Framework |
+| `e2e-tests-robot.yml` | Robot Framework |
 | `e2e-tests-playwright.yml` | Playwright |
 | `e2e-tests-cypress.yml` | Cypress |
 | `api-tests-pytest.yml` | Pytest |

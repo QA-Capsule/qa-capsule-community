@@ -2,7 +2,7 @@
  * DORA & Executive dashboard (Manager).
  */
 import { fetchWithAuth, parseApiJson } from './api.js';
-import { CHART_PALETTE } from './chart-palette.js';
+import { getChartPalette } from './chart-palette.js';
 import { getChartTheme, withChartTheme } from './chart-theme.js';
 import { setPremiumKpi } from './kpi-premium.js';
 
@@ -112,6 +112,7 @@ function renderDORATrend(series) {
     if (doraTrendChart) doraTrendChart.destroy();
     const labels = series.map(s => s.period_start || '');
     const theme = getChartTheme();
+    const pal = getChartPalette();
     doraTrendChart = new Chart(canvas.getContext('2d'), {
         type: 'bar',
         data: {
@@ -120,12 +121,12 @@ function renderDORATrend(series) {
                 {
                     label: 'Deployments',
                     data: series.map(s => s.deployments),
-                    backgroundColor: CHART_PALETTE.series[0]
+                    backgroundColor: pal.series[0]
                 },
                 {
                     label: 'Failed',
                     data: series.map(s => s.failed_deployments),
-                    backgroundColor: CHART_PALETTE.series[2]
+                    backgroundColor: pal.semantic.danger
                 }
             ]
         },

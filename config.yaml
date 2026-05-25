@@ -9,6 +9,8 @@ smtp:
     from: admin@arkom.com
 security:
     enabled: true
+    # Required in production (or set QACAPSULE_JWT_SECRET). Omit + APP_ENV=development for local go run.
+    jwt_secret: ""
     admin_user: ""
     admin_pass: ""
     allowed_domain: '@qa-cap.com'

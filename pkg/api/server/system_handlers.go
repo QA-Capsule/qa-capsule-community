@@ -75,7 +75,7 @@ func registerSystemRoutes(config *core.Config) {
 		claims := &Claims{}
 		jwt.ParseWithClaims(tokenString, claims, func(t *jwt.Token) (interface{}, error) { return jwtKey, nil })
 		if !core.CanManagePluginAutoRun(claims.Role) {
-			writeJSONError(w, "Manager or Lead role required", http.StatusForbidden)
+			writeJSONError(w, "Manager or Platform Admin role required", http.StatusForbidden)
 			return
 		}
 		var req struct {
@@ -110,7 +110,7 @@ func registerSystemRoutes(config *core.Config) {
 		claims := &Claims{}
 		jwt.ParseWithClaims(tokenString, claims, func(t *jwt.Token) (interface{}, error) { return jwtKey, nil })
 		if !core.CanManagePluginAutoRun(claims.Role) {
-			writeJSONError(w, "Manager or Lead role required", http.StatusForbidden)
+			writeJSONError(w, "Manager or Platform Admin role required", http.StatusForbidden)
 			return
 		}
 		var req struct {

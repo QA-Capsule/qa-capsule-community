@@ -90,7 +90,8 @@ Sans `QA_CAPSULE_*`, les tests tournent quand même ; l’upload est ignoré (ut
 
 ### GitHub Actions
 
-Workflow Robot : [`.github/workflows/robot-tests.yml`](../.github/workflows/robot-tests.yml).  
+Workflow Robot : [`.github/workflows/e2e-tests-robot.yml`](../.github/workflows/e2e-tests-robot.yml).  
+Quarantaine CI : `scripts/quarantine-ci-gate.sh` (appelé par `scripts/run-tests.sh` si `QA_CAPSULE_URL` + clé API sont définis).  
 Autres exemples : Playwright, Cypress, Pytest dans `.github/workflows/`.  
 **Tous les frameworks** : [documentation](https://qa-capsule.github.io/qa-capsule-community/integration/test-frameworks/).
 

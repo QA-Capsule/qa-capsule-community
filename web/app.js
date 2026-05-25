@@ -39,6 +39,10 @@ for (const [key, value] of Object.entries(profile)) {
 for (const [key, value] of Object.entries(finops)) {
     if (typeof value === 'function') window[key] = value;
 }
+window.refreshFinOpsView = function () {
+    if (typeof finops.refreshFinOpsView === 'function') return finops.refreshFinOpsView();
+    notify('FinOps module not loaded. Hard-refresh the page (Ctrl+Shift+R).', 'error');
+};
 for (const [key, value] of Object.entries(about)) {
     if (typeof value === 'function') window[key] = value;
 }
@@ -484,26 +488,102 @@ window.setStatusFilter = function (status) {
     if (status === 'all' && allBtn) allBtn.classList.add('active-all');
     else if (status === 'active' && activeBtn) activeBtn.classList.add('active-active');
     else if (status === 'resolved' && resolvedBtn) resolvedBtn.classList.add('active-resolved');
-    if (localStorage.getItem('sre-jwt')) window.fetchIncidents(true);
+    if (localStorage.getItem('sre-jwt')) {
+        window.renderIncidentsList();
+    }
 }
 
-window.fetchMetricsOnly = function () {
-    if (isApiOffline()) return;
-    fetchWithAuth(`/api/metrics?_ts=${Date.now()}`)
+/** KPI strip: counts for the selected time range (not status/search sub-filters). */
+window.updateDashboardKpisFromIncidents = function (incidents) {
+    const data = Array.isArray(incidents) ? incidents : [];
+    const active = data.filter(i => !normalizeIsResolved(i)).length;
+    const resolved = data.filter(i => normalizeIsResolved(i)).length;
+    const flaky = data.filter(i => String(i.name || '').includes('[FLAKY]')).length;
+    const total = data.length;
+    const health = total > 0 ? Math.round((resolved / total) * 100) : 100;
+
+    const kpiActive = document.getElementById('kpi-active');
+    if (kpiActive) {
+        kpiActive.innerText = active;
+        kpiActive.className = `kpi-value ${active > 0 ? 'kpi-danger' : 'kpi-success'}`;
+    }
+    const kpiResolved = document.getElementById('kpi-resolved');
+    if (kpiResolved) kpiResolved.innerText = resolved;
+    const kpiHealth = document.getElementById('kpi-health');
+    if (kpiHealth) {
+        kpiHealth.innerText = `${health}%`;
+        kpiHealth.className = `kpi-value ${health < 80 ? 'kpi-warn' : 'kpi-info'}`;
+    }
+    const flakyEl = document.getElementById('kpi-flaky');
+    if (flakyEl) flakyEl.innerText = flaky;
+};
+
+window.updateDashboardKpiRangeLabels = function () {
+    const summary = document.getElementById('dashboard-range-summary')?.textContent?.trim();
+    const resolvedLabel = document.getElementById('kpi-resolved-label');
+    if (resolvedLabel) {
+        resolvedLabel.textContent = summary ? `Resolved (${summary})` : 'Resolved';
+    }
+};
+
+/** Sync KPI strip with dashboard time range (and project when filtered client-side). */
+window.syncDashboardKpis = function () {
+    window.updateDashboardKpiRangeLabels();
+    const filterEl = document.getElementById('project-filter');
+    const projectFilter = filterEl ? filterEl.value : 'all';
+    const rangeQ = typeof window.getDashboardRangeQueryResolved === 'function'
+        ? window.getDashboardRangeQueryResolved()
+        : (typeof window.getDashboardRangeQuery === 'function' ? window.getDashboardRangeQuery() : null);
+    if (!rangeQ) return Promise.resolve();
+
+    if (projectFilter && projectFilter !== 'all') {
+        window.updateDashboardKpisFromIncidents(window.currentIncidents || []);
+        return Promise.resolve();
+    }
+
+    if (isApiOffline()) return Promise.resolve();
+    return fetchWithAuth(`/api/metrics?${rangeQ}&_ts=${Date.now()}`)
         .then(r => parseApiJson(r))
         .then(({ ok, data: metrics }) => {
             if (!ok || !metrics) return;
-            if (metrics) {
-                document.getElementById('kpi-active').innerText = metrics.total_incidents - metrics.resolved_incidents;
-                document.getElementById('kpi-resolved').innerText = metrics.resolved_incidents;
-                document.getElementById('kpi-health').innerText = `${metrics.total_incidents > 0 ? Math.round((metrics.resolved_incidents / metrics.total_incidents) * 100) : 100}%`;
-                
-                const flakyEl = document.getElementById('kpi-flaky');
-                if (flakyEl) flakyEl.innerText = metrics.flaky_tests ?? 0;
+            const total = metrics.total_incidents ?? 0;
+            const resolved = metrics.resolved_incidents ?? 0;
+            const active = Math.max(0, total - resolved);
+            const health = total > 0 ? Math.round((resolved / total) * 100) : 100;
+            const kpiActive = document.getElementById('kpi-active');
+            if (kpiActive) {
+                kpiActive.innerText = active;
+                kpiActive.className = `kpi-value ${active > 0 ? 'kpi-danger' : 'kpi-success'}`;
             }
+            const kpiResolved = document.getElementById('kpi-resolved');
+            if (kpiResolved) kpiResolved.innerText = resolved;
+            const kpiHealth = document.getElementById('kpi-health');
+            if (kpiHealth) {
+                kpiHealth.innerText = `${health}%`;
+                kpiHealth.className = `kpi-value ${health < 80 ? 'kpi-warn' : 'kpi-info'}`;
+            }
+            const flakyEl = document.getElementById('kpi-flaky');
+            if (flakyEl) flakyEl.innerText = metrics.flaky_tests ?? 0;
         })
-        .catch(err => console.error("FetchMetrics error:", err));
+        .catch(err => console.error('syncDashboardKpis error:', err));
 };
+
+window.fetchMetricsOnly = function () {
+    return window.syncDashboardKpis();
+};
+
+window.refreshDashboard = function () {
+    window.updateDashboardKpiRangeLabels();
+    return Promise.resolve(window.fetchIncidents(true)).then(() => window.syncDashboardKpis());
+};
+
+function escapeHtml(s) {
+    return String(s ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
 
 const DASHBOARD_RANGE_STORAGE_KEY = 'sre-dashboard-range';
 
@@ -545,7 +625,7 @@ function dashboardRefreshIntervalMs() {
     if (window.userDashboardAutoRefresh === false) return 0;
     const userSec = Number(window.userDashboardRefreshIntervalSec);
     if (userSec >= 15) return userSec * 1000;
-    const preset = document.getElementById('dashboard-range-preset')?.value || '5m';
+    const preset = document.getElementById('dashboard-range-preset')?.value || '1h';
     return DASHBOARD_REFRESH_MS[preset] || 60000;
 }
 
@@ -627,7 +707,7 @@ function formatRangeSummary(fromVal, toVal) {
 }
 
 window.getDashboardRangeQuery = function () {
-    const preset = document.getElementById('dashboard-range-preset')?.value || '5m';
+    const preset = document.getElementById('dashboard-range-preset')?.value || '1h';
     if (preset === 'custom') {
         const from = getCombinedCustomDatetime('dashboard-range-from-date', 'dashboard-range-from-time');
         const to = getCombinedCustomDatetime('dashboard-range-to-date', 'dashboard-range-to-time');
@@ -638,7 +718,7 @@ window.getDashboardRangeQuery = function () {
 };
 
 window.buildDashboardRangeQueryFromPreset = function (stored) {
-    const preset = stored?.preset || '5m';
+    const preset = stored?.preset || '1h';
     if (preset === 'custom') {
         if (!stored?.fromDate || !stored?.toDate) return null;
         const from = formatDatetimeForApi(`${stored.fromDate}T${stored.fromTime || '00:00'}`);
@@ -690,7 +770,7 @@ window.onDashboardCustomRangeInput = function () {
 };
 
 window.runDashboardRangeFilter = function () {
-    const preset = document.getElementById('dashboard-range-preset')?.value || '5m';
+    const preset = document.getElementById('dashboard-range-preset')?.value || '1h';
     if (preset === 'custom') {
         const fromRaw = `${document.getElementById('dashboard-range-from-date')?.value || ''}T${document.getElementById('dashboard-range-from-time')?.value || ''}`;
         const toRaw = `${document.getElementById('dashboard-range-to-date')?.value || ''}T${document.getElementById('dashboard-range-to-time')?.value || ''}`;
@@ -707,7 +787,8 @@ window.runDashboardRangeFilter = function () {
     }
     const rangeQ = window.getDashboardRangeQuery();
     if (rangeQ === null) return;
-    window.fetchIncidents(true);
+    window.updateDashboardKpiRangeLabels();
+    Promise.resolve(window.fetchIncidents(true)).then(() => window.syncDashboardKpis());
     window.reloadDashboardAnalytics();
     if (typeof window.restartDashboardAutoRefresh === 'function') window.restartDashboardAutoRefresh();
     const finopsView = document.getElementById('view-finops');
@@ -723,7 +804,7 @@ function isValidDashboardPreset(preset) {
 }
 
 function persistDashboardRange() {
-    const preset = document.getElementById('dashboard-range-preset')?.value || '5m';
+    const preset = document.getElementById('dashboard-range-preset')?.value || '1h';
     const payload = { preset };
     if (preset === 'custom') {
         payload.fromDate = document.getElementById('dashboard-range-from-date')?.value || '';
@@ -739,17 +820,38 @@ function persistDashboardRange() {
 function readDashboardRangeStorage() {
     try {
         const raw = localStorage.getItem(DASHBOARD_RANGE_STORAGE_KEY);
-        if (!raw) return { preset: '5m' };
+        if (!raw) return { preset: '1h' };
         if (raw.startsWith('{')) return JSON.parse(raw);
         return { preset: raw };
     } catch {
-        return { preset: '5m' };
+        return { preset: '1h' };
     }
 }
 
+/** Poll dashboard after async CI ingest (webhook returns 202 queued). */
+window.schedulePostIngestRefresh = function (alertsQueued) {
+    const n = Math.max(1, parseInt(alertsQueued, 10) || 3);
+    const delays = [800, 2000, 4000, 6000, 10000];
+    const maxAttempts = Math.min(delays.length, 3 + Math.ceil(n / 5));
+    let attempt = 0;
+    const run = () => {
+        if (attempt >= maxAttempts) return;
+        const delay = delays[attempt++];
+        setTimeout(async () => {
+            if (typeof window.fetchIncidents === 'function') {
+                await window.fetchIncidents(true, { skipPauseCheck: true });
+            }
+            if (typeof window.syncDashboardKpis === 'function') window.syncDashboardKpis();
+            run();
+        }, delay);
+    };
+    notify('CI ingest queued — refreshing dashboard…', 'success');
+    run();
+};
+
 window.restoreDashboardTimeRange = function () {
     const stored = readDashboardRangeStorage();
-    const preset = isValidDashboardPreset(stored.preset) ? stored.preset : '5m';
+    const preset = isValidDashboardPreset(stored.preset) ? stored.preset : '1h';
     const sel = document.getElementById('dashboard-range-preset');
     const customEl = document.getElementById('dashboard-custom-range');
     const summary = document.getElementById('dashboard-range-summary');
@@ -782,10 +884,11 @@ window.restoreDashboardTimeRange = function () {
 
     if (customEl) customEl.style.display = 'none';
     if (summary) summary.textContent = DASHBOARD_RANGE_LABELS[preset] || preset;
+    window.updateDashboardKpiRangeLabels();
 };
 
 window.onDashboardRangeChange = function () {
-    const preset = document.getElementById('dashboard-range-preset')?.value || '5m';
+    const preset = document.getElementById('dashboard-range-preset')?.value || '1h';
     const customEl = document.getElementById('dashboard-custom-range');
     const summary = document.getElementById('dashboard-range-summary');
 
@@ -820,6 +923,7 @@ window.reloadDashboardAnalytics = function () {
 
 window.initDashboardTimeRange = function () {
     window.restoreDashboardTimeRange();
+    window.updateDashboardKpiRangeLabels();
 };
 
 window.fetchIncidents = function (forceRender = false, opts = {}) {
@@ -869,14 +973,25 @@ window.fetchIncidents = function (forceRender = false, opts = {}) {
                 if (typeof executionHub.clearExecutionReportCache === 'function') {
                     executionHub.clearExecutionReportCache();
                 }
-                window.renderIncidentsList();
+                try {
+                    window.renderIncidentsList();
+                } catch (renderErr) {
+                    console.error('renderIncidentsList failed:', renderErr);
+                    throw renderErr;
+                }
+                window.syncDashboardKpis();
             }
             return safeData;
         })
-        .catch(() => {
+        .catch((err) => {
+            console.error('fetchIncidents failed:', err);
             const listEl = document.getElementById('incident-list');
             if (listEl) {
-                listEl.innerHTML = `<div class="load-error-msg">Unable to load incidents. Check that the server is running and refresh.</div>`;
+                const detail = err && err.message ? escapeHtml(err.message) : '';
+                const hint = detail.includes('displayExecutionEnv')
+                    ? 'Dashboard render bug — hard-refresh the page (Ctrl+Shift+R).'
+                    : 'Check that the server is running, sign in again if needed, then refresh.';
+                listEl.innerHTML = `<div class="load-error-msg">Unable to load incidents. ${hint}${detail ? `<br><span class="form-hint">${detail}</span>` : ''}</div>`;
             }
         });
 };
@@ -892,7 +1007,16 @@ window.renderIncidentsList = function () {
     if (window.statusFilter === 'active') filteredData = filteredData.filter(inc => !normalizeIsResolved(inc));
     else if (window.statusFilter === 'resolved') filteredData = filteredData.filter(inc => normalizeIsResolved(inc));
 
-    if (searchQuery) filteredData = filteredData.filter(inc => (inc.name && inc.name.toLowerCase().includes(searchQuery)) || (inc.project_name && inc.project_name.toLowerCase().includes(searchQuery)) || (inc.error_message && inc.error_message.toLowerCase().includes(searchQuery)));
+    if (searchQuery) {
+        filteredData = filteredData.filter(inc =>
+            (inc.name && inc.name.toLowerCase().includes(searchQuery))
+            || (inc.project_name && inc.project_name.toLowerCase().includes(searchQuery))
+            || (inc.error_message && inc.error_message.toLowerCase().includes(searchQuery))
+        );
+    }
+
+    // KPI strip always reflects the loaded time-range dataset (not status/search filters).
+    window.updateDashboardKpisFromIncidents(window.currentIncidents || []);
 
     const openLogs = new Set();
     if (window.__logsExpandAll === true) {
@@ -905,7 +1029,7 @@ window.renderIncidentsList = function () {
 
     if (filteredData.length === 0) {
         const total = (window.currentIncidents || []).length;
-        let msg = 'No incidents yet. Run a pipeline and send results to your CI/CD gateway webhook.';
+        let msg = 'No incidents in this view. Send CI results to your gateway webhook (X-API-Key), wait a few seconds for ingest, then click Refresh.';
         if (total > 0 && searchQuery) msg = 'No incidents match your search. Clear the search box or change filters.';
         else if (total > 0 && window.statusFilter === 'active') msg = 'No active incidents. Switch status filter to "All" or "Resolved".';
         else if (total > 0 && window.statusFilter === 'resolved') msg = 'No resolved incidents yet.';
@@ -913,18 +1037,6 @@ window.renderIncidentsList = function () {
         listEl.innerHTML = `<div class="incident-empty-state">${msg}</div>`;
         return;
     }
-
-    const activeCount = filteredData.filter(i => !normalizeIsResolved(i)).length;
-    const resolvedCount = filteredData.filter(i => normalizeIsResolved(i)).length;
-    const health = filteredData.length > 0 ? Math.round((resolvedCount / filteredData.length) * 100) : 100;
-
-    const kpiActive = document.getElementById('kpi-active');
-    kpiActive.innerText = activeCount;
-    kpiActive.className = `kpi-value ${activeCount > 0 ? 'kpi-danger' : 'kpi-success'}`;
-    document.getElementById('kpi-resolved').innerText = resolvedCount;
-    const kpiHealth = document.getElementById('kpi-health');
-    kpiHealth.innerText = `${health}%`;
-    kpiHealth.className = `kpi-value ${health < 80 ? 'kpi-warn' : 'kpi-info'}`;
 
     const sortedData = [...filteredData].sort((a, b) => a.id - b.id);
     const groupsArray = []; let currentGroup = null;
@@ -1228,7 +1340,7 @@ window.checkAuth = function () {
             window.loadDashboardFilters();
             window.pausePollingUntil = 0;
             if (window.loadAnalyticsLayoutFromPrefs) window.loadAnalyticsLayoutFromPrefs();
-            window.fetchIncidents(true);
+            window.fetchIncidents(true).then(() => window.syncDashboardKpis());
             if (window.startDashboardAutoRefresh) window.startDashboardAutoRefresh();
             window.initDashboardScrollHelpers();
         }
@@ -1313,7 +1425,7 @@ window.switchView = function (id, el) {
         window.loadDashboardFilters();
         window.pausePollingUntil = 0;
         if (window.loadAnalyticsLayoutFromPrefs) window.loadAnalyticsLayoutFromPrefs();
-        window.fetchIncidents(true);
+        window.fetchIncidents(true).then(() => window.syncDashboardKpis());
         if (window.startDashboardAutoRefresh) window.startDashboardAutoRefresh();
         window.initDashboardScrollHelpers();
     } else if (typeof window.stopDashboardAutoRefresh === 'function') {

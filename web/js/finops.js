@@ -10,7 +10,7 @@ import { notify } from './ui.js';
 
 import { currencySymbols } from './settings.js';
 
-import { CHART_PALETTE } from './chart-palette.js';
+import { getChartPalette } from './chart-palette.js';
 import { getChartTheme, withChartTheme } from './chart-theme.js';
 import { setPremiumKpi } from './kpi-premium.js';
 
@@ -58,16 +58,40 @@ function updateFinOpsRangeHint() {
 
 
 export function loadFinOpsView() {
-    updateFinOpsRangeHint();
+    refreshFinOpsView();
     loadFinOpsBaselines();
-    refreshFinOpsKPIs();
-
-    loadFinOpsWeeklyTable();
-
-    loadFinOpsWeeklyEvolution();
-
     loadFinOpsProjectFilter();
+}
 
+function ensureFinOpsChartCanvas(canvasId) {
+    let canvas = document.getElementById(canvasId);
+    if (canvas) return canvas;
+    const dead = document.querySelector(`.finops-chart-empty[data-chart-for="${canvasId}"]`);
+    if (dead) {
+        const box = dead.parentElement;
+        if (box) {
+            box.innerHTML = `<canvas id="${canvasId}"></canvas>`;
+            return document.getElementById(canvasId);
+        }
+    }
+    const legacyBox = document.getElementById(canvasId)?.parentElement
+        || document.querySelector(`#${canvasId}`)?.parentElement;
+    if (legacyBox?.querySelector('.finops-chart-empty')) {
+        legacyBox.innerHTML = `<canvas id="${canvasId}"></canvas>`;
+        return document.getElementById(canvasId);
+    }
+    return null;
+}
+
+/** Reload all FinOps panels (same time range as Operations dashboard). */
+export function refreshFinOpsView() {
+    updateFinOpsRangeHint();
+    ensureFinOpsChartCanvas('finops-evolution-chart');
+    ensureFinOpsChartCanvas('finops-cost-evolution-chart');
+    notify('Refreshing FinOps…', 'success');
+    refreshFinOpsKPIs();
+    loadFinOpsWeeklyTable();
+    loadFinOpsWeeklyEvolution();
 }
 
 
@@ -336,19 +360,12 @@ export function loadFinOpsWeeklyTable() {
 
 
 function showFinOpsChartEmpty(canvasId, message) {
-
     const canvas = document.getElementById(canvasId);
-
     if (!canvas) return;
-
     const wrap = canvas.parentElement;
-
     if (wrap) {
-
-        wrap.innerHTML = `<div class="finops-chart-empty">${message}</div>`;
-
+        wrap.innerHTML = `<div class="finops-chart-empty" data-chart-for="${canvasId}">${message}</div>`;
     }
-
 }
 
 
@@ -384,23 +401,20 @@ export function loadFinOpsWeeklyEvolution() {
 
 
 function renderFinOpsMetricsChart(series, bucket = 'week') {
-    const wrap = document.getElementById('finops-evolution-chart')?.parentElement;
-    if (wrap?.querySelector('.finops-chart-empty')) {
-        wrap.innerHTML = '<canvas id="finops-evolution-chart"></canvas>';
-    }
-    const canvas = document.getElementById('finops-evolution-chart');
+    const canvas = ensureFinOpsChartCanvas('finops-evolution-chart');
     if (!canvas || !series.length) return;
     if (finopsWeeklyChart) finopsWeeklyChart.destroy();
 
     const theme = getChartTheme();
+    const pal = getChartPalette();
     finopsWeeklyChart = new Chart(canvas.getContext('2d'), {
         type: 'bar',
         data: {
             labels: series.map(s => formatFinOpsLabel(s.week_start, bucket)),
             datasets: [
-                { label: 'Incidents', data: series.map(s => s.total_incidents), backgroundColor: CHART_PALETTE.series[0] },
-                { label: 'Flaky', data: series.map(s => s.flaky_count), backgroundColor: CHART_PALETTE.series[2] },
-                { label: 'MTTR (min)', type: 'line', data: series.map(s => Math.round(s.mttr_minutes)), borderColor: CHART_PALETTE.semantic.success, yAxisID: 'y1', tension: 0.3 }
+                { label: 'Incidents', data: series.map(s => s.total_incidents), backgroundColor: pal.series[0] },
+                { label: 'Flaky', data: series.map(s => s.flaky_count), backgroundColor: pal.semantic.warning },
+                { label: 'MTTR (min)', type: 'line', data: series.map(s => Math.round(s.mttr_minutes)), borderColor: pal.semantic.success, yAxisID: 'y1', tension: 0.3 }
             ]
         },
         options: withChartTheme({
@@ -420,24 +434,21 @@ function renderFinOpsMetricsChart(series, bucket = 'week') {
 
 
 function renderFinOpsCostChart(series, bucket = 'week') {
-    const wrap = document.getElementById('finops-cost-evolution-chart')?.parentElement;
-    if (wrap?.querySelector('.finops-chart-empty')) {
-        wrap.innerHTML = '<canvas id="finops-cost-evolution-chart"></canvas>';
-    }
-    const canvas = document.getElementById('finops-cost-evolution-chart');
+    const canvas = ensureFinOpsChartCanvas('finops-cost-evolution-chart');
     if (!canvas || !series.length) return;
     if (finopsMetricsChart) finopsMetricsChart.destroy();
 
     const sym = finopsCurrencySymbol();
 
     const theme = getChartTheme();
+    const pal = getChartPalette();
     finopsMetricsChart = new Chart(canvas.getContext('2d'), {
         type: 'line',
         data: {
             labels: series.map(s => formatFinOpsLabel(s.week_start, bucket)),
             datasets: [
-                { label: `Total cost (${sym})`, data: series.map(s => s.estimated_cost_usd), borderColor: CHART_PALETTE.series[0], backgroundColor: 'rgba(37,99,235,0.12)', fill: true, tension: 0.35 },
-                { label: `Flaky waste (${sym})`, data: series.map(s => s.flaky_cost_usd), borderColor: CHART_PALETTE.series[2], tension: 0.35 }
+                { label: `Total cost (${sym})`, data: series.map(s => s.estimated_cost_usd), borderColor: pal.series[0], backgroundColor: 'rgba(30,58,95,0.1)', fill: true, tension: 0.35 },
+                { label: `Flaky waste (${sym})`, data: series.map(s => s.flaky_cost_usd), borderColor: pal.semantic.warning, tension: 0.35 }
             ]
         },
         options: withChartTheme({

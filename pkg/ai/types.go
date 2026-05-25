@@ -5,9 +5,15 @@ import "time"
 type ProviderKind string
 
 const (
-	ProviderDisabled ProviderKind = "disabled"
-	ProviderOpenAI   ProviderKind = "openai"
-	ProviderOllama   ProviderKind = "ollama"
+	ProviderDisabled   ProviderKind = "disabled"
+	ProviderOpenAI     ProviderKind = "openai"
+	ProviderOllama     ProviderKind = "ollama"
+	ProviderAnthropic  ProviderKind = "anthropic"
+	ProviderGemini     ProviderKind = "gemini"
+	ProviderMistral    ProviderKind = "mistral"
+	ProviderGroq       ProviderKind = "groq"
+	ProviderOpenRouter ProviderKind = "openrouter"
+	ProviderAzure      ProviderKind = "azure"
 )
 
 type ProviderConfig struct {
@@ -29,6 +35,23 @@ const (
 	JobFailed    JobStatus = "failed"
 	JobSkipped   JobStatus = "skipped"
 )
+
+// Incident is framework-agnostic telemetry used for RCA and self-healing prompts.
+type Incident struct {
+	ID              int64  `json:"id"`
+	ProjectName     string `json:"project_name"`
+	TestName        string `json:"test_name"`
+	Status          string `json:"status"`
+	ErrorMessage    string `json:"error_message"`
+	StackTrace      string `json:"stack_trace"`
+	ConsoleLogs     string `json:"console_logs,omitempty"`
+	Fingerprint     string `json:"fingerprint,omitempty"`
+	PipelineRunID   string `json:"pipeline_run_id,omitempty"`
+	ExecutionTimeMs int64  `json:"execution_time_ms,omitempty"`
+	Browser         string `json:"browser,omitempty"`
+	OS              string `json:"os,omitempty"`
+	Viewport        string `json:"viewport,omitempty"`
+}
 
 type AnalysisInput struct {
 	IncidentID   int64
@@ -52,6 +75,13 @@ type AnalysisResult struct {
 	TokensIn     int
 	TokensOut    int
 	LatencyMs    int64
+}
+
+type FixProposal struct {
+	Code        string  `json:"code"`
+	Explanation string  `json:"explanation"`
+	Confidence  float64 `json:"confidence,omitempty"`
+	RawJSON     string  `json:"-"`
 }
 
 type RCAReport struct {
@@ -78,3 +108,4 @@ type InsightRow struct {
 }
 
 const PromptVersion = "rca-v1"
+const FixPromptVersion = "self-heal-v1"

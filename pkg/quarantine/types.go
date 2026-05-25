@@ -18,18 +18,20 @@ const (
 )
 
 type PolicyConfig struct {
-	FailThreshold     int
-	FlakyWindowHours  int
-	RequireSameCommit bool
-	AutoQuarantine    bool
+	FailThreshold       int
+	FlakyWindowHours    int
+	RequireSameCommit   bool
+	AutoQuarantine      bool
+	AutoLiftAfterPasses int
 }
 
 func DefaultPolicy() PolicyConfig {
 	return PolicyConfig{
-		FailThreshold:     2,
-		FlakyWindowHours:  48,
-		RequireSameCommit: true,
-		AutoQuarantine:    true,
+		FailThreshold:       2,
+		FlakyWindowHours:    48,
+		RequireSameCommit:   true,
+		AutoQuarantine:      true,
+		AutoLiftAfterPasses: 5,
 	}
 }
 

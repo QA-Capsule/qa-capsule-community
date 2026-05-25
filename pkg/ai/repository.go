@@ -3,6 +3,8 @@ package ai
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"strings"
 	"time"
 )
 
@@ -15,6 +17,7 @@ type Repository interface {
 	GetReport(ctx context.Context, incidentID int64) (*RCAReport, error)
 	ListInsights(ctx context.Context, projectName string, limit int) ([]InsightRow, error)
 	LoadIncident(ctx context.Context, incidentID int64) (AnalysisInput, error)
+	LoadIncidentRecord(ctx context.Context, incidentID int64) (Incident, error)
 }
 
 type SQLiteRepository struct {
@@ -150,10 +153,31 @@ func (r *SQLiteRepository) ListInsights(ctx context.Context, projectName string,
 }
 
 func (r *SQLiteRepository) LoadIncident(ctx context.Context, incidentID int64) (AnalysisInput, error) {
+	rec, err := r.LoadIncidentRecord(ctx, incidentID)
+	if err != nil {
+		return AnalysisInput{}, err
+	}
+	return AnalysisInput{
+		IncidentID: rec.ID, ProjectName: rec.ProjectName, TestName: rec.TestName,
+		Status: rec.Status, ErrorMessage: rec.ErrorMessage, ConsoleLogs: rec.ConsoleLogs,
+		Browser: rec.Browser, OS: rec.OS, Viewport: rec.Viewport,
+	}, nil
+}
+
+func (r *SQLiteRepository) LoadIncidentRecord(ctx context.Context, incidentID int64) (Incident, error) {
 	row := r.db.QueryRowContext(ctx, `
-		SELECT id, project_name, name, status, error_message, console_logs, browser, os, viewport
+		SELECT id, project_name, name, status, error_message, console_logs, COALESCE(error_logs,''),
+			COALESCE(fingerprint,''), COALESCE(pipeline_run_id,''), COALESCE(execution_time_ms,0),
+			COALESCE(browser,''), COALESCE(os,''), COALESCE(viewport,'')
 		FROM incidents WHERE id = ?`, incidentID)
-	var in AnalysisInput
-	err := row.Scan(&in.IncidentID, &in.ProjectName, &in.TestName, &in.Status, &in.ErrorMessage, &in.ConsoleLogs, &in.Browser, &in.OS, &in.Viewport)
-	return in, err
+	var inc Incident
+	err := row.Scan(&inc.ID, &inc.ProjectName, &inc.TestName, &inc.Status, &inc.ErrorMessage, &inc.ConsoleLogs,
+		&inc.StackTrace, &inc.Fingerprint, &inc.PipelineRunID, &inc.ExecutionTimeMs, &inc.Browser, &inc.OS, &inc.Viewport)
+	if err == sql.ErrNoRows {
+		return Incident{}, fmt.Errorf("incident not found")
+	}
+	if strings.TrimSpace(inc.StackTrace) == "" {
+		inc.StackTrace = strings.TrimSpace(inc.ErrorMessage)
+	}
+	return inc, err
 }

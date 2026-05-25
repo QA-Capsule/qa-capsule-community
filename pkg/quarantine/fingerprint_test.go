@@ -14,4 +14,7 @@ func TestNormalizeTestName(t *testing.T) {
 	if NormalizeTestName("[FLAKY] foo") != "foo" {
 		t.Fatal("prefix not stripped")
 	}
+	if NormalizeTestName("[Playwright] login spec") != "login spec" {
+		t.Fatal("playwright prefix not stripped")
+	}
 }

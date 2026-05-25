@@ -948,7 +948,7 @@ function collectSRERoutingPayload() {
 export function togglePluginAutoRun(filePath, enable) {
     const role = parseJwt(localStorage.getItem('sre-jwt'))?.role;
     if (!canManagePluginAutoRun(role)) {
-        notify('Only Manager or Lead can change AUTO-RUN.', 'error');
+        notify('Only Manager or Platform Admin can change AUTO-RUN.', 'error');
         return;
     }
     fetchWithAuth('/api/plugins/autorun', {
@@ -966,7 +966,7 @@ export function togglePluginAutoRun(filePath, enable) {
 export function togglePluginGatewayRouting(filePath, enable) {
     const role = parseJwt(localStorage.getItem('sre-jwt'))?.role;
     if (!canManagePluginAutoRun(role)) {
-        notify('Only Manager or Lead can enable integrations for CI/CD gateways.', 'error');
+        notify('Only Manager or Platform Admin can enable integrations for CI/CD gateways.', 'error');
         return;
     }
     fetchWithAuth('/api/plugins/routing', {

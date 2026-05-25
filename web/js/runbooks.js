@@ -24,12 +24,13 @@ async function loadRunbookTemplates() {
     data.templates.forEach(t => {
         const card = document.createElement('div');
         card.className = 'data-card runbook-card';
-        const tags = (t.tags || []).map(x => `<span class="tag-pill">${x}</span>`).join(' ');
+        const tags = (t.tags || []).map(x => `<span class="tag-pill">${escapeHtml(x)}</span>`).join(' ');
+        const nodes = t.node_count != null ? t.node_count : '—';
         card.innerHTML = `
             <h3 class="runbook-card__title">${escapeHtml(t.name)}</h3>
             <p class="runbook-card__desc">${escapeHtml(t.description || '')}</p>
             <div class="runbook-card__tags">${tags}</div>
-            <p class="runbook-card__plugins">Plugins: ${escapeHtml((t.required_plugins || []).join(', '))}</p>
+            <p class="runbook-card__plugins">${nodes} steps · Plugins: ${escapeHtml((t.required_plugins || []).join(', '))}</p>
             <button type="button" class="btn-primary btn-apply-runbook" data-template-id="${escapeHtml(t.id)}">Apply to gateway</button>
         `;
         grid.appendChild(card);

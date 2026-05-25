@@ -103,9 +103,9 @@ func CanAccessPlugins(role string) bool {
 	return IsManager(role) || IsLead(role)
 }
 
-// CanManagePluginAutoRun allows toggling AUTO-RUN / gateway routing on integrations (Manager or Lead).
+// CanManagePluginAutoRun allows toggling AUTO-RUN / gateway routing on integrations (Manager or Platform Admin).
 func CanManagePluginAutoRun(role string) bool {
-	return IsManager(role) || IsLead(role)
+	return IsManager(role) || IsAdmin(role)
 }
 
 func CanResolveIncidents(role string) bool {

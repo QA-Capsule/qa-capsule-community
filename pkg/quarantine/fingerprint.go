@@ -6,15 +6,35 @@ import (
 	"strings"
 )
 
-// NormalizeTestName strips flaky/perf prefixes for stable CI identity.
+// frameworkNamePrefixes are stripped so Playwright/Robot/JUnit titles match across CI payloads.
+var frameworkNamePrefixes = []string{
+	"[Playwright] ", "[RobotFW] ", "[Robot] ", "[Cypress] ",
+	"[JUnit] ", "[Pytest] ", "[Pipeline] ", "[PIPELINE CRASH] ",
+}
+
+// NormalizeTestName strips flaky/perf and framework reporter prefixes for stable CI identity.
 func NormalizeTestName(name string) string {
 	n := strings.TrimSpace(name)
-	for _, p := range []string{"[FLAKY] ", "[PERF] "} {
-		if strings.HasPrefix(n, p) {
-			n = strings.TrimPrefix(n, p)
+	for {
+		changed := false
+		for _, p := range []string{"[FLAKY] ", "[PERF] "} {
+			if strings.HasPrefix(n, p) {
+				n = strings.TrimPrefix(n, p)
+				changed = true
+			}
+		}
+		for _, p := range frameworkNamePrefixes {
+			if strings.HasPrefix(n, p) {
+				n = strings.TrimPrefix(n, p)
+				changed = true
+			}
+		}
+		n = strings.TrimSpace(n)
+		if !changed {
+			break
 		}
 	}
-	return strings.TrimSpace(n)
+	return n
 }
 
 // TestIdentityFingerprint hashes project + normalized test name (no error text).

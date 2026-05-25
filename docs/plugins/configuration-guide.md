@@ -37,7 +37,7 @@ flowchart LR
 | Side | Who configures | Where | What |
 |------|---------------|-----|------|
 | **Provider** | Tool admin (Slack, Atlassian, …) | Provider console | Service account, token, webhook URL, API keys |
-| **QA Capsule** | Manager / Lead | UI + environment variables | Global secrets, AUTO-RUN, per-pipeline routing |
+| **QA Capsule** | Manager / Lead (configure, execute); Manager / Admin (AUTO-RUN, gateway toggles) | UI + environment variables | Secrets, routing |
 
 ---
 

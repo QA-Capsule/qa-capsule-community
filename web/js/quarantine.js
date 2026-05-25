@@ -49,6 +49,31 @@ async function loadQuarantineProjects(select) {
     });
 }
 
+function reasonBadge(reason) {
+    const r = (reason || '').toLowerCase();
+    let cls = 'intel-badge--default';
+    if (r === 'flaky') cls = 'intel-badge--flaky';
+    else if (r === 'manual') cls = 'intel-badge--manual';
+    else if (r === 'policy') cls = 'intel-badge--policy';
+    return `<span class="intel-badge ${cls}">${escapeHtml(reason || '—')}</span>`;
+}
+
+function updateQuarantineStats(tests) {
+    const set = (id, v) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = String(v);
+    };
+    const active = tests.length;
+    const auto = tests.filter(t => {
+        const r = (t.reason || '').toLowerCase();
+        return r === 'flaky' || r === 'policy';
+    }).length;
+    const manual = tests.filter(t => (t.reason || '').toLowerCase() === 'manual').length;
+    set('quarantine-stat-active', active);
+    set('quarantine-stat-auto', auto);
+    set('quarantine-stat-manual', manual);
+}
+
 export async function loadQuarantineList() {
     const listEl = document.getElementById('quarantine-list-body');
     const project = document.getElementById('quarantine-project-filter')?.value;
@@ -57,10 +82,12 @@ export async function loadQuarantineList() {
     const res = await fetchWithAuth(`/api/quarantine?project=${encodeURIComponent(project)}`);
     const { ok, data } = await parseApiJson(res);
     if (!ok) {
-        listEl.innerHTML = '<p class="modern-data-grid__empty">Failed to load quarantine list.</p>';
+        listEl.innerHTML = '<p class="intelligence-empty">Failed to load quarantine list.</p>';
+        updateQuarantineStats([]);
         return;
     }
     const tests = data?.tests || [];
+    updateQuarantineStats(tests);
     const role = parseJwt(localStorage.getItem('sre-jwt'))?.role;
     const canEdit = canManageQuarantine(role);
     if (!tests.length) {
@@ -71,13 +98,13 @@ export async function loadQuarantineList() {
         <div class="modern-data-grid__row" role="listitem">
             <div class="modern-data-grid__cell modern-data-grid__cell--primary">${escapeHtml(t.test_name)}</div>
             <div class="modern-data-grid__cell modern-data-grid__cell--muted">
-                <code>${escapeHtml((t.fingerprint || '').slice(0, 12))}…</code>
+                <code title="${escapeAttr(t.fingerprint || '')}">${escapeHtml((t.fingerprint || '').slice(0, 12))}…</code>
             </div>
-            <div class="modern-data-grid__cell">${escapeHtml(t.reason)}</div>
+            <div class="modern-data-grid__cell">${reasonBadge(t.reason)}</div>
             <div class="modern-data-grid__cell modern-data-grid__cell--muted">${escapeHtml(t.since || '')}</div>
             <div class="modern-data-grid__cell modern-data-grid__cell--actions">
                 ${canEdit
-        ? `<button type="button" class="btn-ghost btn-sm btn-lift-quarantine" data-project="${escapeAttr(project)}" data-fingerprint="${escapeAttr(t.fingerprint)}">Release from Quarantine</button>`
+        ? `<button type="button" class="btn-ghost btn-sm btn-lift-quarantine" data-project="${escapeAttr(project)}" data-fingerprint="${escapeAttr(t.fingerprint)}">Release</button>`
         : '<span class="modern-data-grid__cell--muted">—</span>'}
             </div>
         </div>

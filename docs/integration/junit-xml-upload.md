@@ -19,7 +19,7 @@ POST /api/webhooks/upload?framework={FrameworkName}
 | `framework` | Query string | Recommended | `Playwright`, `Cypress`, `Pytest`, `JUnit`, `RobotFramework`, `Postman`, etc. |
 | `X-API-Key` | HTTP Header | **Yes** | Project API key from CI/CD Gateways |
 | `X-Run-Id` | HTTP Header | Recommended | Groups results in Telemetry Stream (`github.run_id`, `$CI_PIPELINE_ID`, …) |
-| `X-Execution-Env` | HTTP Header | Optional | `PROD`, `STAGING`, `DEV`, `CANARY` |
+| `X-Execution-Env` | HTTP Header | Optional | `PROD`, `STAGING`, `DEV`, `INTEGRATION` (`CANARY` accepted as legacy alias) |
 | `X-Execution-Type` | HTTP Header | Optional | `TEST-RUN`, `SMOKE`, `NIGHTLY`, `REAL` |
 | `file` | Multipart body | **Yes** | JUnit XML file (max 10 MB) |
 

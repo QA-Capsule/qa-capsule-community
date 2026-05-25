@@ -30,7 +30,7 @@ const (
 	ExecutionEnvUnknown ExecutionEnv = "UNKNOWN"
 	ExecutionEnvProd    ExecutionEnv = "PROD"
 	ExecutionEnvStaging ExecutionEnv = "STAGING"
-	ExecutionEnvCanary  ExecutionEnv = "CANARY"
+	ExecutionEnvIntegration ExecutionEnv = "INTEGRATION"
 	ExecutionEnvDev     ExecutionEnv = "DEV"
 )
 

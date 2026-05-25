@@ -8,8 +8,8 @@ import (
 	"log"
 	"net/http"
 	"net/smtp"
-	"os"
 	"strings"
+	"time"
 
 	"github.com/QA-Capsule/qa-capsule-community/pkg/core"
 
@@ -17,34 +17,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// jwtKey is the secret used to sign JWT tokens (set via InitJWT at startup).
-var jwtKey []byte
-
-const defaultJWTSecret = "sre-super-secret-jwt-key"
-
-// InitJWT configures the signing key from config or QACAPSULE_JWT_SECRET (dev fallback only).
-func InitJWT(config *core.Config) {
-	secret := ""
-	if config != nil {
-		secret = strings.TrimSpace(config.Security.JWTSecret)
-	}
-	if secret == "" {
-		secret = strings.TrimSpace(os.Getenv("QACAPSULE_JWT_SECRET"))
-	}
-	if secret == "" {
-		secret = defaultJWTSecret
-		log.Println("[SECURITY] JWT secret not set — using development default. Set security.jwt_secret or QACAPSULE_JWT_SECRET in production.")
-	}
-	jwtKey = []byte(secret)
-}
-
-var AdvancedFinOpsHandler = func(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusPaymentRequired)
-	json.NewEncoder(w).Encode(map[string]string{
-		"error": "FinOps Intelligence is a QA Capsule PRO feature. Please upgrade.",
-	})
-}
+var processStartedAt = time.Now()
 
 // Claims defines the JWT payload structure
 type Claims struct {
@@ -149,47 +122,17 @@ func jwtAuthMiddleware(config *core.Config, requirement any, next http.HandlerFu
 	}
 }
 
-var IsEnterpriseActive = func() bool {
-	return false
-}
-
-// SSOLoginHandler est une variable globale modifiable par l'Enterprise Edition.
-// Par défaut, elle bloque la connexion SSO.
-var SSOLoginHandler = func(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusPaymentRequired)
-	json.NewEncoder(w).Encode(map[string]string{
-		"error": "QA Capsule PRO License Required for SSO",
-	})
-}
-
-// enterpriseMiddleware blocks access to premium features if no valid license is found
-func enterpriseMiddleware(config *core.Config, next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		// On utilise la variable exportée (le Hook)
-		if !IsEnterpriseActive() {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusPaymentRequired)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Enterprise license required"})
-			return
-		}
-		next.ServeHTTP(w, r)
-	}
-}
-
 // Start boots up the HTTP server and registers all routes
 func Start(initialConfig core.Config) {
 	config := &initialConfig
+	processStartedAt = time.Now()
 	InitJWT(config)
-
-	// Create Enterprise Configuration Table
-	core.DB.Exec(`CREATE TABLE IF NOT EXISTS enterprise_config (
-		id INTEGER PRIMARY KEY,
-		license_key TEXT
-	)`)
-	core.DB.Exec(`INSERT INTO enterprise_config (id, license_key) SELECT 1, '' WHERE NOT EXISTS (SELECT 1 FROM enterprise_config WHERE id = 1)`)
+	core.StartIngestWorkers()
+	ensureEnterpriseConfigTable()
 
 	// Register isolated route handlers
+	registerHealthRoutes(config)
+	registerMCPRoutes(config)
 	registerAuthRoutes(config)
 	registerPreferencesRoutes(config)
 	registerTeamRoutes(config)
@@ -217,4 +160,15 @@ func Start(initialConfig core.Config) {
 
 	log.Printf("[SERVER] Started on port %s", config.Server.Port)
 	log.Fatal(http.ListenAndServe(":"+config.Server.Port, nil))
+}
+
+func ensureEnterpriseConfigTable() {
+	if core.DB == nil {
+		return
+	}
+	_, _ = core.DB.Exec(`CREATE TABLE IF NOT EXISTS enterprise_config (
+		id INTEGER PRIMARY KEY,
+		license_key TEXT
+	)`)
+	_, _ = core.DB.Exec(`INSERT INTO enterprise_config (id, license_key) SELECT 1, '' WHERE NOT EXISTS (SELECT 1 FROM enterprise_config WHERE id = 1)`)
 }

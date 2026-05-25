@@ -9,8 +9,10 @@ func NormalizeExecutionEnv(v string) ExecutionEnv {
 		return ExecutionEnvProd
 	case string(ExecutionEnvStaging), "STAGE":
 		return ExecutionEnvStaging
-	case string(ExecutionEnvCanary):
-		return ExecutionEnvCanary
+	case string(ExecutionEnvIntegration):
+		return ExecutionEnvIntegration
+	case "CANARY": // legacy alias
+		return ExecutionEnvIntegration
 	case string(ExecutionEnvDev), "DEVELOPMENT":
 		return ExecutionEnvDev
 	case "":
@@ -47,7 +49,7 @@ func NormalizeExecutionType(v string) ExecutionType {
 
 func (f ExecutionFlags) Valid() bool {
 	switch f.Env {
-	case ExecutionEnvUnknown, ExecutionEnvProd, ExecutionEnvStaging, ExecutionEnvCanary, ExecutionEnvDev:
+	case ExecutionEnvUnknown, ExecutionEnvProd, ExecutionEnvStaging, ExecutionEnvIntegration, ExecutionEnvDev:
 	default:
 		return false
 	}

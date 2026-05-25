@@ -15,8 +15,7 @@ import (
 func registerIntelligenceRoutes(config *core.Config) {
 	http.HandleFunc("/api/rca/insights", jwtAuthMiddleware(config, "", handleRCAInsights))
 	http.HandleFunc("/api/ai/config", jwtAuthMiddleware(config, core.RoleManager, handleAIConfig))
-	http.HandleFunc("/api/quarantine", jwtAuthMiddleware(config, "", handleQuarantineManage))
-	http.HandleFunc("/api/ci/quarantine", handleCIQuarantine)
+	registerQuarantineRoutes(config)
 }
 
 func handleRCAInsights(w http.ResponseWriter, r *http.Request) {
@@ -200,34 +199,6 @@ func handleQuarantineManage(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
-}
-
-func handleCIQuarantine(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	apiKey := r.Header.Get("X-API-Key")
-	if apiKey == "" {
-		http.Error(w, "Missing X-API-Key", http.StatusUnauthorized)
-		return
-	}
-	var projectName string
-	if err := core.DB.QueryRow("SELECT name FROM projects WHERE api_key = ?", apiKey).Scan(&projectName); err != nil {
-		http.Error(w, "Invalid API Key", http.StatusUnauthorized)
-		return
-	}
-	if core.QuarantineEngine == nil {
-		writeJSONError(w, "Quarantine not available", http.StatusServiceUnavailable)
-		return
-	}
-	resp, err := core.QuarantineEngine.ListCI(r.Context(), projectName)
-	if err != nil {
-		writeJSONError(w, "Failed to load quarantine", http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
 }
 
 func parseClaims(r *http.Request) *Claims {
