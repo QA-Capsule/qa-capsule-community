@@ -1,0 +1,7 @@
+# Optional: bind-mount ./data on the host (easy DB inspection; fix permissions if go run fails).
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+
+services:
+  qacapsule:
+    volumes:
+      - ./data:/app/data

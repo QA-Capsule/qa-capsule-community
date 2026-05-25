@@ -130,17 +130,23 @@ func processIngestBatch(job IngestBatchJob, workerID int) {
 		alerts = AlertsFromReport(job.Report, nil)
 	}
 	processed := 0
+	created := 0
+	skipped := 0
 	var ingested []IngestedCase
 	seenTests := make(map[string]struct{})
 	for _, alert := range alerts {
 		res := ProcessAlert(job.Config, job.ProjectName, job.PipelineRunID, alert, job.AlertContext, job.AllowedPlugins)
 		if res.IncidentID > 0 {
+			created++
 			ingested = append(ingested, IngestedCase{
 				Fingerprint: res.Fingerprint,
 				FinalName:   res.FinalName,
 				IncidentID:  res.IncidentID,
 				Flaky:       res.Flaky,
 			})
+		}
+		if res.Skipped {
+			skipped++
 		}
 		if !res.Quarantined && !res.Skipped {
 			processed++
@@ -167,6 +173,15 @@ func processIngestBatch(job IngestBatchJob, workerID int) {
 	if err := FinalizePipelineExecution(ctx, outcome, job.Report, ingested); err != nil {
 		slog.Error("finalize pipeline failed", "worker", workerID, "project", job.ProjectName, "run", job.PipelineRunID, "error", err)
 	}
+	slog.Info("ingest batch complete",
+		"worker", workerID,
+		"project", job.ProjectName,
+		"run", job.PipelineRunID,
+		"alerts_in", len(alerts),
+		"incidents_created", created,
+		"skipped_duplicate", skipped,
+		"matrix_failures", job.Report.Summary.Failed,
+	)
 }
 
 // recordReportTestMetrics stores pass/fail samples from the full matrix for flaky oscillation detection.

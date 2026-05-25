@@ -58,9 +58,12 @@ function updateFinOpsRangeHint() {
 
 
 export function loadFinOpsView() {
-    refreshFinOpsView();
+    updateFinOpsRangeHint();
     loadFinOpsBaselines();
     loadFinOpsProjectFilter();
+    refreshFinOpsKPIs();
+    loadFinOpsWeeklyTable();
+    loadFinOpsWeeklyEvolution();
 }
 
 function ensureFinOpsChartCanvas(canvasId) {
@@ -85,13 +88,24 @@ function ensureFinOpsChartCanvas(canvasId) {
 
 /** Reload all FinOps panels (same time range as Operations dashboard). */
 export function refreshFinOpsView() {
+    const btn = document.querySelector('.finops-refresh-btn');
+    if (btn) {
+        btn.disabled = true;
+        btn.dataset.label = btn.textContent;
+        btn.textContent = 'Refreshing…';
+    }
     updateFinOpsRangeHint();
     ensureFinOpsChartCanvas('finops-evolution-chart');
     ensureFinOpsChartCanvas('finops-cost-evolution-chart');
-    notify('Refreshing FinOps…', 'success');
     refreshFinOpsKPIs();
     loadFinOpsWeeklyTable();
     loadFinOpsWeeklyEvolution();
+    window.setTimeout(() => {
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = btn.dataset.label || '↻ Refresh';
+        }
+    }, 600);
 }
 
 

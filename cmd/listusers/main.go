@@ -6,11 +6,13 @@ import (
 	"log"
 	"os"
 
+	"github.com/QA-Capsule/qa-capsule-community/pkg/core"
 	_ "modernc.org/sqlite"
 )
 
 func main() {
-	path := "./data/qacapsule.db"
+	core.EnsureProjectRoot()
+	path := core.DBFilePath()
 	if len(os.Args) > 1 {
 		path = os.Args[1]
 	}

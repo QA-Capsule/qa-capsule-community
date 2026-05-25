@@ -86,24 +86,54 @@ Full official docs (MkDocs): **[docs/index.md](docs/index.md)** — published at
 
 ---
 
-## Quick Start (Docker)
+## Quick Start (Docker — recommended)
+
+Works the same on **Linux, macOS, and Windows** (Docker Desktop or Engine).
 
 ```bash
 git clone https://github.com/QA-Capsule/qa-capsule-community.git
 cd qa-capsule-community
 docker compose up -d --build
+docker compose ps   # wait until healthy
 ```
 
 Open **http://localhost:9000** — login `admin` / `admin` (change password on first login).
 
-### Local development
+| Variable | Default in Compose | Purpose |
+|---|---|---|
+| `QACAPSULE_DATA_DIR` | `/app/data` | SQLite + artifacts (named volume `qacapsule_data`) |
+| `QACAPSULE_JWT_SECRET` | `dev-compose-change-me` | JWT signing (set in `.env` for real deployments) |
+| `APP_ENV` | `development` | Dev login without `jwt_secret` in `config.yaml` |
+
+**Persist data on the host** (optional, for inspecting `qacapsule.db`):
+
+```bash
+mkdir -p data && chmod u+w data
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+```
+
+### Local development (`go run`)
 
 ```bash
 go run ./cmd/qacapsule/main.go
 go build -o bin/qacapsule-cli ./cmd/cli
 ```
 
+If you see `attempt to write a readonly database`, `./data` was probably created by Docker as **root**. Either use Docker Compose above, or fix permissions and retry:
+
+```bash
+# Linux / macOS
+chmod -R u+w data
+rm -f data/qacapsule.db data/qacapsule.db-wal data/qacapsule.db-shm
+go run ./cmd/qacapsule/main.go
+```
+
+Without fixing `./data`, the server automatically uses `~/.qa-capsule/data` and logs a warning.
+
+Override storage explicitly: `export QACAPSULE_DATA_DIR=/path/to/writable/data`
+
 ---
+
 
 ## Integration manifest example
 

@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/QA-Capsule/qa-capsule-community/pkg/core"
 	_ "modernc.org/sqlite"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -23,7 +24,8 @@ func main() {
 	}
 	username, password := args[0], args[1]
 
-	db, err := sql.Open("sqlite", "./data/qacapsule.db")
+	core.EnsureProjectRoot()
+	db, err := sql.Open("sqlite", core.DBFilePath())
 	if err != nil {
 		log.Fatal(err)
 	}

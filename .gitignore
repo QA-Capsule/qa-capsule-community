@@ -15,6 +15,10 @@ file.txt
 env.txt
 
 qacapsule.db
+qacapsule.db-*
+data/*.db
+data/*.db-*
+data/artifacts/
 
 # Go workspace file
 go.work

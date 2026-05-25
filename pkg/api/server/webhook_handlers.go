@@ -125,6 +125,14 @@ func registerWebhookRoutes(config *core.Config) {
 			runID = r.Header.Get("X-Pipeline-Run-Id")
 		}
 		if runID == "" {
+			if v, ok := rawPayload["pipeline_run_id"].(string); ok && strings.TrimSpace(v) != "" {
+				runID = strings.TrimSpace(v)
+			}
+		}
+		if attempt := strings.TrimSpace(r.Header.Get("X-Run-Attempt")); attempt != "" && attempt != "1" {
+			runID = strings.TrimSpace(runID) + "-attempt-" + attempt
+		}
+		if runID == "" {
 			runID = fmt.Sprintf("run-%d", time.Now().UnixNano())
 		}
 		branch := r.Header.Get("X-Branch")

@@ -1,9 +1,9 @@
 FROM golang:alpine AS builder
-RUN apk add --no-cache gcc musl-dev
 WORKDIR /app
-ENV CGO_ENABLED=1
+ENV CGO_ENABLED=0
+COPY go.mod go.sum ./
+RUN go mod download
 COPY . .
-RUN go mod tidy
 # OPTIMIZATION: Use ldflags -s and -w to strip debug information and reduce binary size.
 RUN go build -ldflags="-s -w" -o qacapsule ./cmd/qacapsule/main.go
 

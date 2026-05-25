@@ -42,14 +42,8 @@ func ProcessAlert(cfg Config, projectName, runID string, alert UnifiedAlert, rou
 
 	fp := IncidentFingerprint(alert.Name, alert.Error)
 
-	var recentCount int
-	if err := DB.QueryRow(`SELECT COUNT(*) FROM incidents WHERE fingerprint = ? AND project_name = ? AND pipeline_run_id = ?`,
-		fp, projectName, runID).Scan(&recentCount); err != nil {
-		slog.Error("dedup check failed", "error", err, "test", alert.Name)
-		return IngestResult{}
-	}
-	if recentCount > 0 {
-		slog.Info("correlation duplicate skipped", "test", alert.Name, "run", runID)
+	if isDuplicateIngest(projectName, runID, alert.Name) {
+		slog.Info("ingest duplicate skipped", "project", projectName, "test", alert.Name, "run", runID)
 		return IngestResult{Skipped: true, Fingerprint: fp, FinalName: alert.Name}
 	}
 
@@ -143,6 +137,30 @@ func isFlakyTest(projectName, testName string) bool {
 		return true
 	}
 	return hasPriorFailureForTest(projectName, testName)
+}
+
+// isDuplicateIngest skips re-upload of the same failing test in the same pipeline run while still open.
+// A new pipeline run (different X-Run-Id) or a resolved prior alert always allows a new incident.
+func isDuplicateIngest(projectName, runID, testName string) bool {
+	run := strings.TrimSpace(runID)
+	if projectName == "" || run == "" || strings.TrimSpace(testName) == "" {
+		return false
+	}
+	n1, n2, n3 := flakyNameVariants(testName)
+	var count int
+	err := DB.QueryRow(`
+		SELECT COUNT(*) FROM incidents
+		WHERE project_name = ?
+		AND pipeline_run_id = ?
+		AND is_resolved = 0
+		AND UPPER(COALESCE(status, '')) NOT IN ('PASSED', 'PASS')
+		AND name IN (?, ?, ?)`,
+		projectName, run, n1, n2, n3).Scan(&count)
+	if err != nil {
+		slog.Error("dedup check failed", "error", err, "test", testName, "run", run)
+		return false
+	}
+	return count > 0
 }
 
 // flakyNameVariants returns incident name values that refer to the same logical test.

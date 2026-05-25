@@ -3,7 +3,6 @@ package core
 import (
 	"database/sql"
 	"log"
-	"os"
 	"path/filepath"
 	"time"
 
@@ -14,23 +13,11 @@ import (
 // Global database connection pool
 var DB *sql.DB
 
-// InitDB initializes the SQLite database, forcing it into the ./data/ directory
+// InitDB initializes the SQLite database under DataDir() (see QACAPSULE_DATA_DIR).
 func InitDB(ignoredPath string) {
-	// 1. Force the database path to ./data/qacapsule.db
-	const dbFolder = "./data"
-	const dbName = "qacapsule.db"
-	dbPath := filepath.Join(dbFolder, dbName)
+	dbPath := DBFilePath()
 
-	// 2. Ensure the directory for the database exists
-	if _, err := os.Stat(dbFolder); os.IsNotExist(err) {
-		log.Printf("[INFO] Creating storage directory: %s", dbFolder)
-		err = os.MkdirAll(dbFolder, 0755)
-		if err != nil {
-			log.Fatalf("[FATAL] Failed to create database directory: %v", err)
-		}
-	}
-
-	// 3. Print the exact absolute path to the terminal for verification
+	// Print the exact absolute path to the terminal for verification
 	absPath, _ := filepath.Abs(dbPath)
 	log.Printf("[INFO] Initializing SQLite database at: %s", absPath)
 

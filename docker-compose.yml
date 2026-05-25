@@ -1,12 +1,31 @@
+# Portable QA Capsule — recommended for beta testers (Linux, macOS, Windows).
+# Start: docker compose up -d --build
+# UI: http://localhost:9000  (admin / admin)
+
 services:
   qacapsule:
     build: .
     container_name: qacapsule-server
     ports:
       - "9000:9000"
+    environment:
+      APP_ENV: development
+      # Override in production; required when APP_ENV is not development.
+      QACAPSULE_JWT_SECRET: ${QACAPSULE_JWT_SECRET:-dev-compose-change-me}
+      QACAPSULE_DATA_DIR: /app/data
     volumes:
       - ./reports:/app/reports
       - ./plugins:/app/plugins
-      - ./config.yaml:/app/config.yaml
-      - ./data:/app/data
+      - ./config.yaml:/app/config.yaml:ro
+      # Named volume avoids host permission issues (root-owned ./data after a prior Docker run).
+      - qacapsule_data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9000/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     restart: unless-stopped
+
+volumes:
+  qacapsule_data:
