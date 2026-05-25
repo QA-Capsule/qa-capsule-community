@@ -187,4 +187,4 @@ See [Security & authentication](docs/setup/security-authentication.md) for the f
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT — see the LICENCE file.
