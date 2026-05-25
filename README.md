@@ -4,6 +4,8 @@
 ![Go](https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go)
 ![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker)
 [![Documentation](https://img.shields.io/badge/docs-MkDocs-brightgreen.svg)](https://qa-capsule.github.io/qa-capsule-community/)
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-FFDD00?logo=buymeacoffee&logoColor=black)](https://www.buymeacoffee.com/khabarachre)
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-Support-F16061?logo=ko-fi&logoColor=white)](https://ko-fi.com/achrafkhabar)
 
 **QA Capsule** is an SRE control plane for CI/CD and E2E test failures: ingest, correlate, quarantine flaky tests, run native integrations (no shell plugins), AI RCA, FinOps, DORA, and a full web dashboard.
 
