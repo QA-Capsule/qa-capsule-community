@@ -32,7 +32,6 @@ jobs:
         run: sudo apt-get update -qq && sudo apt-get install -y -qq curl
 
       - name: CI quarantine deny-list
-        if: ${{ secrets.QA_CAPSULE_URL != '' && secrets.QA_CAPSULE_API_ROBOT_KEY != '' }}
         env:
           QA_CAPSULE_URL: ${{ secrets.QA_CAPSULE_URL }}
           QA_CAPSULE_API_KEY: ${{ secrets.QA_CAPSULE_API_ROBOT_KEY }}
