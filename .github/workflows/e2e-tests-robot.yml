@@ -7,7 +7,6 @@ jobs:
   robot:
     runs-on: ubuntu-latest
     env:
-      QA_CAPSULE_SKIP_UPLOAD: "true"
       CI_PIPELINE_ID: ${{ github.run_id }}
       QA_CAPSULE_EXEC_ENV: STAGING
       QA_CAPSULE_EXEC_TYPE: TEST-RUN
@@ -28,113 +27,15 @@ jobs:
       - name: Setup Chrome for UI suites
         uses: browser-actions/setup-chrome@v1
 
-      - name: Install curl
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq curl
-
-      - name: CI quarantine deny-list
+      - name: Run Robot and upload JUnit
         env:
           QA_CAPSULE_URL: ${{ secrets.QA_CAPSULE_URL }}
           QA_CAPSULE_API_KEY: ${{ secrets.QA_CAPSULE_API_ROBOT_KEY }}
+          QA_CAPSULE_SKIP_UPLOAD: "true"
         run: |
-          chmod +x scripts/quarantine-ci-gate.sh
-          echo "Quarantined tests (skip in Robot run):"
-          ./scripts/quarantine-ci-gate.sh list || echo "(none or gate unreachable)"
-
-      - name: Run all Robot Framework suites
-        id: robot
-        env:
-          QA_CAPSULE_URL: ${{ secrets.QA_CAPSULE_URL }}
-          QA_CAPSULE_API_KEY: ${{ secrets.QA_CAPSULE_API_ROBOT_KEY }}
-        run: |
-          echo "Suites: smoke_tests, api_health, demo_failure (fail), ui_navigation"
-          chmod +x scripts/run-tests.sh scripts/quarantine-ci-gate.sh
+          chmod +x scripts/run-tests.sh tests/upload-junit.sh scripts/quarantine-ci-gate.sh
           ./scripts/run-tests.sh
-        continue-on-error: true
-
-      - name: Send Alert to QA Capsule
-        id: qacapsule_upload
-        if: always()
-        env:
-          WEBHOOK_URL: ${{ secrets.QA_CAPSULE_URL }}
-          API_KEY: ${{ secrets.QA_CAPSULE_API_ROBOT_KEY }}
-          ROBOT_OUTCOME: ${{ steps.robot.outcome }}
-        run: |
-          JUNIT_FILE="tests/results/robot-junit.xml"
-          if [ ! -f "$JUNIT_FILE" ]; then
-            echo "::error::Canonical JUnit report not found at tests/results/robot-junit.xml."
-            echo "::error::Do not fallback to discovered files to avoid duplicate or stale testcase ingestion."
-            ls -laR tests/results 2>/dev/null || true
-            echo "Sending pipeline fallback alert (missing JUnit)..."
-            if [ -n "${WEBHOOK_URL}" ] && [ -n "${API_KEY}" ]; then
-              curl -f -S -X POST "${WEBHOOK_URL}/api/webhooks/robot-pipeline" \
-                -H "X-API-Key: ${API_KEY}" \
-                -H "X-Run-Id: ${{ github.run_id }}" \
-                -H "X-Execution-Env: STAGING" \
-                -H "X-Execution-Type: TEST-RUN" \
-                -H "Content-Type: application/json" \
-                -d '{"name":"[PIPELINE CRASH] Robot workflow failed","status":"CRITICAL","error":"Robot workflow failed but canonical robot-junit.xml was not generated.","framework":"RobotFramework"}' || true
-            fi
-            exit 1
-          fi
-          echo "Using canonical JUnit file: ${JUNIT_FILE}"
-          if [ -z "${WEBHOOK_URL}" ] || [ -z "${API_KEY}" ]; then
-            echo "::error::Set secrets QA_CAPSULE_URL and QA_CAPSULE_API_ROBOT_KEY in repository settings."
-            exit 1
-          fi
-          FAILURE_COUNT=$(python3 - <<'PY' "${JUNIT_FILE}"
-          )
-          if [ "${FAILURE_COUNT}" = "-1" ]; then
-            echo "::error::Cannot parse JUnit XML: ${JUNIT_FILE}"
-            if [ -n "${WEBHOOK_URL}" ] && [ -n "${API_KEY}" ]; then
-              curl -f -S -X POST "${WEBHOOK_URL}/api/webhooks/robot-pipeline" \
-                -H "X-API-Key: ${API_KEY}" \
-                -H "X-Run-Id: ${{ github.run_id }}" \
-                -H "X-Execution-Env: STAGING" \
-                -H "X-Execution-Type: TEST-RUN" \
-                -H "Content-Type: application/json" \
-                -d '{"name":"[PIPELINE CRASH] Robot workflow failed","status":"CRITICAL","error":"Robot JUnit XML could not be parsed.","framework":"RobotFramework"}' || true
-            fi
-            exit 1
-          fi
-          echo "Detected failing testcases in JUnit: ${FAILURE_COUNT}"
-          echo "Uploading Robot Framework JUnit XML to QA Capsule..."
-          curl -f -S -X POST "${WEBHOOK_URL}/api/webhooks/upload?framework=RobotFramework" \
-            -H "X-API-Key: ${API_KEY}" \
-            -H "X-Run-Id: ${{ github.run_id }}" \
-            -H "X-Execution-Env: STAGING" \
-            -H "X-Execution-Type: TEST-RUN" \
-            -F "file=@${JUNIT_FILE}" || {
-              echo "JUnit upload failed, sending pipeline fallback alert..."
-              if [ -n "${WEBHOOK_URL}" ] && [ -n "${API_KEY}" ]; then
-                curl -f -S -X POST "${WEBHOOK_URL}/api/webhooks/robot-pipeline" \
-                  -H "X-API-Key: ${API_KEY}" \
-                  -H "X-Run-Id: ${{ github.run_id }}" \
-                  -H "X-Execution-Env: STAGING" \
-                  -H "X-Execution-Type: TEST-RUN" \
-                  -H "Content-Type: application/json" \
-                  -d '{"name":"[PIPELINE CRASH] Robot workflow failed","status":"CRITICAL","error":"Robot JUnit upload to QA Capsule failed in CI.","framework":"RobotFramework"}' || true
-              fi
-              exit 1
-            }
-
-          if [ "${ROBOT_OUTCOME}" = "failure" ] && [ "${FAILURE_COUNT}" = "0" ]; then
-            echo "Robot job failed with zero testcase failures in JUnit, sending pipeline fallback alert..."
-            if [ -n "${WEBHOOK_URL}" ] && [ -n "${API_KEY}" ]; then
-              curl -f -S -X POST "${WEBHOOK_URL}/api/webhooks/robot-pipeline" \
-                -H "X-API-Key: ${API_KEY}" \
-                -H "X-Run-Id: ${{ github.run_id }}" \
-                -H "X-Execution-Env: STAGING" \
-                -H "X-Execution-Type: TEST-RUN" \
-                -H "Content-Type: application/json" \
-                -d '{"name":"[PIPELINE CRASH] Robot workflow failed","status":"CRITICAL","error":"Job failed but JUnit had no failure/error testcase.","framework":"RobotFramework"}' || true
-            fi
-          fi
-
-      - name: Fail job if Robot tests failed
-        if: steps.robot.outcome == 'failure'
-        run: |
-          echo "Robot Framework reported test failures (expected for demo_failure.robot)."
-          exit 1
+          ./tests/upload-junit.sh "RobotFramework" "tests/results/robot-junit.xml"
 
       - name: Upload Robot artifacts
         if: always()
