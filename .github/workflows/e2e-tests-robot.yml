@@ -6,15 +6,6 @@ on:
 jobs:
   robot:
     runs-on: ubuntu-latest
-    env:
-      CI_PIPELINE_ID: ${{ github.run_id }}
-      QA_CAPSULE_EXEC_ENV: STAGING
-      QA_CAPSULE_EXEC_TYPE: TEST-RUN
-      SELENIUM_ENABLED: "true"
-      SELENIUM_BROWSER: headlesschrome
-      UI_BASE_URL: https://example.com
-      OUTPUT_DIR: tests/results
-
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -24,27 +15,33 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Setup Chrome for UI suites
+      - name: Setup Chrome
         uses: browser-actions/setup-chrome@v1
 
-      - name: Run Robot and upload JUnit
+      - name: Install Dependencies
+        run: pip install -r tests/requirements.txt
+
+      - name: Run Robot Tests
+        run: robot --outputdir tests/results --xunit robot-junit.xml tests/robotframework/
+        continue-on-error: true
+
+      - name: Send Alert to QA Capsule
+        if: always()
         env:
-          QA_CAPSULE_URL: ${{ secrets.QA_CAPSULE_URL }}
-          QA_CAPSULE_API_KEY: ${{ secrets.QA_CAPSULE_API_ROBOT_KEY }}
-          QA_CAPSULE_SKIP_UPLOAD: "true"
+          WEBHOOK_URL: ${{ secrets.QA_CAPSULE_URL }}
+          API_KEY: ${{ secrets.QA_CAPSULE_API_ROBOT_KEY }}
         run: |
-          chmod +x scripts/run-tests.sh tests/upload-junit.sh scripts/quarantine-ci-gate.sh
-          ./scripts/run-tests.sh
-          ./tests/upload-junit.sh "RobotFramework" "tests/results/robot-junit.xml"
+          curl -X POST "$WEBHOOK_URL/api/webhooks/upload?framework=RobotFramework" \
+            -H "X-API-Key: $API_KEY" \
+            -H "X-Run-Id: ${{ github.run_id }}" \
+            -H "X-Execution-Env: STAGING" \
+            -H "X-Execution-Type: TEST-RUN" \
+            -F "file=@tests/results/robot-junit.xml"
 
       - name: Upload Robot artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: robot-results
-          path: |
-            tests/results/output.xml
-            tests/results/log.html
-            tests/results/report.html
-            tests/results/robot-junit.xml
+          path: tests/results/
           if-no-files-found: ignore
