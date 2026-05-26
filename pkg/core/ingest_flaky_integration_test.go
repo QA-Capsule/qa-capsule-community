@@ -26,7 +26,27 @@ func setupFlakyTestDB(t *testing.T) *sql.DB {
 		fingerprint TEXT,
 		pipeline_run_id TEXT,
 		is_resolved INTEGER DEFAULT 0,
+		resolved_by TEXT,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		,
+		resolved_at DATETIME
+	)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS healing_patch_submissions (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		incident_id INTEGER NOT NULL,
+		repo TEXT NOT NULL,
+		file_path TEXT NOT NULL,
+		code_sha256 TEXT NOT NULL,
+		code_size INTEGER NOT NULL DEFAULT 0,
+		explanation TEXT DEFAULT '',
+		agent_source TEXT DEFAULT 'mcp_agent',
+		status TEXT NOT NULL DEFAULT 'accepted',
+		pr_url TEXT DEFAULT '',
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	)`)
 	if err != nil {
 		t.Fatal(err)
@@ -85,5 +105,30 @@ func TestHasPriorFailureForTest_playwrightPrefix(t *testing.T) {
 	}
 	if quarantine.NormalizeTestName("[Playwright] login") != quarantine.NormalizeTestName("login") {
 		t.Fatal("normalize should align playwright prefix")
+	}
+}
+
+func TestAutoResolveIncidentsByIdentity_onPass(t *testing.T) {
+	db := setupFlakyTestDB(t)
+	defer db.Close()
+	prev := DB
+	DB = db
+	defer func() { DB = prev }()
+
+	project := "demo"
+	_, err := db.Exec(`INSERT INTO incidents (project_name, name, status, is_resolved) VALUES (?, '[Playwright] checkout', 'CRITICAL', 0)`, project)
+	if err != nil {
+		t.Fatal(err)
+	}
+	autoResolveIncidentsByIdentity(project, "[Playwright] checkout", "run-2", "PASSED")
+
+	var resolved int
+	var status string
+	err = db.QueryRow(`SELECT is_resolved, status FROM incidents WHERE project_name = ? LIMIT 1`, project).Scan(&resolved, &status)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resolved != 1 || status != "resolved" {
+		t.Fatalf("expected resolved incident, got is_resolved=%d status=%s", resolved, status)
 	}
 }

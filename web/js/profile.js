@@ -199,7 +199,8 @@ function syncDashboardRefreshGlobals(prefs) {
 }
 
 export function applyDefaultLandingView(prefs, role) {
-    const view = prefs?.default_landing_view || 'dashboard';
+    let view = prefs?.default_landing_view || 'dashboard';
+    if (view === 'rca') view = 'healing';
     if (!role || !canAccessView(role, view)) return;
     if (window.__qaLandingViewApplied) return;
     window.__qaLandingViewApplied = true;

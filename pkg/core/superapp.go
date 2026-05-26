@@ -6,16 +6,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/QA-Capsule/qa-capsule-community/pkg/ai"
+	"github.com/QA-Capsule/qa-capsule-community/pkg/healing"
 	"github.com/QA-Capsule/qa-capsule-community/pkg/quarantine"
 )
 
 var (
 	QuarantineEngine *quarantine.Engine
-	AIService        *ai.Service
+	HealingService   *healing.Service
 )
 
-// InitSuperApp wires AI RCA and quarantine engines (call after InitDB).
+// InitSuperApp wires quarantine and self-healing engines (call after InitDB).
 func InitSuperApp() {
 	if DB == nil {
 		return
@@ -24,11 +24,11 @@ func InitSuperApp() {
 		quarantine.NewSQLiteRepository(DB),
 		quarantine.DefaultPolicy(),
 	)
-	AIService = ai.NewService(ai.NewSQLiteRepository(DB), ai.HTTPAnalyzer{})
-	slog.Info("super-app modules initialized", "ai", true, "quarantine", true)
+	HealingService = healing.NewService(DB)
+	slog.Info("super-app modules initialized", "healing", true, "quarantine", true)
 }
 
-// PostIncidentHooks runs async quarantine scoring and RCA enqueue.
+// PostIncidentHooks runs async quarantine scoring after ingest.
 func PostIncidentHooks(incidentID int64, projectName, runID, commitSHA string, alert UnifiedAlert, flaky bool) {
 	if incidentID <= 0 {
 		return
@@ -58,10 +58,6 @@ func PostIncidentHooks(incidentID int64, projectName, runID, commitSHA string, a
 			}
 		}
 	}()
-
-	if AIService != nil && !flaky && isFailureStatus(status) {
-		AIService.EnqueueForIncident(incidentID)
-	}
 }
 
 func isFailureStatus(status string) bool {

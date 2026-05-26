@@ -4,7 +4,7 @@ icon: material/book-open-page-variant
 
 # Platform User Guide (Complete)
 
-End-to-end guide for **every major feature** in QA Capsule: Operations dashboard, CI/CD Gateways, Plugin Engine, Visual Workflows, AI RCA, Quarantine, Runbooks, DORA, FinOps, and Help Center.
+End-to-end guide for **every major feature** in QA Capsule: Operations dashboard, CI/CD Gateways, Plugin Engine, Visual Workflows, Self-Healing Hub, Quarantine, Runbooks, DORA, FinOps, and Help Center.
 
 For internal mechanics, see [System Architecture](architecture.md).
 
@@ -16,8 +16,8 @@ For internal mechanics, see [System Architecture](architecture.md).
 |------|------|-------------------|
 | Platform Admin | `admin` | Workspaces, IAM, Settings, Help Center |
 | Manager | `manager` | Operations, Gateways, Plugins, FinOps, DORA, Runbooks |
-| Lead | `lead` | Operations, Gateways, Plugins, Workflow, Quarantine, RCA |
-| Observer | `observer` | Operations (read-only), RCA read, Quarantine read |
+| Lead | `lead` | Operations, Gateways, Plugins, Workflow, Quarantine, Self-Healing Hub |
+| Observer | `observer` | Operations (read-only), Self-Healing read, Quarantine read |
 
 After login, the sidebar shows only views your role may access. Observers cannot resolve, delete, edit gateways, or save workflows.
 
@@ -174,34 +174,29 @@ Full reference: [Visual Workflow Builder](../plugins/visual-workflow.md).
 
 ---
 
-## 6. AI RCA & Insights
+## 6. Self-Healing Hub
 
-**Path:** RCA & AI Insights (Lead+ read; Manager configures AI).
+**Path:** Self-Healing Hub (Observer+ read; Lead+ propose/manage).
 
-### Configure provider (Manager+)
+### What it provides
 
-1. Open AI config panel.
-2. Choose provider: OpenAI, Ollama, or Disabled.
-3. Set model name, base URL (Ollama), API key env var name.
-4. Save — stored in `ai_provider_config`.
+- Framework-agnostic failure categorization (`timeout`, `locator`, `assertion`, `network`, …).
+- Incident context for MCP agents (stack trace, console logs, CI tags).
+- Suggested actions and copy-ready MCP prompts per incident.
 
-### Automatic analysis
+### Typical flow
 
-On each **new failure** (not quarantined-only path), async job:
+1. Open **Self-Healing Hub** and filter by gateway.
+2. Open incident context (`/api/incidents/{id}/healing/context`).
+3. In Cursor MCP, call `propose_healing`, then `submit_healing_patch`.
+4. Open PR via `create_remediation_pr`.
+5. After green rerun, resolve with `resolve_incident` (or auto-resolve on pass ingest).
 
-- Builds prompt from test name, error logs, console.
-- Stores summary in **RCA report** linked to incident.
-- UI shows status: pending, running, completed, skipped, failed.
+### Insights list API
 
-### Manual re-run
+`GET /api/healing/insights` powers the list of open, healable failures across projects you can access.
 
-From incident detail or RCA view — trigger analysis again.
-
-### Insights list
-
-`GET /api/rca/insights` powers the table of recent summaries across projects you can access.
-
-Details: [AI RCA & Quarantine](intelligence-quarantine.md).
+Details: [MCP, self-healing, UI & CLI testing guide](mcp-self-healing-testing.md).
 
 ---
 
@@ -313,7 +308,7 @@ Shows total cost, flaky-attributed waste, export PDF. See Help Center → **FinO
 
 **Path:** Sidebar → Help Center (all roles).
 
-Topics cover overview, roles, plugins, **visual workflows**, RCA/quarantine, runbooks/DORA, operations, architecture summary, FinOps formulas, glossary.
+Topics cover overview, roles, plugins, **visual workflows**, self-healing/quarantine, runbooks/DORA, operations, architecture summary, FinOps formulas, glossary.
 
 Use **?** in the workflow editor for quick remediation help.
 

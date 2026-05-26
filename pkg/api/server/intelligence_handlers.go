@@ -6,133 +6,39 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/QA-Capsule/qa-capsule-community/pkg/ai"
 	"github.com/QA-Capsule/qa-capsule-community/pkg/core"
 
 	"github.com/golang-jwt/jwt/v5"
 )
 
 func registerIntelligenceRoutes(config *core.Config) {
-	http.HandleFunc("/api/rca/insights", jwtAuthMiddleware(config, "", handleRCAInsights))
-	http.HandleFunc("/api/ai/config", jwtAuthMiddleware(config, core.RoleManager, handleAIConfig))
+	http.HandleFunc("/api/healing/insights", jwtAuthMiddleware(config, "", handleHealingInsights))
 	registerQuarantineRoutes(config)
 }
 
-func handleRCAInsights(w http.ResponseWriter, r *http.Request) {
+func handleHealingInsights(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 	claims := parseClaims(r)
-	if !core.CanViewRCA(claims.Role) {
+	if !core.CanViewHealing(claims.Role) {
 		writeJSONError(w, "Access denied", http.StatusForbidden)
 		return
 	}
-	if core.AIService == nil {
-		writeJSONError(w, "AI service not initialized", http.StatusServiceUnavailable)
+	if core.HealingService == nil {
+		writeJSONError(w, "Healing service not initialized", http.StatusServiceUnavailable)
 		return
 	}
 	project := r.URL.Query().Get("project")
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-	rows, err := core.AIService.ListInsights(r.Context(), project, limit)
+	rows, err := core.HealingService.ListInsights(r.Context(), project, limit)
 	if err != nil {
-		writeJSONError(w, "Failed to load insights", http.StatusInternalServerError)
+		writeJSONError(w, "Failed to load healing insights", http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(rows)
-}
-
-func handleIncidentRCA(w http.ResponseWriter, r *http.Request) {
-	path := strings.TrimPrefix(r.URL.Path, "/api/incidents/")
-	if !strings.HasSuffix(path, "/rca") {
-		http.NotFound(w, r)
-		return
-	}
-	idStr := strings.TrimSuffix(path, "/rca")
-	idStr = strings.Trim(idStr, "/")
-	incidentID, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil || incidentID <= 0 {
-		writeJSONError(w, "Invalid incident id", http.StatusBadRequest)
-		return
-	}
-	claims := parseClaims(r)
-	if !core.CanViewRCA(claims.Role) {
-		writeJSONError(w, "Access denied", http.StatusForbidden)
-		return
-	}
-	if core.AIService == nil {
-		writeJSONError(w, "AI service not initialized", http.StatusServiceUnavailable)
-		return
-	}
-	switch r.Method {
-	case http.MethodGet:
-		rep, err := core.AIService.GetReport(r.Context(), incidentID)
-		if err != nil {
-			writeJSONError(w, "Database error", http.StatusInternalServerError)
-			return
-		}
-		if rep == nil {
-			writeJSONError(w, "RCA not available yet", http.StatusNotFound)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(rep)
-	case http.MethodPost:
-		if !core.CanManageQuarantine(claims.Role) {
-			writeJSONError(w, "Lead+ required to trigger RCA", http.StatusForbidden)
-			return
-		}
-		core.AIService.EnqueueForIncident(incidentID)
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "queued"})
-	default:
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-	}
-}
-
-func handleAIConfig(w http.ResponseWriter, r *http.Request) {
-	if core.AIService == nil {
-		writeJSONError(w, "AI service not initialized", http.StatusServiceUnavailable)
-		return
-	}
-	switch r.Method {
-	case http.MethodGet:
-		cfg, err := core.AIService.GetConfig(r.Context())
-		if err != nil {
-			writeJSONError(w, "Failed to load config", http.StatusInternalServerError)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(cfg)
-	case http.MethodPut:
-		claims := parseClaims(r)
-		if !core.CanConfigureAI(claims.Role) {
-			writeJSONError(w, "Manager access required", http.StatusForbidden)
-			return
-		}
-		var cfg ai.ProviderConfig
-		if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {
-			writeJSONError(w, "Invalid JSON", http.StatusBadRequest)
-			return
-		}
-		if cfg.APIKeyEnv == "" {
-			cfg.APIKeyEnv = "OPENAI_API_KEY"
-		}
-		if cfg.MaxTokens == 0 {
-			cfg.MaxTokens = 1024
-		}
-		if cfg.TimeoutSeconds == 0 {
-			cfg.TimeoutSeconds = 45
-		}
-		if err := core.AIService.SaveConfig(r.Context(), cfg); err != nil {
-			writeJSONError(w, "Failed to save config", http.StatusInternalServerError)
-			return
-		}
-		w.WriteHeader(http.StatusOK)
-	default:
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-	}
 }
 
 func handleQuarantineManage(w http.ResponseWriter, r *http.Request) {

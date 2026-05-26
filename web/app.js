@@ -16,7 +16,7 @@ import { applyRoleVisibility, canAccessFinOps, canAccessPlugins, canResolveIncid
 import * as executionHub from './js/execution-hub.js';
 import * as reportViewer from './js/report-viewer.js';
 import * as workflowEditor from './js/workflow-editor.js';
-import * as rca from './js/rca.js';
+import * as healing from './js/healing.js';
 import * as quarantine from './js/quarantine.js';
 import * as runbooks from './js/runbooks.js';
 import * as dora from './js/dora.js';
@@ -52,7 +52,7 @@ for (const [key, value] of Object.entries(analyticsLayout)) {
 for (const [key, value] of Object.entries(workflowEditor)) {
     if (typeof value === 'function') window[key] = value;
 }
-for (const [key, value] of Object.entries(rca)) {
+for (const [key, value] of Object.entries(healing)) {
     if (typeof value === 'function') window[key] = value;
 }
 for (const [key, value] of Object.entries(quarantine)) {
@@ -1401,6 +1401,7 @@ window.submitNewPassword = function () {
 }
 
 window.switchView = function (id, el) {
+    if (id === 'rca') id = 'healing';
     const payload = parseJwt(localStorage.getItem('sre-jwt'));
     if (payload?.role && !canAccessView(payload.role, id)) {
         notify(accessDeniedMessage(id), 'error');
@@ -1447,9 +1448,8 @@ window.switchView = function (id, el) {
     if (id === 'finops' && payload && canAccessFinOps(payload.role)) {
         if (window.loadFinOpsView) window.loadFinOpsView();
     }
-    if (id === 'rca' && payload && canAccessView(payload.role, 'rca')) {
-        if (window.loadRCAView) window.loadRCAView();
-        if (window.loadAIConfigPanel) window.loadAIConfigPanel();
+    if ((id === 'healing' || id === 'rca') && payload && canAccessView(payload.role, 'healing')) {
+        if (window.loadHealingView) window.loadHealingView();
     }
     if (id === 'quarantine' && payload && canAccessView(payload.role, 'quarantine')) {
         if (window.loadQuarantineView) window.loadQuarantineView();

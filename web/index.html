@@ -230,11 +230,11 @@
                 </svg><span class="nav-text">FinOps Intelligence</span>
             </div>
             <div class="nav-section-label role-non-admin" style="margin-top: 10px;">INTELLIGENCE</div>
-            <div class="nav-item role-non-admin" onclick="switchView('rca', this)" data-tooltip="RCA &amp; AI Insights">
+            <div class="nav-item role-non-admin" onclick="switchView('healing', this)" data-tooltip="Self-Healing Hub">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M12 2a7 7 0 0 1 7 7c0 3-2 5-2 5H7s-2-2-2-5a7 7 0 0 1 7-7z"></path>
                     <path d="M9 18h6"></path><path d="M10 22h4"></path>
-                </svg><span class="nav-text">RCA &amp; AI Insights</span>
+                </svg><span class="nav-text">Self-Healing Hub</span>
             </div>
             <div class="nav-item role-non-admin" onclick="switchView('quarantine', this)" data-tooltip="Quality / Quarantine">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -731,82 +731,45 @@
                 </div>
             </section>
 
-            <section id="view-rca" class="view-section intelligence-view">
+            <section id="view-healing" class="view-section intelligence-view">
                 <div class="header-bar">
                     <div>
-                        <h1 class="intelligence-view__title">RCA &amp; AI Insights</h1>
-                        <p class="intelligence-view__subtitle">LLM-generated root cause summaries for test failures.</p>
+                        <h1 class="intelligence-view__title">Self-Healing Hub</h1>
+                        <p class="intelligence-view__subtitle">Framework-agnostic failure context for MCP agents (Robot, Playwright, Newman, Selenium, …).</p>
                     </div>
                 </div>
                 <div class="kpi-grid intelligence-kpi-grid">
                     <div class="kpi-card">
-                        <div>Insights</div>
-                        <div class="kpi-value" id="rca-stat-total">—</div>
+                        <div>Open failures</div>
+                        <div class="kpi-value" id="healing-stat-total">—</div>
                     </div>
                     <div class="kpi-card">
-                        <div>Completed</div>
-                        <div class="kpi-value" id="rca-stat-completed">—</div>
+                        <div>Categorized</div>
+                        <div class="kpi-value" id="healing-stat-categorized">—</div>
                     </div>
                     <div class="kpi-card">
-                        <div>In progress</div>
-                        <div class="kpi-value" id="rca-stat-pending">—</div>
+                        <div>MCP-ready</div>
+                        <div class="kpi-value" id="healing-stat-mcp-ready">—</div>
                     </div>
                 </div>
-                <div id="rca-ai-config-panel" class="data-card ai-config-panel" style="display:none;">
-                    <h3 class="form-section-title" style="border-top:none;padding-top:0;margin:0 0 16px;">
-                        <span id="rca-ai-heading-icon" aria-hidden="true" style="display:inline-flex;vertical-align:middle;margin-right:8px;"></span>
-                        AI Provider (Manager)
-                    </h3>
-                    <div class="form-field">
-                        <span class="form-field-label">Provider</span>
-                        <div id="rca-ai-provider-picker" class="ai-provider-picker" role="radiogroup" aria-label="AI provider"></div>
-                            <select id="rca-ai-provider" class="sr-only" aria-hidden="true" tabindex="-1">
-                                <option value="disabled">disabled</option>
-                                <option value="openai">openai</option>
-                                <option value="anthropic">anthropic</option>
-                                <option value="gemini">gemini</option>
-                                <option value="mistral">mistral</option>
-                                <option value="groq">groq</option>
-                                <option value="openrouter">openrouter</option>
-                                <option value="azure">azure</option>
-                                <option value="ollama">ollama</option>
-                            </select>
-                    </div>
-                    <div class="ai-config-grid form-panel">
-                        <div class="form-field">
-                            <label for="rca-ai-model">Model</label>
-                            <div class="ai-model-input-wrap">
-                                <span class="ai-model-input-wrap__logo" id="rca-ai-provider-logo" aria-hidden="true"></span>
-                                <input id="rca-ai-model" class="login-input" placeholder="gpt-4o-mini">
-                            </div>
-                        </div>
-                        <div class="form-field">
-                            <label for="rca-ai-base-url">Base URL</label>
-                            <input id="rca-ai-base-url" class="login-input" placeholder="https://api.openai.com/v1">
-                        </div>
-                        <div class="form-field">
-                            <label for="rca-ai-key-env">API key env</label>
-                            <input id="rca-ai-key-env" class="login-input" value="OPENAI_API_KEY">
-                        </div>
-                    </div>
-                    <div class="ai-config-footer">
-                        <label class="pref-toggle-card ai-config-enable" for="rca-ai-enabled">
-                            <input type="checkbox" id="rca-ai-enabled">
-                            <span class="pref-toggle-text"><strong>Enable AI RCA on new failures</strong></span>
-                        </label>
-                        <button type="button" id="rca-save-ai-config" class="btn-primary ai-config-save">Save AI config</button>
-                    </div>
+                <div class="data-card">
+                    <h3 class="form-section-title" style="border-top:none;padding-top:0;margin:0 0 12px;">MCP integration</h3>
+                    <p style="margin:0 0 12px;font-size:13px;opacity:0.85;line-height:1.5;">
+                        Connect Cursor to <code>POST /mcp</code> with tool <code>get_incident_context</code>.
+                        Use the prompts below to self-heal failed tests in your repo — no framework lock-in.
+                    </p>
+                    <button type="button" id="healing-copy-mcp-url" class="btn-secondary btn-sm">Copy MCP setup</button>
                 </div>
                 <div class="data-card">
                     <div class="intelligence-filter-row">
                         <div class="form-field" style="margin:0;flex:1;min-width:200px;">
-                            <label for="rca-project-filter">Gateway filter</label>
-                            <select id="rca-project-filter" class="login-input" style="max-width:none;width:100%;"></select>
+                            <label for="healing-project-filter">Gateway filter</label>
+                            <select id="healing-project-filter" class="login-input" style="max-width:none;width:100%;"></select>
                         </div>
-                        <button type="button" class="btn-secondary btn-sm" onclick="window.loadRCAInsights && window.loadRCAInsights()">Refresh</button>
+                        <button type="button" class="btn-secondary btn-sm" onclick="window.loadHealingInsights && window.loadHealingInsights()">Refresh</button>
                     </div>
-                    <div id="rca-insights-body" class="modern-data-grid rca-insights-list" role="list">
-                        <p class="modern-data-grid__empty">Open this view to load AI insights.</p>
+                    <div id="healing-insights-body" class="modern-data-grid rca-insights-list" role="list">
+                        <p class="modern-data-grid__empty">Open this view to load healable failures.</p>
                     </div>
                 </div>
             </section>
@@ -1153,7 +1116,7 @@
                                         <option value="finops">FinOps Intelligence</option>
                                         <option value="dora">DORA Metrics</option>
                                         <option value="plugins">Plugin Engine</option>
-                                        <option value="rca">AI RCA</option>
+                                        <option value="healing">Self-Healing Hub</option>
                                         <option value="quarantine">Quarantine</option>
                                         <option value="runbooks">Runbooks</option>
                                         <option value="about">Help Center</option>

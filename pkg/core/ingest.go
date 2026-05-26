@@ -53,6 +53,7 @@ func ProcessAlert(cfg Config, projectName, runID string, alert UnifiedAlert, rou
 	perf := false
 
 	if isPassStatus(alert.Status) {
+		autoResolveIncidentsByIdentity(projectName, alert.Name, runID, alert.Status)
 		if alert.ExecutionTimeMs > 0 && IsPerformanceDegraded(projectName, fp, alert.ExecutionTimeMs) {
 			perf = true
 			finalName = "[PERF] " + alert.Name
@@ -124,6 +125,45 @@ func ProcessAlert(cfg Config, projectName, runID string, alert UnifiedAlert, rou
 		PerfAlert:   perf,
 		Fingerprint: fp,
 		FinalName:   finalName,
+	}
+}
+
+// autoResolveIncidentsByIdentity closes open incidents for the same logical test once a pass is ingested.
+func autoResolveIncidentsByIdentity(projectName, testName, runID, status string) {
+	if DB == nil || projectName == "" || strings.TrimSpace(testName) == "" || !isPassStatus(status) {
+		return
+	}
+	norm := quarantine.NormalizeTestName(testName)
+	if norm == "" {
+		return
+	}
+	rows, err := DB.Query(`
+		SELECT id, name FROM incidents
+		WHERE project_name = ?
+		  AND is_resolved = 0
+		  AND UPPER(COALESCE(status, '')) NOT IN ('PASSED', 'PASS', 'RESOLVED')
+		ORDER BY created_at DESC
+		LIMIT 500`, projectName)
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		var name string
+		if rows.Scan(&id, &name) != nil {
+			continue
+		}
+		if quarantine.NormalizeTestName(name) == norm {
+			ids = append(ids, id)
+		}
+	}
+	for _, id := range ids {
+		_, _ = DB.Exec(
+			"UPDATE incidents SET is_resolved = 1, status = 'resolved', resolved_by = ?, resolved_at = CURRENT_TIMESTAMP WHERE id = ?",
+			"auto_rerun_pass", id,
+		)
 	}
 }
 

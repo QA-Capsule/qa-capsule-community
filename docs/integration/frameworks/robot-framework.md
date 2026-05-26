@@ -7,7 +7,7 @@ icon: material/robot
 | | |
 |---|---|
 | **Upload param** | `?framework=RobotFramework` |
-| **Report** | `tests/results/robot-junit.xml` |
+| **Canonical upload report** | `tests/results/robot-junit.xml` |
 | **Repo workflow** | `.github/workflows/e2e-tests-robot.yml` |
 | **Runner script** | `scripts/run-tests.sh` |
 
@@ -40,6 +40,9 @@ export QA_CAPSULE_API_KEY=your-project-key
 
 !!! warning "`--xunit` path"
     Use **basename only** (`robot-junit.xml`), not `tests/results/robot-junit.xml` — rebot resolves paths relative to `--outputdir`.
+
+!!! note "Canonical file only (no fallback discovery)"
+    CI upload must target only `tests/results/robot-junit.xml`. Do not fallback to `find ... robot-junit.xml` paths, because stale or duplicated files can introduce repeated testcases.
 
 ## 3. Upload
 

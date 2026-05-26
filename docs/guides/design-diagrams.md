@@ -28,14 +28,13 @@ flowchart TB
         SLACK[Slack / Teams]
         JIRA[Jira]
         PD[PagerDuty / Opsgenie]
-        LLM[OpenAI / Ollama]
         PROM[Prometheus Alertmanager]
     end
 
     SRE -->|HTTPS JWT| QC
     MGR -->|HTTPS JWT| QC
     CI -->|HTTPS X-API-Key| QC
-    QC --> SLACK & JIRA & PD & LLM
+    QC --> SLACK & JIRA & PD
     PROM -->|webhook| QC
 ```
 
@@ -54,7 +53,7 @@ flowchart TB
         API[HTTP API<br/>pkg/api/server]
         CORE[Domain core<br/>pkg/core]
         INT[Integration engine<br/>pkg/integrations]
-        AI[AI RCA<br/>pkg/ai]
+        HEAL[Self-Healing<br/>pkg/healing]
         QN[Quarantine<br/>pkg/quarantine]
     end
 
@@ -67,7 +66,7 @@ flowchart TB
     WEB -->|fetch JWT| API
     API --> CORE
     CORE --> DB
-    CORE --> INT & AI & QN
+    CORE --> INT & HEAL & QN
     INT --> FS
     API --> FS
 ```
@@ -113,7 +112,7 @@ flowchart TB
     end
 
     subgraph super [Super-App]
-        AI_PKG[pkg/ai]
+        HEAL_PKG[pkg/healing]
         Q_PKG[pkg/quarantine]
     end
 
@@ -123,7 +122,7 @@ flowchart TB
     ING --> REM & SA
     REM --> ENG & WFE
     WF --> WFE
-    SA --> AI_PKG & Q_PKG
+    SA --> HEAL_PKG & Q_PKG
     ENG --> REG
     WFE --> ENG
 ```
@@ -236,7 +235,7 @@ sequenceDiagram
     participant Q as Quarantine gate
     participant REM as EvaluateAlertRules
     participant HOOK as PostIncidentHooks
-    participant AI as AIService
+    participant HEAL as HealingService
     participant QE as QuarantineEngine
 
     CI->>WH: POST /api/webhooks/ + X-API-Key
@@ -254,7 +253,7 @@ sequenceDiagram
             PA->>DB: INSERT incidents
             PA->>REM: async remediation
             PA->>HOOK: async
-            HOOK->>AI: EnqueueForIncident
+            Note over HOOK: no auto-RCA enqueue
             HOOK->>QE: RecordTransition
         end
     end
@@ -372,26 +371,28 @@ stateDiagram-v2
 
 ---
 
-## 11. Sequence — AI RCA (async)
+## 11. Sequence — Self-healing MCP flow
 
 ```mermaid
 sequenceDiagram
-    participant HOOK as PostIncidentHooks
-    participant AI as AIService
-    participant REPO as ai repository
-    participant LLM as OpenAI/Ollama
+    participant AG as MCP Agent
+    participant API as /mcp
+    participant HEAL as HealingService
+    participant DB as SQLite
+    participant GH as GitHub API
 
-    HOOK->>AI: EnqueueForIncident(id)
-    AI->>AI: goroutine + 2min timeout
-    AI->>REPO: LoadConfig
-    alt AI disabled
-        REPO->>REPO: CreateJob then JobSkipped
-    else Enabled
-        AI->>REPO: CreateJob + JobRunning
-        AI->>LLM: Analyze(logs)
-        LLM-->>AI: summary
-        AI->>REPO: SaveReport + JobCompleted
-    end
+    AG->>API: tools/call list_failed_incidents
+    API->>HEAL: ListInsights
+    HEAL->>DB: SELECT open incidents
+    AG->>API: tools/call propose_healing
+    API->>HEAL: BuildContext + ProposeFix
+    AG->>API: tools/call submit_healing_patch
+    API->>DB: INSERT healing_patch_submissions
+    AG->>API: tools/call create_remediation_pr
+    API->>GH: CreateRemediationPR
+    API->>DB: UPDATE healing_patch_submissions (pr_created)
+    AG->>API: tools/call resolve_incident
+    API->>DB: UPDATE incidents SET resolved
 ```
 
 ---
@@ -608,7 +609,7 @@ sequenceDiagram
 | 7 | Remediation selection | Workflow vs legacy |
 | 8 | Workflow walk | DAG behavior |
 | 9–10 | State machines | Gateway + incident |
-| 11–12 | RCA / Quarantine | Super-App hooks |
+| 11–12 | Healing MCP / Quarantine | Super-App hooks |
 | 13 | RBAC | Access design |
 | 14 | Frontend modules | UI changes |
 | 15 | Plugins | Integration authors |

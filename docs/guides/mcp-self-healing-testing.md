@@ -14,7 +14,7 @@ End-to-end validation of **Self-Healing**, **MCP**, the **web UI**, **REST API**
 |---|---|---|---|---|
 | Ingest failures | Refresh after webhook | Webhook | — | Agent / curl |
 | Dashboard / KPIs | Yes | `GET /api/metrics` | — | — |
-| RCA summaries | RCA view | `POST .../rca` | Context in `get_incident_context` | — |
+| Self-healing insights | Self-Healing Hub | `GET /api/healing/insights` | `list_failed_incidents` + `get_incident_context` | — |
 | Flaky / quarantine | Quarantine page | Quarantine API | `get_flaky_tests` | `qacapsule run` warning |
 | Self-healing patch | Not yet (button) | `POST .../healing/propose` | — | — |
 | Health | — | `GET /healthz` | — | curl |
@@ -63,11 +63,11 @@ Invoke-RestMethod -Uri "http://localhost:9000/api/webhooks/demo-ci" -Method POST
 
 Expect `{"status":"queued"}`. Wait 2–3 seconds, refresh the **Dashboard**.
 
-### RCA
+### Self-Healing Hub
 
-1. Open incident detail or **RCA & AI Insights**.
-2. Configure AI provider (Manager): **Settings** → AI provider (OpenAI/Ollama/disabled).
-3. Trigger analysis manually or wait for auto-RCA if enabled in preferences.
+1. Open **Self-Healing Hub**.
+2. Verify open failures are categorized (`timeout`, `locator`, `assertion`, ...).
+3. Use **Copy MCP setup** and **Copy MCP prompt** from an incident card.
 
 ### Flaky detection
 
@@ -116,7 +116,7 @@ Authorization: Bearer <jwt>
 Content-Type: application/json
 ```
 
-Requires Lead+ and configured AI provider. Response includes proposed patch metadata (no PR button in UI yet).
+Requires Lead+. Response includes framework-agnostic guidance (`error_category`, `suggested_actions`, `mcp_prompt`).
 
 ```http
 POST /api/incidents/{id}/healing/pr
@@ -130,12 +130,30 @@ GitHub PR creation (when integration configured).
 
 1. Add server URL `http://localhost:9000/mcp`.
 2. If `QACAPSULE_MCP_TOKEN` is set, add header `Authorization: Bearer <token>`.
-3. Verify tools: `get_incident_context`, `get_flaky_tests`.
+3. Verify tools:
+   - `list_failed_incidents`
+   - `get_incident_context`
+   - `propose_healing`
+   - `submit_healing_patch`
+   - `create_remediation_pr`
+   - `resolve_incident`
+   - `get_flaky_tests`
+
+### MCP tool quick contract
+
+- `list_failed_incidents` → optional `{ project, limit }`
+- `get_incident_context` → `{ incident_id }`
+- `propose_healing` → `{ incident_id, file_content? }`
+- `submit_healing_patch` → `{ incident_id, repo, file_path, code, explanation?, agent_source? }` (persists audit record)
+- `create_remediation_pr` → `{ repo, file_path, code, incident_id? }`
+- `resolve_incident` → `{ incident_id, resolved_by? }`
 
 Example prompt in Cursor:
 
-> Use get_incident_context for incident 1 and explain the failure without assuming the language.  
-> List flaky tests for project demo-ci via get_flaky_tests.
+> List failed incidents for project demo-ci via list_failed_incidents.  
+> Use get_incident_context for incident 1 and propose a minimal cross-framework fix via propose_healing.  
+> Submit patch metadata with submit_healing_patch, then open a PR with create_remediation_pr.  
+> After green rerun, mark incident resolved with resolve_incident.
 
 ---
 
@@ -156,7 +174,7 @@ curl -s http://localhost:9000/metrics
 | 1 | Login + password change | Yes | — |
 | 2 | Create gateway | Yes | — |
 | 3 | Webhook → incident | Refresh | curl / agent |
-| 4 | RCA job | Yes | POST rca |
+| 4 | Self-healing context | Yes | GET/POST healing endpoints |
 | 5 | Flaky tag | Yes | Same webhook twice |
 | 6 | CLI flaky warn | — | `qacapsule run` |
 | 7 | MCP tools | — | Cursor |

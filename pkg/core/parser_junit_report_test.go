@@ -38,3 +38,24 @@ func TestParseJUnitXML_backwardCompatible(t *testing.T) {
 		t.Fatalf("alerts = %d", len(alerts))
 	}
 }
+
+func TestParseJUnitReport_deduplicatesDuplicatedTestcases(t *testing.T) {
+	dup := `<?xml version="1.0" encoding="UTF-8"?>
+<testsuites tests="2" failures="2" skipped="0">
+  <testsuite name="SuiteA">
+    <testcase classname="A" name="same_test" time="0.2">
+      <failure message="same failure">stack 1</failure>
+    </testcase>
+    <testcase classname="A" name="same_test" time="0.2">
+      <failure message="same failure">stack 1</failure>
+    </testcase>
+  </testsuite>
+</testsuites>`
+	res := ParseJUnitReport([]byte(dup), "RobotFramework")
+	if len(res.Report.Tests) != 1 {
+		t.Fatalf("expected 1 deduplicated testcase, got %d", len(res.Report.Tests))
+	}
+	if len(res.Failures) != 1 {
+		t.Fatalf("expected 1 deduplicated failure alert, got %d", len(res.Failures))
+	}
+}

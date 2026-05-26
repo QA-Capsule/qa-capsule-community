@@ -377,6 +377,22 @@ func runSchemaMigrations() {
 			FOREIGN KEY(signal_id) REFERENCES external_signals(id) ON DELETE CASCADE,
 			FOREIGN KEY(incident_id) REFERENCES incidents(id) ON DELETE CASCADE
 		)`,
+		`CREATE TABLE IF NOT EXISTS healing_patch_submissions (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			incident_id INTEGER NOT NULL,
+			repo TEXT NOT NULL,
+			file_path TEXT NOT NULL,
+			code_sha256 TEXT NOT NULL,
+			code_size INTEGER NOT NULL DEFAULT 0,
+			explanation TEXT DEFAULT '',
+			agent_source TEXT DEFAULT 'mcp_agent',
+			status TEXT NOT NULL DEFAULT 'accepted',
+			pr_url TEXT DEFAULT '',
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY(incident_id) REFERENCES incidents(id) ON DELETE CASCADE
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_healing_patch_incident ON healing_patch_submissions(incident_id, created_at DESC)`,
 		`CREATE TABLE IF NOT EXISTS user_team_inheritance_optouts (
 			user_id INTEGER NOT NULL,
 			team_id INTEGER NOT NULL,

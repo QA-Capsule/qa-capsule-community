@@ -71,6 +71,9 @@ for suite in "${ROBOT_SUITE_FILES[@]}"; do
   echo "    - ${suite}"
 done
 
+# Clean stale files that may confuse downstream upload steps.
+rm -f "${OUTPUT_DIR}/tests/results/robot-junit.xml" 2>/dev/null || true
+
 # --- Execute Robot Framework (per suite; respects quarantine deny-list) ---
 PARTIAL_OUTPUTS=()
 ROBOT_EXIT=0
@@ -120,6 +123,7 @@ fi
 
 if [[ -f "${ROBOT_OUTPUT}" ]]; then
   echo "==> Converting Robot output to JUnit XML: ${JUNIT_FILE}"
+  rm -f "${JUNIT_FILE}" 2>/dev/null || true
   set +e
   rebot \
     --xunit "${JUNIT_BASENAME}" \

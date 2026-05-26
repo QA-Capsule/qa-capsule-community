@@ -253,6 +253,8 @@ func ParseJUnitReport(data []byte, framework string) JUnitParseResult {
 		ParsedAt:      time.Now().UTC(),
 	}
 	var failures []UnifiedAlert
+	seenCases := map[string]struct{}{}
+	seenFailures := map[string]struct{}{}
 
 	for _, suite := range flatSuites {
 		suiteName := strings.TrimSpace(suite.Name)
@@ -266,6 +268,11 @@ func ParseJUnitReport(data []byte, framework string) JUnitParseResult {
 			}
 			fullName := fmt.Sprintf("[%s] %s", framework, alertName)
 			durationMs := int64(tc.Time * 1000)
+			caseKey := strings.TrimSpace(fullName) + "|" + strings.TrimSpace(failureMessageKey(tc))
+			if _, exists := seenCases[caseKey]; exists {
+				continue
+			}
+			seenCases[caseKey] = struct{}{}
 
 			var failureNode *JUnitFailure
 			if tc.Failure != nil {
@@ -309,7 +316,7 @@ func ParseJUnitReport(data []byte, framework string) JUnitParseResult {
 				tcResult.ErrorLogs = stderrBuilder.String()
 				tcResult.Fingerprint = IncidentFingerprint(fullName, failureNode.Message)
 
-				failures = append(failures, UnifiedAlert{
+				alert := UnifiedAlert{
 					Name:            fullName,
 					Error:           failureNode.Message,
 					Browser:         "CI/Artifact",
@@ -317,7 +324,12 @@ func ParseJUnitReport(data []byte, framework string) JUnitParseResult {
 					ErrorLogs:       tcResult.ErrorLogs,
 					Status:          "CRITICAL",
 					ExecutionTimeMs: durationMs,
-				})
+				}
+				failKey := strings.TrimSpace(alert.Name) + "|" + strings.TrimSpace(alert.Error)
+				if _, exists := seenFailures[failKey]; !exists {
+					seenFailures[failKey] = struct{}{}
+					failures = append(failures, alert)
+				}
 			} else if tcResult.Status == "pass" || tcResult.Status == "skip" {
 				tcResult.Fingerprint = IncidentFingerprint(fullName, "")
 				var stdoutBuilder strings.Builder
@@ -364,4 +376,14 @@ func ParseJUnitReport(data []byte, framework string) JUnitParseResult {
 	}
 
 	return JUnitParseResult{Failures: failures, Report: report}
+}
+
+func failureMessageKey(tc JUnitTestCase) string {
+	if tc.Failure != nil {
+		return tc.Failure.Message + "|" + tc.Failure.Contents
+	}
+	if tc.Error != nil {
+		return tc.Error.Message + "|" + tc.Error.Contents
+	}
+	return ""
 }

@@ -3,8 +3,8 @@ package core
 import "testing"
 
 func TestRBAC_Intelligence(t *testing.T) {
-	if !CanViewRCA(RoleObserver) {
-		t.Fatal("observer should view RCA")
+	if !CanViewHealing(RoleObserver) {
+		t.Fatal("observer should view healing")
 	}
 	if CanManageQuarantine(RoleObserver) {
 		t.Fatal("observer cannot manage quarantine")
@@ -12,10 +12,10 @@ func TestRBAC_Intelligence(t *testing.T) {
 	if !CanManageQuarantine(RoleLead) {
 		t.Fatal("lead should manage quarantine")
 	}
-	if !CanConfigureAI(RoleManager) {
-		t.Fatal("manager configures AI")
+	if !CanManageHealing(RoleLead) {
+		t.Fatal("lead should manage healing")
 	}
-	if CanConfigureAI(RoleLead) {
-		t.Fatal("lead should not configure AI provider")
+	if CanManageHealing(RoleObserver) {
+		t.Fatal("observer should not manage healing")
 	}
 }

@@ -2,7 +2,7 @@
 icon: material/brain
 ---
 
-# AI RCA & Quarantine (Detailed)
+# Self-Healing & Quarantine (Detailed)
 
 ```mermaid
 flowchart TB
@@ -11,7 +11,7 @@ flowchart TB
     QG -->|no| INS[INSERT incident]
     INS --> REM[Remediation async]
     INS --> HOOK[PostIncidentHooks]
-    HOOK --> RCA[AI EnqueueForIncident]
+    HOOK --> HEAL[Healing context available]
     HOOK --> QSTAT[Quarantine RecordTransition]
 ```
 
@@ -19,60 +19,47 @@ More diagrams: [Design Schemas & Diagrams](design-diagrams.md) §11–12.
 
 ---
 
-## AI Root Cause Analysis
+## Self-Healing context
 
 ### Purpose
 
-Turn raw failure logs into a **short human summary** (probable cause, impact, suggested next steps) without blocking CI ingest.
+Turn raw failure telemetry into **actionable, framework-agnostic healing guidance** for MCP agents and engineers.
 
-### Configuration (Manager+)
-
-| Field | Description |
-|-------|-------------|
-| Provider | `openai`, `anthropic`, `gemini`, `mistral`, `groq`, `openrouter`, `azure`, `ollama`, or `disabled` |
-| Model | e.g. `gpt-4o-mini`, `llama3.2` |
-| Base URL | Ollama default `http://localhost:11434` |
-| API key env | Name of env var on server (e.g. `OPENAI_API_KEY`) |
-| Enabled | Master switch |
-
-Stored in table `ai_provider_config` (single row).
+No provider configuration is required in community flow for phase 1/2. Guidance is derived from incident telemetry and heuristics.
 
 ### Runtime flow
 
 ```mermaid
 sequenceDiagram
-    participant ING as Ingest
-    participant HOOK as PostIncidentHooks
-    participant AI as AIService
-    participant LLM as OpenAI/Ollama
+    participant USER as Engineer / MCP agent
+    participant API as QA Capsule API
+    participant H as HealingService
+    participant DB as SQLite
 
-    ING->>HOOK: incident_id (async)
-    HOOK->>AI: EnqueueForIncident
-    AI->>AI: CreateJob + status running
-    AI->>LLM: Analyze(prompt + logs)
-    LLM-->>AI: summary JSON/text
-    AI->>AI: SaveReport + completed
+    USER->>API: GET /api/healing/insights
+    API->>H: ListInsights
+    H->>DB: SELECT unresolved failures
+    USER->>API: GET /api/incidents/{id}/healing/context
+    API->>H: BuildContext
+    USER->>API: POST /api/incidents/{id}/healing/propose
+    API->>H: ProposeFix (heuristic hints)
 ```
 
-- **Skipped** when AI disabled, non-failure status, or job policy says so.
-- **Failed** jobs may still store a stub summary explaining the provider error.
-- Flaky-only paths may skip enqueue to reduce noise (see `superapp.go`).
+### UI usage (Observer+)
 
-### UI usage (Lead+)
-
-1. Open **RCA & AI Insights**.
-2. Browse recent reports (project filter).
-3. Open incident → view full RCA text.
-4. **Re-run analysis** if logs were updated.
+1. Open **Self-Healing Hub**.
+2. Browse open failures by project.
+3. Open incident context and copy MCP prompt.
+4. Propose patch and create PR from MCP workflow.
 
 ### API
 
 | Method | Path | RBAC |
 |--------|------|------|
-| GET | `/api/rca/insights?project=` | Lead, Manager, Observer |
-| GET | `/api/incidents/{id}/rca` | Team access to incident |
-| POST | `/api/incidents/{id}/rca` | Lead+ (re-trigger) |
-| GET/PUT | `/api/ai/config` | GET Lead+; PUT Manager+ |
+| GET | `/api/healing/insights?project=` | Lead, Manager, Observer |
+| GET | `/api/incidents/{id}/healing/context` | Team access to incident |
+| POST | `/api/incidents/{id}/healing/propose` | Lead+ |
+| POST | `/api/incidents/{id}/healing/pr` | Lead+ |
 
 ---
 

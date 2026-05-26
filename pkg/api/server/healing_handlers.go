@@ -14,11 +14,29 @@ func handleIncidentHealingAction(w http.ResponseWriter, r *http.Request, idStr, 
 		writeJSONError(w, "Invalid incident id", http.StatusBadRequest)
 		return
 	}
-	if core.AIService == nil {
-		writeJSONError(w, "AI service not initialized", http.StatusServiceUnavailable)
+	if core.HealingService == nil {
+		writeJSONError(w, "Healing service not initialized", http.StatusServiceUnavailable)
 		return
 	}
+
 	switch action {
+	case "context":
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		claims := parseClaims(r)
+		if !core.CanViewHealing(claims.Role) {
+			writeJSONError(w, "Access denied", http.StatusForbidden)
+			return
+		}
+		ctx, err := core.HealingService.BuildContext(id)
+		if err != nil {
+			writeJSONError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(ctx)
 	case "propose":
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -28,13 +46,13 @@ func handleIncidentHealingAction(w http.ResponseWriter, r *http.Request, idStr, 
 			FileContent string `json:"file_content"`
 		}
 		_ = json.NewDecoder(r.Body).Decode(&req)
-		code, explanation, err := core.AIService.ProposeFixFromIncidentID(r.Context(), id, req.FileContent)
+		prop, err := core.HealingService.ProposeFix(id, req.FileContent)
 		if err != nil {
 			writeJSONError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"code": code, "explanation": explanation})
+		json.NewEncoder(w).Encode(prop)
 	case "pr":
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)

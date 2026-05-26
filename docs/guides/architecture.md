@@ -38,7 +38,7 @@ flowchart TB
         API[pkg/api/server HTTP routes]
         CORE[pkg/core business logic]
         INT[pkg/integrations engine]
-        AI[pkg/ai RCA]
+        HEAL[pkg/healing self-healing]
         Q[pkg/quarantine]
     end
 
@@ -55,7 +55,7 @@ flowchart TB
     API --> CORE
     CORE --> DB
     CORE --> INT
-    CORE --> AI
+    CORE --> HEAL
     CORE --> Q
     INT --> PLG
     API --> ART
@@ -67,12 +67,12 @@ flowchart TB
 
 | Path | Responsibility |
 |------|----------------|
-| `cmd/qacapsule/` | Main server entry: load config, init DB, init remediation registry, init Super-App (AI + quarantine), start HTTP server. |
+| `cmd/qacapsule/` | Main server entry: load config, init DB, init remediation registry, init Super-App (healing + quarantine), start HTTP server. |
 | `cmd/cli/` | Developer CLI (`qacapsule run`, flaky checks). |
 | `pkg/api/server/` | Route registration, JWT middleware, handlers (webhooks, incidents, workflow, intelligence, DORA, runbooks, plugins). |
 | `pkg/core/` | Domain logic: ingest, incidents, projects, routing, workflow persistence, DORA, pipeline runs, RBAC, migrations. |
 | `pkg/integrations/` | Plugin registry, linear `Engine`, `WorkflowEngine` DAG walker, runbook templates, condition evaluation. |
-| `pkg/ai/` | LLM providers (OpenAI, Ollama), async RCA jobs, report storage. |
+| `pkg/healing/` | Framework-agnostic self-healing context, hints, patch audit trail. |
 | `pkg/quarantine/` | Test stability stats, deny-list entries, CI export API. |
 | `pkg/storage/` | Artifact file storage abstraction. |
 | `web/` | Static SPA: `app.js` module loader, views per feature, Drawflow workflow editor. |
@@ -86,7 +86,7 @@ flowchart TB
 1. **`core.LoadConfig()`** — reads `config.yaml` (port, SMTP, security, plugins directory).
 2. **`core.InitRemediationEngine(pluginsDir)`** — scans `plugins/`, builds `integrations.Registry`, wraps `integrations.Engine`.
 3. **`core.InitDB("data/qacapsule.db")`** — opens SQLite, runs `runSchemaMigrations()` (idempotent `ALTER` / `CREATE IF NOT EXISTS`).
-4. **`core.InitSuperApp()`** — wires `quarantine.Engine` + `ai.Service` with SQLite repositories.
+4. **`core.InitSuperApp()`** — wires `quarantine.Engine` + `healing.Service` with SQLite repositories.
 5. **`server.Start(config)`** — registers all HTTP routes, `InitJWT`, serves `./web` as static files.
 
 If any step fails at startup (e.g. plugins directory missing), the process exits before listening.
@@ -128,9 +128,7 @@ If any step fails at startup (e.g. plugins directory missing), the process exits
 
 | Table | Purpose |
 |-------|---------|
-| `ai_provider_config` | LLM provider, model, enabled flag. |
-| `ai_analysis_jobs` | Per-incident async job status. |
-| `incident_rca_reports` | Stored RCA summary text. |
+| `healing_patch_submissions` | MCP patch submissions audit trail (hash, size, repo, file, PR URL). |
 | `test_quarantine_entries` | Active deny-list per test identity fingerprint. |
 | `test_stability_stats` | Pass/fail/flaky counters per test. |
 | `test_state_transitions` | Audit trail of status changes. |
@@ -239,15 +237,14 @@ Tags `[FLAKY]` and `[PERF]` are also derived in `DeriveTags(name)` for workflow 
 
 ---
 
-## AI RCA (async)
+## Self-healing context (sync on demand)
 
-After insert (non-quarantined, non-flaky-only path for enqueue):
+After ingest, QA Capsule stores normalized failure telemetry. Self-healing is produced on demand:
 
-1. `AIService.EnqueueForIncident` spawns goroutine with 2 min timeout.
-2. If AI disabled → job marked skipped after `CreateJob`.
-3. On failure status → LLM prompt with logs → `incident_rca_reports` + job status.
-
-Does **not** block webhook response.
+1. `GET /api/healing/insights` lists open failures.
+2. `GET /api/incidents/{id}/healing/context` returns framework-agnostic context.
+3. `POST /api/incidents/{id}/healing/propose` returns actionable hints + MCP prompt.
+4. MCP tools can persist patch submissions and create remediation PRs.
 
 ---
 
@@ -291,7 +288,7 @@ Templates in `pkg/integrations/runbooks.go` are validated workflow documents (re
 | `web/js/roles.js` | RBAC helpers + `applyRoleVisibility`. |
 | `web/js/settings.js` | CI/CD Gateways table, SRE routing matrix, workflow button. |
 | `web/js/workflow-editor.js` | Drawflow canvas ↔ canonical DAG JSON. |
-| `web/js/rca.js` | RCA insights view + AI config panel. |
+| `web/js/healing.js` | Self-Healing Hub view + MCP helper actions. |
 | `web/js/quarantine.js` | Deny-list management. |
 | `web/js/runbooks.js` | Template apply UI. |
 | `web/js/dora.js` | Manager DORA charts. |
@@ -320,7 +317,7 @@ No React/Vue — ES modules loaded once from `index.html`.
 | `projects.sre_routing_json` | Per-gateway plugin allow-list + routing values (`SLACK_CHANNEL`, …). |
 | `projects.sre_workflow_json` | Visual DAG + Drawflow UI snapshot. |
 | `plugins/*.json` | Integration metadata, `auto_run`, `trigger_on`, env var names. |
-| `ai_provider_config` | LLM provider (UI: RCA & AI Insights). |
+| `healing_patch_submissions` | Patch audit storage for MCP self-healing workflow. |
 
 ---
 

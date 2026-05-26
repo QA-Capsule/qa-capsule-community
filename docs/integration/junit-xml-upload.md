@@ -52,6 +52,8 @@ For each `<testcase>` that contains a `<failure>` or `<error>` child, QA Capsule
 
 The full report stores **all** test cases (pass, fail, skip) for the unified matrix view. Failed `<testcase>` nodes also create **incidents** (unless quarantined or deduplicated by fingerprint).
 
+QA Capsule also deduplicates identical JUnit testcase entries (same normalized testcase identity + same failure payload) to protect against duplicated exporter output across frameworks.
+
 !!! note "Robot Framework nested suites"
     rebot xUnit may nest `<testsuite>` elements. QA Capsule flattens nested suites when building the execution report. Use `rebot --xunit robot-junit.xml --outputdir tests/results` (basename only for `--xunit`).
 
@@ -181,6 +183,6 @@ After parsing, each failure goes through correlation:
 
 1. **Always use `if: always()`** so the upload runs when tests fail.
 2. **Use `-f` on curl** so CI fails visibly if QA Capsule is unreachable.
-3. **One XML file per job** — merge reports if you have sharded test runs.
+3. **One canonical XML file per job** — merge reports first, then upload only that file.
 4. **Keep XML on disk** as a CI artifact for debugging alongside QA Capsule incidents.
 5. **Match `framework` query param** to your actual test runner for easier filtering in logs.

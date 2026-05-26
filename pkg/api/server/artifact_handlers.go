@@ -44,13 +44,13 @@ func registerArtifactRoutes(config *core.Config) {
 			handleCheckFlaky(w, r, parts[1])
 			return
 		}
-		if len(parts) >= 2 && parts[1] == "rca" {
-			jwtAuthMiddleware(config, "", func(w http.ResponseWriter, r *http.Request) {
-				handleIncidentRCA(w, r)
-			})(w, r)
-			return
-		}
 		if len(parts) >= 3 && parts[1] == "healing" {
+			if parts[2] == "context" {
+				jwtAuthMiddleware(config, "", func(w http.ResponseWriter, r *http.Request) {
+					handleIncidentHealingAction(w, r, parts[0], parts[2])
+				})(w, r)
+				return
+			}
 			jwtAuthMiddleware(config, core.RoleLead, func(w http.ResponseWriter, r *http.Request) {
 				handleIncidentHealingAction(w, r, parts[0], parts[2])
 			})(w, r)

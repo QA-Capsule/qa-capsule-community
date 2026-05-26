@@ -70,13 +70,27 @@ export function canManageWorkflow(role) {
     return hasMinRole(role, 'lead');
 }
 
-export function canViewRCA(role) {
+export function canViewHealing(role) {
     const r = normalizeRole(role);
     return r === 'lead' || r === 'manager' || r === 'observer';
 }
 
+/** @deprecated use canViewHealing */
+export function canViewRCA(role) {
+    return canViewHealing(role);
+}
+
 export function canViewQuarantine(role) {
-    return canViewRCA(role);
+    return canViewHealing(role);
+}
+
+export function canManageHealing(role) {
+    return hasMinRole(role, 'lead');
+}
+
+/** @deprecated RCA config removed */
+export function canConfigureAI(role) {
+    return false;
 }
 
 export function canManageQuarantine(role) {
@@ -85,11 +99,6 @@ export function canManageQuarantine(role) {
 
 export function canPatchExecutionFlags(role) {
     return hasMinRole(role, 'lead');
-}
-
-export function canConfigureAI(role) {
-    const r = normalizeRole(role);
-    return r === 'manager' || r === 'admin';
 }
 
 export function canAccessRunbooks(role) {
@@ -193,8 +202,9 @@ export function canAccessView(role, viewId) {
             return canAccessPlugins(role);
         case 'ingestion':
             return canManageProjects(role);
+        case 'healing':
         case 'rca':
-            return canViewRCA(role);
+            return canViewHealing(role);
         case 'quarantine':
             return canViewQuarantine(role);
         case 'runbooks':
@@ -215,7 +225,8 @@ export function accessDeniedMessage(viewId) {
         settings: 'Settings',
         plugins: 'Plugin Engine',
         ingestion: 'CI/CD Gateways',
-        rca: 'RCA & AI Insights',
+        healing: 'Self-Healing Hub',
+        rca: 'Self-Healing Hub',
         quarantine: 'Quarantine',
         runbooks: 'Runbooks',
         dora: 'DORA Dashboard'

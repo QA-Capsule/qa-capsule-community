@@ -3,7 +3,7 @@
  */
 import { fetchWithAuth, parseApiJson, parseJwt } from './api.js';
 import { notify } from './ui.js';
-import { canPatchExecutionFlags, canViewRCA } from './roles.js';
+import { canPatchExecutionFlags, canViewHealing, canManageHealing } from './roles.js';
 
 const ENV_OPTIONS = ['UNKNOWN', 'PROD', 'STAGING', 'INTEGRATION', 'DEV'];
 const TYPE_OPTIONS = ['REAL', 'TEST-RUN', 'NIGHTLY', 'SMOKE'];
@@ -267,8 +267,11 @@ export async function openExecutionSheet(detail) {
 
     const role = parseJwt(localStorage.getItem('sre-jwt'))?.role;
     let actionHtml = '';
-    if (detail.incidentId > 0 && canViewRCA(role)) {
-        actionHtml += `<button type="button" class="btn btn-secondary btn-sm" onclick="triggerRCA(${detail.incidentId})">Run AI RCA</button>`;
+    if (detail.incidentId > 0 && canViewHealing(role)) {
+        actionHtml += `<button type="button" class="btn btn-secondary btn-sm" onclick="copyMCPPrompt(${detail.incidentId})">Copy MCP prompt</button>`;
+    }
+    if (detail.incidentId > 0 && canManageHealing(role)) {
+        actionHtml += `<button type="button" class="btn btn-secondary btn-sm" onclick="openHealingContext(${detail.incidentId})">Healing context</button>`;
     }
     actionHtml += `<button type="button" class="btn btn-secondary btn-sm" onclick="closeExecutionSheet()">Close</button>`;
     actions.innerHTML = actionHtml;
@@ -277,13 +280,17 @@ export async function openExecutionSheet(detail) {
     sheet.classList.add('is-open');
     document.body.classList.add('exec-sheet-open');
 
-    if (detail.incidentId > 0 && canViewRCA(role) && rcaEl) {
+    if (detail.incidentId > 0 && canViewHealing(role) && rcaEl) {
         try {
-            const res = await fetchWithAuth(`/api/incidents/${detail.incidentId}/rca`);
-            const rep = await parseApiJson(res);
-            if (res.ok && rep && rep.summary) {
+            const res = await fetchWithAuth(`/api/incidents/${detail.incidentId}/healing/context`);
+            const ctx = await parseApiJson(res);
+            if (res.ok && ctx?.data) {
+                const d = ctx.data;
                 rcaEl.hidden = false;
-                rcaEl.innerHTML = `<strong>RCA</strong><p>${escapeHtml(rep.summary)}</p>`;
+                const hint = d.selector_hint ? `<p><strong>Selector</strong> ${escapeHtml(d.selector_hint)}</p>` : '';
+                const actions = Array.isArray(d.suggested_actions)
+                    ? `<ul>${d.suggested_actions.map(a => `<li>${escapeHtml(a)}</li>`).join('')}</ul>` : '';
+                rcaEl.innerHTML = `<strong>Self-healing (${escapeHtml(d.error_category || 'unknown')})</strong>${hint}${actions}`;
             }
         } catch {
             /* optional */

@@ -27,8 +27,8 @@ See [Editions](../guides/editions-community-enterprise.md).
 |---|---|---|
 | **Dashboard** | Observer | Live incidents, filters, time range, KPI sync, auto-refresh |
 | **Execution Hub** | Observer | Pipeline runs, env tags (PROD, STAGING, INTEGRATION, DEV) |
-| **Incidents** | Observer | Detail, resolve, logs, RCA trigger, artifacts |
-| **RCA & AI Insights** | Observer | AI summaries, provider config (Manager) |
+| **Incidents** | Observer | Detail, resolve, logs, self-healing context, artifacts |
+| **Self-Healing Hub** | Observer | Open failures, MCP prompts, framework-agnostic categories |
 | **Quarantine** | Lead | Deny-list, flaky stats, CI gate alignment |
 | **CI/CD Gateways** | Manager | Projects, API keys, webhook URLs, routing matrix |
 | **Plugin Engine** | Lead | Native integrations (Slack, Jira, …), test run |
@@ -54,8 +54,11 @@ See [Editions](../guides/editions-community-enterprise.md).
 | Flaky tag | `[FLAKY]` prefix | Re-fail after resolve within policy window |
 | Perf tag | `[PERF]` | Passed test slower than 150% of 30-day avg |
 | Quarantine gate | `GET /api/ci/quarantine/status` | CI skips unstable tests |
-| AI RCA | `POST /api/incidents/{id}/rca` | OpenAI / Ollama / disabled |
-| Self-healing propose | `POST /api/incidents/{id}/healing/propose` | API / MCP (no UI button yet) |
+| Healing insights | `GET /api/healing/insights` | Open unresolved failures with categories |
+| Self-healing propose | `POST /api/incidents/{id}/healing/propose` | Rule-based guidance + MCP prompt |
+| MCP healing patch submit | `submit_healing_patch` (`/mcp`) | Persists audit metadata (`healing_patch_submissions`) |
+| MCP remediation PR | `create_remediation_pr` (`/mcp`) | Calls GitHub API using server token |
+| MCP resolve incident | `resolve_incident` (`/mcp`) | Marks incident resolved after rerun/validation |
 | Prometheus signals | `POST /api/webhooks/prometheus` | Correlate external alerts |
 
 ---

@@ -127,15 +127,20 @@ func CanManageWorkflow(role string) bool {
 	return IsManager(role) || IsLead(role)
 }
 
-// CanViewRCA allows reading AI insights (Observer+ on operations roles).
-func CanViewRCA(role string) bool {
+// CanViewHealing allows reading self-healing context and insights (Observer+ on operations roles).
+func CanViewHealing(role string) bool {
 	r := NormalizeRole(role)
 	return r == RoleLead || r == RoleManager || r == RoleObserver
 }
 
+// CanViewRCA is deprecated; use CanViewHealing.
+func CanViewRCA(role string) bool {
+	return CanViewHealing(role)
+}
+
 // CanViewQuarantine allows reading quarantine list.
 func CanViewQuarantine(role string) bool {
-	return CanViewRCA(role)
+	return CanViewHealing(role)
 }
 
 // CanManageQuarantine allows manual quarantine / lift (Lead+).
@@ -148,7 +153,12 @@ func CanPatchExecutionFlags(role string) bool {
 	return HasMinRole(role, RoleLead)
 }
 
-// CanConfigureAI allows changing LLM provider settings (Manager+).
+// CanManageHealing allows proposing fixes and opening remediation PRs (Lead+).
+func CanManageHealing(role string) bool {
+	return HasMinRole(role, RoleLead)
+}
+
+// CanConfigureAI is deprecated (RCA removed in Phase 1).
 func CanConfigureAI(role string) bool {
-	return IsManager(role) || IsAdmin(role)
+	return false
 }
