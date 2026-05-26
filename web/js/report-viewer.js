@@ -58,6 +58,10 @@ function hasLogContent(test) {
 /** Strip framework prefix and long unified name for display. */
 function displayTestName(test) {
     let n = String(test.name || '').replace(/^\[[^\]]+\]\s*/, '');
+    if (n.includes(' : ')) {
+        const parts = n.split(/\s*:\s*/);
+        n = (parts[parts.length - 1] || n).trim();
+    }
     if (test.class_name) {
         const cls = String(test.class_name).replace(/\\/g, '/');
         const clsLeaf = cls.includes('/') ? cls.split('/').pop() : cls;
@@ -87,6 +91,8 @@ function suiteKeyFor(test) {
     const n = String(test.name || '').replace(/^\[[^\]]+\]\s*/, '');
     const idx = n.indexOf(' > ');
     if (idx > 0) return n.slice(0, idx).trim();
+    const sep = n.indexOf(' : ');
+    if (sep > 0) return n.slice(0, sep).trim();
     return 'Test Suite';
 }
 

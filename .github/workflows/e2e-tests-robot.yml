@@ -52,6 +52,7 @@ jobs:
         continue-on-error: true
 
       - name: Send Alert to QA Capsule
+        id: qacapsule_upload
         if: always()
         env:
           WEBHOOK_URL: ${{ secrets.QA_CAPSULE_URL }}
@@ -62,6 +63,21 @@ jobs:
             echo "::error::Canonical JUnit report not found at tests/results/robot-junit.xml."
             echo "::error::Do not fallback to discovered files to avoid duplicate or stale testcase ingestion."
             ls -laR tests/results 2>/dev/null || true
+            if [ -n "${WEBHOOK_URL}" ] && [ -n "${API_KEY}" ]; then
+              echo "Sending pipeline fallback alert (missing JUnit)..."
+              curl -f -S -X POST "${WEBHOOK_URL}/api/webhooks/robot-pipeline" \
+                -H "X-API-Key: ${API_KEY}" \
+                -H "X-Run-Id: ${{ github.run_id }}" \
+                -H "X-Execution-Env: STAGING" \
+                -H "X-Execution-Type: TEST-RUN" \
+                -H "Content-Type: application/json" \
+                -d '{
+                  "name": "[PIPELINE CRASH] Robot report missing",
+                  "status": "CRITICAL",
+                  "error": "Robot workflow failed but canonical robot-junit.xml was not generated.",
+                  "framework": "RobotFramework"
+                }' || true
+            fi
             exit 1
           fi
           echo "Using canonical JUnit file: ${JUNIT_FILE}"
@@ -69,13 +85,60 @@ jobs:
             echo "::error::Set secrets QA_CAPSULE_URL and QA_CAPSULE_API_ROBOT_KEY in repository settings."
             exit 1
           fi
+          FAILURE_COUNT=$(python3 - <<'PY' "${JUNIT_FILE}"
+import sys, xml.etree.ElementTree as ET
+p = sys.argv[1]
+try:
+    root = ET.parse(p).getroot()
+except Exception:
+    print(-1)
+    raise SystemExit(0)
+count = 0
+for tc in root.findall('.//testcase'):
+    if tc.find('failure') is not None or tc.find('error') is not None:
+        count += 1
+print(count)
+PY
+          )
+          echo "Detected failing testcases in JUnit: ${FAILURE_COUNT}"
           echo "Uploading Robot Framework JUnit XML to QA Capsule..."
           curl -f -S -X POST "${WEBHOOK_URL}/api/webhooks/upload?framework=RobotFramework" \
             -H "X-API-Key: ${API_KEY}" \
             -H "X-Run-Id: ${{ github.run_id }}" \
             -H "X-Execution-Env: STAGING" \
             -H "X-Execution-Type: TEST-RUN" \
-            -F "file=@${JUNIT_FILE}"
+            -F "file=@${JUNIT_FILE}" || {
+              echo "JUnit upload failed, sending pipeline fallback alert..."
+              curl -f -S -X POST "${WEBHOOK_URL}/api/webhooks/robot-pipeline" \
+                -H "X-API-Key: ${API_KEY}" \
+                -H "X-Run-Id: ${{ github.run_id }}" \
+                -H "X-Execution-Env: STAGING" \
+                -H "X-Execution-Type: TEST-RUN" \
+                -H "Content-Type: application/json" \
+                -d '{
+                  "name": "[PIPELINE CRASH] Robot upload failed",
+                  "status": "CRITICAL",
+                  "error": "Robot JUnit upload to QA Capsule failed in CI.",
+                  "framework": "RobotFramework"
+                }' || true
+              exit 1
+            }
+
+          if [ "${{ steps.robot.outcome }}" = "failure" ] && [ "${FAILURE_COUNT}" = "0" ]; then
+            echo "Robot job failed with zero testcase failures in JUnit, sending pipeline fallback alert..."
+            curl -f -S -X POST "${WEBHOOK_URL}/api/webhooks/robot-pipeline" \
+              -H "X-API-Key: ${API_KEY}" \
+              -H "X-Run-Id: ${{ github.run_id }}" \
+              -H "X-Execution-Env: STAGING" \
+              -H "X-Execution-Type: TEST-RUN" \
+              -H "Content-Type: application/json" \
+              -d '{
+                "name": "[PIPELINE CRASH] Robot workflow failed",
+                "status": "CRITICAL",
+                "error": "Job failed but JUnit had no failure/error testcase.",
+                "framework": "RobotFramework"
+              }' || true
+          fi
 
       - name: Fail job if Robot tests failed
         if: steps.robot.outcome == 'failure'

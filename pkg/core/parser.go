@@ -342,9 +342,6 @@ func ParseJUnitReport(data []byte, framework string) JUnitParseResult {
 				}
 				if tcResult.Status == "pass" {
 					stdoutBuilder.WriteString(fmt.Sprintf("[INFO] Test passed (%d ms).\n", durationMs))
-					if strings.TrimSpace(tc.SystemOut) == "" && strings.TrimSpace(tc.SystemErr) == "" {
-						stdoutBuilder.WriteString("[INFO] JUnit has no <system-out>/<system-err> for this case. Enable Robot listener/log output or re-export output.xml with stdout enabled.\n")
-					}
 				} else {
 					stdoutBuilder.WriteString("[INFO] Test skipped.\n")
 				}

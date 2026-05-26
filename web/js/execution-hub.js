@@ -143,6 +143,10 @@ function matrixDisplayName(t, idx) {
         }
     }
     const suite = matrixSuiteTail(t);
+    if (!suite && leaf.includes(' : ')) {
+        const parts = leaf.split(/\s*:\s*/);
+        leaf = (parts[parts.length - 1] || leaf).trim();
+    }
     if (suite && leaf && !leaf.toLowerCase().startsWith(suite.toLowerCase())) {
         return `${suite} › ${leaf}`;
     }
