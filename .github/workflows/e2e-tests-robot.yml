@@ -22,7 +22,7 @@ jobs:
         run: pip install -r tests/requirements.txt
 
       - name: Run Robot Tests
-        run: robot --outputdir tests/results tests/robotframework/
+        run: robot --outputdir tests/results --xunit robot-junit.xml tests/robotframework/
         continue-on-error: true
 
       - name: Send Alert to QA Capsule
@@ -36,7 +36,7 @@ jobs:
             -H "X-Run-Id: ${{ github.run_id }}" \
             -H "X-Execution-Env: STAGING" \
             -H "X-Execution-Type: TEST-RUN" \
-            -F "file=@tests/results/output.xml"
+            -F "file=@tests/results/robot-junit.xml"
 
       - name: Upload Robot artifacts
         if: always()
