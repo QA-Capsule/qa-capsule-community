@@ -1,0 +1,12 @@
+{
+  "name": "qa-capsule-cypress-sample",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "test:ci": "cypress run"
+  },
+  "devDependencies": {
+    "cypress": "latest",
+    "mocha-junit-reporter": "latest"
+  }
+}

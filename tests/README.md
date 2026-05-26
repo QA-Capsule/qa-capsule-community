@@ -1,6 +1,6 @@
-# Automated tests (Robot Framework)
+# Automated tests (multi-framework)
 
-Sample suite runnable locally or in CI/CD, with optional JUnit XML upload to **QA Capsule**.
+Sample projects runnable locally or in CI/CD, with optional JUnit XML upload to **QA Capsule**.
 
 **Docs:** [Test frameworks catalog](https://qa-capsule.github.io/qa-capsule-community/integration/test-frameworks/) · [CI/CD providers](https://qa-capsule.github.io/qa-capsule-community/integration/cicd-providers/)
 
@@ -14,14 +14,15 @@ Sample suite runnable locally or in CI/CD, with optional JUnit XML upload to **Q
 
 ```
 tests/
-├── requirements.txt
-├── robotframework/
-│   ├── resources/common.robot
-│   ├── smoke_tests.robot
-│   ├── api_health.robot
-│   ├── demo_failure.robot   # intentional failure (QA Capsule alert in CI)
-│   └── ui_navigation.robot
-└── results/          # generated (gitignored)
+├── run-framework.sh
+├── upload-junit.sh
+├── robotframework/        # full Robot project + run.sh
+├── playwright/            # full Playwright project + run.sh
+├── cypress/               # full Cypress project + run.sh
+├── pytest/                # full Pytest project + run.sh
+├── selenium-pytest/       # Selenium + Pytest sample + run.sh
+├── newman/                # Postman/Newman sample + run.sh
+└── junit-java/            # JUnit XML sample + run.sh
 ```
 
 ## Run locally
@@ -29,11 +30,17 @@ tests/
 From the repository root:
 
 ```bash
-chmod +x scripts/run-tests.sh
-./scripts/run-tests.sh
+chmod +x tests/run-framework.sh tests/*/run.sh tests/upload-junit.sh
+./tests/run-framework.sh robot
+./tests/run-framework.sh playwright
+./tests/run-framework.sh cypress
+./tests/run-framework.sh pytest
+./tests/run-framework.sh selenium-py
+./tests/run-framework.sh newman
+./tests/run-framework.sh junit-java
 ```
 
-Without QA Capsule env vars, only Robot tests run; upload is skipped.
+Without QA Capsule env vars, tests run and upload is skipped.
 
 ### Upload to QA Capsule
 
@@ -43,7 +50,7 @@ export QA_CAPSULE_API_KEY="your-project-api-key"
 export QA_CAPSULE_EXEC_ENV="DEV"
 export QA_CAPSULE_EXEC_TYPE="TEST-RUN"
 
-./scripts/run-tests.sh
+./tests/run-framework.sh robot
 ```
 
 ### API target (optional)
@@ -65,7 +72,7 @@ export SELENIUM_BROWSER=headlesschrome
 
 ## CI/CD
 
-Entry point: **`scripts/run-tests.sh`** — installs deps, runs Robot, converts to JUnit, uploads when secrets are set.
+Entry point can now be `tests/<framework>/run.sh` (framework-specific) or `tests/run-framework.sh`.
 
 ### QA Capsule requirements
 

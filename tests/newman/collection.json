@@ -1,0 +1,59 @@
+{
+  "info": {
+    "name": "QA Capsule Newman Sample",
+    "_postman_id": "qa-capsule-newman-sample",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "GET example.com",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://example.com",
+          "protocol": "https",
+          "host": ["example", "com"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('status is 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Intentional fail",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://example.com",
+          "protocol": "https",
+          "host": ["example", "com"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('intentional status mismatch', function () {",
+              "    pm.expect(pm.response.code).to.eql(201);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    }
+  ]
+}

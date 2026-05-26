@@ -109,14 +109,55 @@ function statusCellClass(status) {
     return 'exec-matrix-cell--fail';
 }
 
+function stripMatrixPrefixes(name) {
+    return String(name || '')
+        .replace(/^\[[^\]]+\]\s*/, '')
+        .replace(/^\[(FLAKY|PERF)\]\s*/i, '')
+        .trim();
+}
+
+function matrixSuiteTail(t) {
+    const cls = String(t?.class_name || '').trim();
+    if (!cls) return '';
+    const flat = cls.replace(/\\/g, '/');
+    const pathLeaf = flat.includes('/') ? flat.split('/').pop() : flat;
+    const chunks = String(pathLeaf).split('.');
+    if (chunks.length > 1) {
+        return chunks.slice(0, -1).join('.').trim() || chunks[0].trim();
+    }
+    return (chunks[chunks.length - 1] || '').trim();
+}
+
+/** Keep matrix labels aligned with report-viewer (suite > test leaf). */
+function matrixDisplayName(t, idx) {
+    const raw = stripMatrixPrefixes(t?.name || `T${idx + 1}`);
+    let leaf = raw;
+    if (leaf.includes(' > ')) {
+        leaf = leaf.split(' > ').pop().trim();
+    } else if (leaf.includes('::')) {
+        leaf = leaf.split('::').pop().trim();
+    } else {
+        const slashFlat = leaf.replace(/\\/g, '/');
+        if (slashFlat.includes('/')) {
+            leaf = slashFlat.split('/').pop().trim();
+        }
+    }
+    const suite = matrixSuiteTail(t);
+    if (suite && leaf && !leaf.toLowerCase().startsWith(suite.toLowerCase())) {
+        return `${suite} › ${leaf}`;
+    }
+    return leaf || `T${idx + 1}`;
+}
+
 export function renderTestMatrixHtml(tests) {
     const slice = (tests || []).slice(0, MATRIX_MAX);
     if (!slice.length) {
         return `<div class="exec-matrix-empty">No test cases in report. Upload JUnit or send tests[] in webhook JSON.</div>`;
     }
     const cells = slice.map((t, idx) => {
-        const short = (t.name || `T${idx + 1}`).replace(/^\[[^\]]+\]\s*/, '').slice(0, 24);
-        const title = escapeHtml(t.name || '');
+        const label = matrixDisplayName(t, idx);
+        const short = label.slice(0, 30);
+        const title = escapeHtml(`${label}\n${t.name || ''}`);
         const inc = t.incident_id ? String(t.incident_id) : '';
         return `<button type="button" class="exec-matrix-cell ${statusCellClass(t.status)}"
             title="${title}"

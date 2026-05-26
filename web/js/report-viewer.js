@@ -59,13 +59,24 @@ function hasLogContent(test) {
 function displayTestName(test) {
     let n = String(test.name || '').replace(/^\[[^\]]+\]\s*/, '');
     if (test.class_name) {
-        const shortName = test.name && test.name.includes('>')
-            ? test.name.split('>').pop().trim()
-            : n.split('>').pop().trim();
-        return `${test.class_name} › ${shortName}`;
+        const cls = String(test.class_name).replace(/\\/g, '/');
+        const clsLeaf = cls.includes('/') ? cls.split('/').pop() : cls;
+        const shortSuite = clsLeaf.split('.').slice(0, -1).join('.') || clsLeaf;
+        let shortName = n;
+        if (shortName.includes('>')) shortName = shortName.split('>').pop().trim();
+        else if (shortName.includes('::')) shortName = shortName.split('::').pop().trim();
+        else if (shortName.replace(/\\/g, '/').includes('/')) shortName = shortName.replace(/\\/g, '/').split('/').pop().trim();
+        return `${shortSuite} › ${shortName}`;
     }
     if (n.includes(' > ')) {
         return n.replace(/\s*>\s*/g, ' › ');
+    }
+    if (n.includes('::')) {
+        return n.replace(/\s*::\s*/g, ' › ');
+    }
+    const flat = n.replace(/\\/g, '/');
+    if (flat.includes('/')) {
+        return flat.split('/').pop() || n;
     }
     return n || '—';
 }

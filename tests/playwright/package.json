@@ -1,0 +1,12 @@
+{
+  "name": "qa-capsule-playwright-sample",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "test": "playwright test",
+    "test:ci": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "latest"
+  }
+}
