@@ -189,4 +189,4 @@ See [Security & authentication](docs/setup/security-authentication.md) for the f
 
 ## License
 
-MIT — see the LICENCE file.
+Read the LICENCE file.

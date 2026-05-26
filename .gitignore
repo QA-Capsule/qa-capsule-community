@@ -53,6 +53,8 @@ output.xml
 # Logs
 *.log
 
+config.yaml
+
 # Environment variables
 .env
 
