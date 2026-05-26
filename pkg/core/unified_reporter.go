@@ -10,6 +10,7 @@ type ReportFormat string
 const (
 	ReportFormatJSON      ReportFormat = "json"
 	ReportFormatJUnitXML  ReportFormat = "junit_xml"
+	ReportFormatRobotXML  ReportFormat = "robot_xml"
 )
 
 // IngestPayload is the normalized input to the execution hub reporter.
@@ -48,7 +49,17 @@ func (r *UnifiedReporter) Normalize(in IngestPayload) IngestPayloadResult {
 	}
 
 	switch in.Format {
+	case ReportFormatRobotXML:
+		result := ParseRobotOutputXML(in.XML, framework)
+		result.Report.Flags = mergeExecutionFlags(flags, result.Report.Flags)
+		return IngestPayloadResult{Report: result.Report, Failures: result.Failures}
 	case ReportFormatJUnitXML:
+		// Auto-upgrade to Robot output.xml parser when the file is a native output.xml.
+		if IsRobotOutputXML(in.XML) {
+			result := ParseRobotOutputXML(in.XML, framework)
+			result.Report.Flags = mergeExecutionFlags(flags, result.Report.Flags)
+			return IngestPayloadResult{Report: result.Report, Failures: result.Failures}
+		}
 		junit := ParseJUnitReport(in.XML, framework)
 		report := junit.Report
 		report.Flags = mergeExecutionFlags(flags, report.Flags)
