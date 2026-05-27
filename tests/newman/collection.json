@@ -1,57 +1,108 @@
 {
   "info": {
-    "name": "QA Capsule Newman Sample",
+    "name": "QA Capsule API Tests",
     "_postman_id": "qa-capsule-newman-sample",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
     {
-      "name": "GET example.com",
-      "request": {
-        "method": "GET",
-        "header": [],
-        "url": {
-          "raw": "https://example.com",
-          "protocol": "https",
-          "host": ["example", "com"]
-        }
-      },
-      "event": [
+      "name": "Users API",
+      "item": [
         {
-          "listen": "test",
-          "script": {
-            "exec": [
-              "pm.test('status is 200', function () {",
-              "    pm.response.to.have.status(200);",
-              "});"
-            ],
-            "type": "text/javascript"
-          }
+          "name": "GET all users returns 200",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+            "pm.test('Response is array', () => { const b = pm.response.json(); pm.expect(b).to.be.an('array').that.is.not.empty; });",
+            "pm.test('Each user has id and name', () => { pm.response.json().forEach(u => { pm.expect(u).to.have.property('id'); pm.expect(u).to.have.property('name'); }); });"
+          ]}}],
+          "request": { "method": "GET", "url": "https://jsonplaceholder.typicode.com/users" }
+        },
+        {
+          "name": "GET user by ID returns correct data",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+            "pm.test('User id matches', () => pm.expect(pm.response.json().id).to.equal(1));",
+            "pm.test('User has email', () => pm.expect(pm.response.json()).to.have.property('email'));"
+          ]}}],
+          "request": { "method": "GET", "url": "https://jsonplaceholder.typicode.com/users/1" }
+        },
+        {
+          "name": "GET non-existent user returns 404",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status is 404', () => pm.response.to.have.status(404));"
+          ]}}],
+          "request": { "method": "GET", "url": "https://jsonplaceholder.typicode.com/users/9999" }
         }
       ]
     },
     {
-      "name": "Intentional fail",
-      "request": {
-        "method": "GET",
-        "header": [],
-        "url": {
-          "raw": "https://example.com",
-          "protocol": "https",
-          "host": ["example", "com"]
-        }
-      },
-      "event": [
+      "name": "Posts API",
+      "item": [
         {
-          "listen": "test",
-          "script": {
-            "exec": [
-              "pm.test('intentional status mismatch', function () {",
-              "    pm.expect(pm.response.code).to.eql(201);",
-              "});"
-            ],
-            "type": "text/javascript"
+          "name": "POST create post returns 201",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+            "pm.test('Response has id', () => pm.expect(pm.response.json()).to.have.property('id'));",
+            "pm.test('Title matches request', () => pm.expect(pm.response.json().title).to.equal('Automated test post'));"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"title\": \"Automated test post\", \"body\": \"Created by Newman\", \"userId\": 1}" },
+            "url": "https://jsonplaceholder.typicode.com/posts"
           }
+        },
+        {
+          "name": "PUT update post returns 200",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+            "pm.test('Title was updated', () => pm.expect(pm.response.json().title).to.equal('Updated title'));"
+          ]}}],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"id\": 1, \"title\": \"Updated title\", \"body\": \"Updated body\", \"userId\": 1}" },
+            "url": "https://jsonplaceholder.typicode.com/posts/1"
+          }
+        },
+        {
+          "name": "DELETE post returns 200",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+            "pm.test('Response is empty object', () => pm.expect(pm.response.json()).to.deep.equal({}));"
+          ]}}],
+          "request": { "method": "DELETE", "url": "https://jsonplaceholder.typicode.com/posts/1" }
+        }
+      ]
+    },
+    {
+      "name": "Todos API",
+      "item": [
+        {
+          "name": "GET todos list returns 200 items",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+            "pm.test('Returns 200 todos', () => pm.expect(pm.response.json()).to.have.lengthOf(200));",
+            "pm.test('Each todo has completed field', () => { pm.response.json().slice(0, 5).forEach(t => pm.expect(t).to.have.property('completed')); });"
+          ]}}],
+          "request": { "method": "GET", "url": "https://jsonplaceholder.typicode.com/todos" }
+        },
+        {
+          "name": "GET completed todos filter works",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+            "pm.test('All returned todos are completed', () => { pm.response.json().forEach(t => pm.expect(t.completed).to.be.true); });",
+            "pm.test('Exactly 90 completed todos exist', () => pm.expect(pm.response.json()).to.have.lengthOf(90));"
+          ]}}],
+          "request": { "method": "GET", "url": "https://jsonplaceholder.typicode.com/todos?completed=true" }
+        },
+        {
+          "name": "GET todo response time under 500ms",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+            "pm.test('Response time under 500ms', () => pm.expect(pm.response.responseTime).to.be.below(500));"
+          ]}}],
+          "request": { "method": "GET", "url": "https://jsonplaceholder.typicode.com/todos/1" }
         }
       ]
     }

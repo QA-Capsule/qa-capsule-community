@@ -1,10 +1,10 @@
-name: E2E Tests | Robot Framework
+name: E2E Tests | Selenium + Pytest
 
 on:
   workflow_dispatch:
 
 jobs:
-  robot:
+  run-selenium:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -13,35 +13,35 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: '3.12'
 
       - name: Setup Chrome
         uses: browser-actions/setup-chrome@v1
 
       - name: Install Dependencies
-        run: pip install -r tests/requirements.txt
+        run: pip install -r tests/selenium-pytest/requirements.txt
 
-      - name: Run Robot Tests
-        run: robot --outputdir tests/results --xunit robot-junit.xml tests/robotframework/
+      - name: Run Selenium Tests
+        run: pytest tests/selenium-pytest/ -v --junitxml=selenium-results.xml
         continue-on-error: true
 
       - name: Send Alert to QA Capsule
         if: always()
         env:
           WEBHOOK_URL: ${{ secrets.QA_CAPSULE_URL }}
-          API_KEY: ${{ secrets.QA_CAPSULE_API_ROBOT_KEY }}
+          API_KEY: ${{ secrets.QA_CAPSULE_API_SELENIUM_KEY }}
         run: |
-          curl -X POST "$WEBHOOK_URL/api/webhooks/upload?framework=RobotFramework" \
+          curl -X POST "$WEBHOOK_URL/api/webhooks/upload?framework=Pytest" \
             -H "X-API-Key: $API_KEY" \
             -H "X-Run-Id: ${{ github.run_id }}" \
             -H "X-Execution-Env: STAGING" \
             -H "X-Execution-Type: TEST-RUN" \
-            -F "file=@tests/results/robot-junit.xml"
+            -F "file=@selenium-results.xml"
 
-      - name: Upload Robot artifacts
+      - name: Upload artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: robot-results
-          path: tests/results/
+          name: selenium-results
+          path: selenium-results.xml
           if-no-files-found: ignore

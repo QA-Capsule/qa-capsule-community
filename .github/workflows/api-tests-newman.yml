@@ -1,10 +1,10 @@
-name: E2E Tests | Playwright
+name: API Tests | Newman (Postman)
 
 on:
   workflow_dispatch:
 
 jobs:
-  run-e2e:
+  run-newman:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -15,34 +15,33 @@ jobs:
         with:
           node-version: 18
 
-      - name: Install Dependencies
-        run: |
-          npm install
-          npx playwright install --with-deps chromium
-        working-directory: tests/playwright
+      - name: Install Newman
+        run: npm install -g newman newman-reporter-junitfull
 
-      - name: Run Playwright Tests
-        run: npm run test:ci
-        working-directory: tests/playwright
+      - name: Run Newman Tests
+        run: |
+          newman run tests/newman/collection.json \
+            --reporters cli,junitfull \
+            --reporter-junitfull-export newman-results.xml
         continue-on-error: true
 
       - name: Send Alert to QA Capsule
         if: always()
         env:
           WEBHOOK_URL: ${{ secrets.QA_CAPSULE_URL }}
-          API_KEY: ${{ secrets.QA_CAPSULE_API_PLAYWRIGHT_KEY }}
+          API_KEY: ${{ secrets.QA_CAPSULE_API_NEWMAN_KEY }}
         run: |
-          curl -X POST "$WEBHOOK_URL/api/webhooks/upload?framework=Playwright" \
+          curl -X POST "$WEBHOOK_URL/api/webhooks/upload?framework=Postman" \
             -H "X-API-Key: $API_KEY" \
             -H "X-Run-Id: ${{ github.run_id }}" \
             -H "X-Execution-Env: STAGING" \
             -H "X-Execution-Type: TEST-RUN" \
-            -F "file=@tests/playwright/playwright-results.xml"
+            -F "file=@newman-results.xml"
 
       - name: Upload artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-results
-          path: tests/playwright/playwright-results.xml
+          name: newman-results
+          path: newman-results.xml
           if-no-files-found: ignore

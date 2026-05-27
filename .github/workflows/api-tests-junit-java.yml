@@ -1,0 +1,54 @@
+name: API Tests | JUnit Java
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run-junit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Download JUnit Platform Console
+        run: |
+          curl -sL https://repo1.maven.org/maven2/org/junit/platform/junit-platform-console-standalone/1.10.2/junit-platform-console-standalone-1.10.2.jar \
+            -o junit-standalone.jar
+
+      - name: Compile Tests
+        run: javac -cp junit-standalone.jar tests/junit-java/src/*.java -d classes/
+
+      - name: Run JUnit Tests
+        run: |
+          java -jar junit-standalone.jar \
+            --scan-classpath \
+            --class-path classes/ \
+            --reports-dir reports/
+        continue-on-error: true
+
+      - name: Send Alert to QA Capsule
+        if: always()
+        env:
+          WEBHOOK_URL: ${{ secrets.QA_CAPSULE_URL }}
+          API_KEY: ${{ secrets.QA_CAPSULE_API_JUNIT_JAVA_KEY }}
+        run: |
+          curl -X POST "$WEBHOOK_URL/api/webhooks/upload?framework=JUnit" \
+            -H "X-API-Key: $API_KEY" \
+            -H "X-Run-Id: ${{ github.run_id }}" \
+            -H "X-Execution-Env: STAGING" \
+            -H "X-Execution-Type: TEST-RUN" \
+            -F "file=@reports/TEST-junit-jupiter.xml"
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-java-results
+          path: reports/
+          if-no-files-found: ignore
