@@ -10,6 +10,7 @@ type InsightRow struct {
 	Status        string    `json:"status"`
 	ErrorCategory string    `json:"error_category"`
 	Summary       string    `json:"summary"`
+	MCPHealed     bool      `json:"mcp_healed"`
 	CreatedAt     time.Time `json:"created_at"`
 }
 

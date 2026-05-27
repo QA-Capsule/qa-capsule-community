@@ -38,6 +38,20 @@ jobs:
             -H "X-Execution-Type: TEST-RUN" \
             -F "file=@selenium-results.xml"
 
+      - name: MCP Healing Gate
+        if: always()
+        env:
+          WEBHOOK_URL: ${{ secrets.QA_CAPSULE_URL }}
+          API_KEY: ${{ secrets.QA_CAPSULE_API_SELENIUM_KEY }}
+        run: |
+          curl -s -X POST "$WEBHOOK_URL/api/healing/gate" \
+            -H "X-API-Key: $API_KEY" \
+            -H "X-Run-Id: ${{ github.run_id }}" \
+            -H "X-Framework: Selenium" \
+            | tee healing-report.json || true
+          echo "--- MCP Healing Report ---"
+          cat healing-report.json 2>/dev/null || true
+
       - name: Upload artifacts
         if: always()
         uses: actions/upload-artifact@v4

@@ -13,6 +13,11 @@ import (
 
 func registerIntelligenceRoutes(config *core.Config) {
 	http.HandleFunc("/api/healing/insights", jwtAuthMiddleware(config, "", handleHealingInsights))
+	http.HandleFunc("/api/healing/locator-interventions", jwtAuthMiddleware(config, "", handleLocatorInterventions))
+	// CI-facing gate: called by pipelines after JUnit upload, no JWT needed (uses X-API-Key).
+	http.HandleFunc("/api/healing/gate", func(w http.ResponseWriter, r *http.Request) {
+		handleHealingGate(w, r, config)
+	})
 	registerQuarantineRoutes(config)
 }
 
@@ -36,6 +41,30 @@ func handleHealingInsights(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeJSONError(w, "Failed to load healing insights", http.StatusInternalServerError)
 		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(rows)
+}
+
+func handleLocatorInterventions(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	claims := parseClaims(r)
+	if !core.CanViewHealing(claims.Role) {
+		writeJSONError(w, "Access denied", http.StatusForbidden)
+		return
+	}
+	project := r.URL.Query().Get("project")
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	rows, err := core.ListLocatorHealings(project, limit)
+	if err != nil {
+		writeJSONError(w, "Failed to load locator interventions", http.StatusInternalServerError)
+		return
+	}
+	if rows == nil {
+		rows = []core.LocatorHealing{}
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(rows)

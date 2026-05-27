@@ -751,6 +751,10 @@
                         <div>MCP-ready</div>
                         <div class="kpi-value" id="healing-stat-mcp-ready">—</div>
                     </div>
+                    <div class="kpi-card kpi-card--healed">
+                        <div>MCP interventions</div>
+                        <div class="kpi-value" id="healing-stat-interventions">—</div>
+                    </div>
                 </div>
                 <div class="data-card">
                     <h3 class="form-section-title" style="border-top:none;padding-top:0;margin:0 0 12px;">MCP integration</h3>
@@ -770,6 +774,19 @@
                     </div>
                     <div id="healing-insights-body" class="modern-data-grid rca-insights-list" role="list">
                         <p class="modern-data-grid__empty">Open this view to load healable failures.</p>
+                    </div>
+                </div>
+
+                <div class="data-card">
+                    <div class="intelligence-filter-row" style="margin-bottom:12px;">
+                        <div>
+                            <h3 class="form-section-title" style="border-top:none;padding-top:0;margin:0 0 4px;">Locator Interventions MCP</h3>
+                            <p style="margin:0;font-size:12px;opacity:0.7;">Sélecteurs cassés détectés par le Healing Gate et suggestions automatiques de remplacement.</p>
+                        </div>
+                        <button type="button" class="btn-secondary btn-sm" onclick="window.loadLocatorInterventions && window.loadLocatorInterventions()">Refresh</button>
+                    </div>
+                    <div id="healing-interventions-body" class="modern-data-grid rca-insights-list" role="list">
+                        <p class="modern-data-grid__empty">Aucune intervention locator enregistrée.</p>
                     </div>
                 </div>
             </section>

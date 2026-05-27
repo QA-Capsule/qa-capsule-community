@@ -3018,6 +3018,14 @@ pre {
     border-color: var(--info-border);
 }
 
+.intel-badge--healed {
+    background: var(--success-bg);
+    color: var(--success-text);
+    border-color: var(--success-border);
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+
 .runbooks-template-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -3381,6 +3389,66 @@ pre {
     color: var(--text-main);
     white-space: pre-wrap;
 }
+
+/* ── MCP Healed incident highlight ── */
+.rca-insight-card--healed {
+    border-left: 3px solid var(--success-border);
+}
+
+/* ── KPI card accent pour interventions MCP ── */
+.kpi-card--healed {
+    border-color: var(--success-border);
+}
+.kpi-card--healed .kpi-value {
+    color: var(--success-text);
+}
+
+/* ── Locator Intervention card ── */
+.locator-intervention-card__locators {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+    padding: 8px 12px;
+    background: var(--bg-elevated, var(--bg-secondary));
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-muted, var(--border));
+}
+
+.locator-intervention-card__original {
+    font-size: 12px;
+    font-family: var(--font-mono, monospace);
+    color: var(--error-text, #b04040);
+    background: var(--error-bg, rgba(176,64,64,.08));
+    padding: 2px 6px;
+    border-radius: 3px;
+    text-decoration: line-through;
+    opacity: 0.85;
+    word-break: break-all;
+}
+
+.locator-intervention-card__arrow {
+    font-size: 16px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+.locator-intervention-card__healed {
+    font-size: 12px;
+    font-family: var(--font-mono, monospace);
+    color: var(--success-text);
+    background: var(--success-bg);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-weight: 600;
+    word-break: break-all;
+}
+
+/* confidence colors */
+.locator-confidence--healed  { background: var(--success-bg); color: var(--success-text); }
+.locator-confidence--warn    { background: var(--warn-bg);    color: var(--warn-text);    }
+.locator-confidence--unknown { background: var(--bg-secondary); color: var(--text-muted); }
 
 .rca-insight-card__status {
     display: inline-flex;

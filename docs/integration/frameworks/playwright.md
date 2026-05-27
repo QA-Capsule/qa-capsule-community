@@ -9,6 +9,7 @@ icon: material/microsoft-edge
 | **Upload param** | `?framework=Playwright` |
 | **Report** | `playwright-results.xml` |
 | **Repo workflow** | `.github/workflows/e2e-tests-playwright.yml` |
+| **Test folder** | `tests/playwright/` |
 | **Secret** | `QA_CAPSULE_API_PLAYWRIGHT_KEY` |
 
 ## Test suites in this repository
@@ -31,7 +32,10 @@ npx playwright install --with-deps chromium
 ```javascript
 // playwright.config.js
 module.exports = {
-  reporter: [['junit', { outputFile: 'playwright-results.xml' }]],
+  reporter: [
+    ['list'],
+    ['junit', { outputFile: 'playwright-results.xml' }],
+  ],
 };
 ```
 
@@ -55,8 +59,15 @@ curl -X POST "${QA_CAPSULE_URL}/api/webhooks/upload?framework=Playwright" \
 ## 5. GitHub Actions
 
 ```yaml
+- name: Install Dependencies
+  run: |
+    npm install
+    npx playwright install --with-deps chromium
+  working-directory: tests/playwright
+
 - name: Run Playwright Tests
-  run: npx playwright test suite.spec.js
+  run: npm run test:ci
+  working-directory: tests/playwright
   continue-on-error: true
 
 - name: Send Alert to QA Capsule
@@ -70,8 +81,11 @@ curl -X POST "${QA_CAPSULE_URL}/api/webhooks/upload?framework=Playwright" \
       -H "X-Run-Id: ${{ github.run_id }}" \
       -H "X-Execution-Env: STAGING" \
       -H "X-Execution-Type: TEST-RUN" \
-      -F "file=@playwright-results.xml"
+      -F "file=@tests/playwright/playwright-results.xml"
 ```
+
+!!! note "working-directory"
+    Use `working-directory: tests/playwright` so Playwright finds `playwright.config.js` and `package.json`. The upload `curl` runs from the repo root, so prefix the file path with `tests/playwright/`.
 
 !!! note "Headers"
     - `X-Run-Id` groups all test results under the same pipeline run in the Execution Hub.

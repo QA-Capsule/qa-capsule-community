@@ -28,7 +28,7 @@ func (s *Service) ListInsights(ctx context.Context, projectName string, limit in
 		limit = 100
 	}
 	q := `
-		SELECT id, project_name, name, status, COALESCE(error_message,''), created_at
+		SELECT id, project_name, name, status, COALESCE(error_message,''), COALESCE(mcp_healed,0), created_at
 		FROM incidents
 		WHERE is_resolved = 0
 		  AND UPPER(status) NOT IN ('PASSED', 'PASS', '')`
@@ -51,9 +51,11 @@ func (s *Service) ListInsights(ctx context.Context, projectName string, limit in
 		var row InsightRow
 		var created string
 		var errMsg string
-		if err := rows.Scan(&row.IncidentID, &row.ProjectName, &row.TestName, &row.Status, &errMsg, &created); err != nil {
+		var mcpHealed int
+		if err := rows.Scan(&row.IncidentID, &row.ProjectName, &row.TestName, &row.Status, &errMsg, &mcpHealed, &created); err != nil {
 			continue
 		}
+		row.MCPHealed = mcpHealed == 1
 		row.ErrorCategory = ClassifyError(errMsg)
 		row.Summary = buildSummary(row.ErrorCategory, row.TestName)
 		row.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", created)

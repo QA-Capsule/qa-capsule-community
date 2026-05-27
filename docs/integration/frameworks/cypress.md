@@ -9,6 +9,7 @@ icon: material/web
 | **Upload param** | `?framework=Cypress` |
 | **Report** | `cypress-results.xml` |
 | **Repo workflow** | `.github/workflows/e2e-tests-cypress.yml` |
+| **Test folder** | `tests/cypress/` |
 | **Secret** | `QA_CAPSULE_API_CYPRESS_KEY` |
 
 ## Test suites in this repository
@@ -61,8 +62,13 @@ curl -X POST "${QA_CAPSULE_URL}/api/webhooks/upload?framework=Cypress" \
 ## 5. GitHub Actions
 
 ```yaml
+- name: Install Dependencies
+  run: npm install
+  working-directory: tests/cypress
+
 - name: Run Cypress Tests
-  run: npx cypress run
+  run: npm run test:ci
+  working-directory: tests/cypress
   continue-on-error: true
 
 - name: Send Alert to QA Capsule
@@ -76,8 +82,11 @@ curl -X POST "${QA_CAPSULE_URL}/api/webhooks/upload?framework=Cypress" \
       -H "X-Run-Id: ${{ github.run_id }}" \
       -H "X-Execution-Env: STAGING" \
       -H "X-Execution-Type: TEST-RUN" \
-      -F "file=@cypress-results.xml"
+      -F "file=@tests/cypress/cypress-results.xml"
 ```
+
+!!! note "working-directory"
+    Use `working-directory: tests/cypress` so `npm run test:ci` finds `cypress.config.js` and `package.json`. The upload `curl` runs from the repo root, so prefix the file path with `tests/cypress/`.
 
 !!! note "Headers"
     - `X-Run-Id` groups all test results under the same pipeline run in the Execution Hub.

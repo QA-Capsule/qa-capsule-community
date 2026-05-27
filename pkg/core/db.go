@@ -393,6 +393,21 @@ func runSchemaMigrations() {
 			FOREIGN KEY(incident_id) REFERENCES incidents(id) ON DELETE CASCADE
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_healing_patch_incident ON healing_patch_submissions(incident_id, created_at DESC)`,
+		`CREATE TABLE IF NOT EXISTS locator_healings (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			incident_id INTEGER NOT NULL,
+			run_id TEXT NOT NULL DEFAULT '',
+			framework TEXT NOT NULL DEFAULT '',
+			original_locator TEXT NOT NULL DEFAULT '',
+			healed_locator TEXT DEFAULT '',
+			confidence REAL DEFAULT 0,
+			explanation TEXT DEFAULT '',
+			agent_source TEXT DEFAULT 'mcp_gate',
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY(incident_id) REFERENCES incidents(id) ON DELETE CASCADE
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_locator_healings_run ON locator_healings(run_id, created_at DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_locator_healings_incident ON locator_healings(incident_id)`,
 		`CREATE TABLE IF NOT EXISTS user_team_inheritance_optouts (
 			user_id INTEGER NOT NULL,
 			team_id INTEGER NOT NULL,
@@ -407,6 +422,8 @@ func runSchemaMigrations() {
 	}
 	// Legacy DBs: pipeline_runs created before branch was in CREATE TABLE.
 	addColumnIfNotExists("pipeline_runs", "branch", `ALTER TABLE pipeline_runs ADD COLUMN branch TEXT DEFAULT ''`)
+	// MCP self-healing: mark incidents where a locator intervention was recorded.
+	addColumnIfNotExists("incidents", "mcp_healed", `ALTER TABLE incidents ADD COLUMN mcp_healed INTEGER NOT NULL DEFAULT 0`)
 	migrateGlobalRoleCodes()
 }
 

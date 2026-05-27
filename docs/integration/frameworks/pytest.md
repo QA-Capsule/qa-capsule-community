@@ -9,6 +9,7 @@ icon: material/language-python
 | **Upload param** | `?framework=Pytest` |
 | **Report** | `pytest-results.xml` |
 | **Repo workflow** | `.github/workflows/api-tests-pytest.yml` |
+| **Test folder** | `tests/pytest/` |
 | **Secret** | `QA_CAPSULE_API_PYTEST_KEY` |
 
 ## Test suites in this repository
@@ -23,7 +24,7 @@ icon: material/language-python
 
 ```bash
 pip install pytest
-pytest tests/ -v --junitxml=pytest-results.xml
+pytest tests/pytest/ -v --junitxml=pytest-results.xml
 ```
 
 `pytest.ini` (recommended):
@@ -47,8 +48,11 @@ curl -X POST "${QA_CAPSULE_URL}/api/webhooks/upload?framework=Pytest" \
 ## 3. GitHub Actions
 
 ```yaml
+- name: Install Dependencies
+  run: pip install -r tests/pytest/requirements.txt
+
 - name: Run Pytest
-  run: pytest test_suite.py -v --junitxml=pytest-results.xml
+  run: pytest tests/pytest/ -v --junitxml=pytest-results.xml
   continue-on-error: true
 
 - name: Send Alert to QA Capsule
@@ -72,6 +76,6 @@ curl -X POST "${QA_CAPSULE_URL}/api/webhooks/upload?framework=Pytest" \
 
 ## With Selenium
 
-Use `pytest-selenium` or plain `selenium`; keep the same `--junitxml` flag and `?framework=Pytest` upload param.
+See [Selenium + Pytest](selenium.md) for browser-based tests using `tests/selenium-pytest/`.
 
 ← [All frameworks](../test-frameworks.md)

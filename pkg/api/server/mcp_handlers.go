@@ -181,6 +181,36 @@ func mcpToolDefinitions() []map[string]interface{} {
 				"required": []string{"incident_id"},
 			},
 		},
+		{
+			"name":        "detect_locator_failures",
+			"description": "Scan all failed incidents for a pipeline run and return those caused by missing/broken selectors (framework-agnostic: Playwright, Cypress, Selenium, Robot, Pytest-Selenium).",
+			"inputSchema": map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"run_id":  map[string]interface{}{"type": "string", "description": "CI pipeline run ID (e.g. GitHub Actions run_id)"},
+					"project": map[string]interface{}{"type": "string", "description": "Optional project name filter"},
+				},
+				"required": []string{"run_id"},
+			},
+		},
+		{
+			"name":        "record_healing_intervention",
+			"description": "Record that the MCP agent healed a locator for a specific incident and optionally propose an alternative selector. Also triggers a notification (Slack/Teams if configured).",
+			"inputSchema": map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"incident_id":      map[string]interface{}{"type": "integer", "description": "Incident primary key"},
+					"run_id":           map[string]interface{}{"type": "string", "description": "CI pipeline run ID"},
+					"framework":        map[string]interface{}{"type": "string", "description": "Test framework (e.g. Playwright, Selenium, Cypress)"},
+					"original_locator": map[string]interface{}{"type": "string", "description": "The selector that failed"},
+					"healed_locator":   map[string]interface{}{"type": "string", "description": "The replacement selector proposed by the agent"},
+					"explanation":      map[string]interface{}{"type": "string", "description": "Short rationale for the change"},
+					"confidence":       map[string]interface{}{"type": "number", "description": "Confidence score 0–1"},
+					"agent_source":     map[string]interface{}{"type": "string", "description": "Agent identifier (e.g. cursor_mcp, github_copilot)"},
+				},
+				"required": []string{"incident_id", "original_locator"},
+			},
+		},
 	}
 }
 
@@ -319,6 +349,61 @@ func dispatchMCPTool(params json.RawMessage) (map[string]interface{}, error) {
 			"incident_id": id,
 			"resolved_by": resolvedBy,
 		}), nil
+
+	case "detect_locator_failures":
+		runID := parseStringArg(call.Arguments, "run_id")
+		if runID == "" {
+			return nil, fmt.Errorf("run_id is required")
+		}
+		project := parseStringArg(call.Arguments, "project")
+		failures, err := core.DetectLocatorFailuresForRun(runID, project)
+		if err != nil {
+			return nil, err
+		}
+		return mcpTextResult(map[string]interface{}{
+			"run_id":          runID,
+			"locator_failures": failures,
+			"count":           len(failures),
+			"next_step":       "call record_healing_intervention for each failure, providing healed_locator",
+		}), nil
+
+	case "record_healing_intervention":
+		id, err := parseIncidentIDArg(call.Arguments)
+		if err != nil {
+			return nil, err
+		}
+		runID := parseStringArg(call.Arguments, "run_id")
+		framework := parseStringArg(call.Arguments, "framework")
+		originalLocator := parseStringArg(call.Arguments, "original_locator")
+		if originalLocator == "" {
+			return nil, fmt.Errorf("original_locator is required")
+		}
+		healedLocator := parseStringArg(call.Arguments, "healed_locator")
+		explanation := parseStringArg(call.Arguments, "explanation")
+		agentSource := parseStringArg(call.Arguments, "agent_source")
+		var confidence float64
+		if v, ok := call.Arguments["confidence"].(float64); ok {
+			confidence = v
+		}
+		if healedLocator == "" {
+			healedLocator, confidence, explanation = core.SuggestHealedLocator(originalLocator, framework)
+		}
+		healing, err := core.RecordLocatorHealing(id, runID, framework, originalLocator, healedLocator, explanation, agentSource, confidence)
+		if err != nil {
+			return nil, err
+		}
+		return mcpTextResult(map[string]interface{}{
+			"status":           "recorded",
+			"healing_id":       healing.ID,
+			"incident_id":      healing.IncidentID,
+			"original_locator": healing.OriginalLocator,
+			"healed_locator":   healing.HealedLocator,
+			"confidence":       healing.Confidence,
+			"explanation":      healing.Explanation,
+			"agent_source":     healing.AgentSource,
+			"next_step":        "apply healed_locator in the test file, then call create_remediation_pr",
+		}), nil
+
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", call.Name)
 	}
