@@ -7,11 +7,11 @@ icon: material/robot
 | | |
 |---|---|
 | **Upload param** | `?framework=RobotFramework` |
-| **Canonical upload report** | `tests/results/robot-junit.xml` |
+| **Report** | `tests/results/robot-junit.xml` |
 | **Repo workflow** | `.github/workflows/e2e-tests-robot.yml` |
-| **Runner script** | `scripts/run-tests.sh` |
+| **Secret** | `QA_CAPSULE_API_ROBOT_KEY` |
 
-## Suites in this repository
+## Test suites in this repository
 
 | File | Result in CI |
 |------|----------------|
@@ -20,45 +20,51 @@ icon: material/robot
 | `demo_failure.robot` | Fail (demo alert) |
 | `ui_navigation.robot` | Pass (Selenium + Chrome) |
 
-## 1. Local run
+## 1. Generate JUnit XML
 
 ```bash
-export QA_CAPSULE_URL="https://qa-capsule.example.com"
-export QA_CAPSULE_API_KEY="your-key"
-export SELENIUM_ENABLED=true
-chmod +x scripts/run-tests.sh && ./scripts/run-tests.sh
-```
-
-## 2. JUnit (rebot)
-
-```bash
-chmod +x scripts/run-tests.sh scripts/quarantine-ci-gate.sh
-export QA_CAPSULE_URL=https://your-capsule.example.com
-export QA_CAPSULE_API_KEY=your-project-key
-./scripts/run-tests.sh
+pip install -r tests/requirements.txt
+robot --outputdir tests/results --xunit robot-junit.xml tests/robotframework/
 ```
 
 !!! warning "`--xunit` path"
-    Use **basename only** (`robot-junit.xml`), not `tests/results/robot-junit.xml` — rebot resolves paths relative to `--outputdir`.
+    Use **basename only** (`robot-junit.xml`), not `tests/results/robot-junit.xml` — Robot resolves paths relative to `--outputdir`.
 
-!!! note "Canonical file only (no fallback discovery)"
-    CI upload must target only `tests/results/robot-junit.xml`. Do not fallback to `find ... robot-junit.xml` paths, because stale or duplicated files can introduce repeated testcases.
-
-## 3. Upload
+## 2. Upload to QA Capsule
 
 ```bash
-curl -f -S -X POST "${QA_CAPSULE_URL}/api/webhooks/upload?framework=RobotFramework" \
+curl -X POST "${QA_CAPSULE_URL}/api/webhooks/upload?framework=RobotFramework" \
   -H "X-API-Key: ${QA_CAPSULE_API_KEY}" \
-  -H "X-Run-Id: ${GITHUB_RUN_ID}" \
+  -H "X-Run-Id: ${CI_PIPELINE_ID}" \
   -H "X-Execution-Env: STAGING" \
   -H "X-Execution-Type: TEST-RUN" \
   -F "file=@tests/results/robot-junit.xml"
 ```
 
-## 4. GitHub Actions
+## 3. GitHub Actions
 
-Secrets: `QA_CAPSULE_URL`, `QA_CAPSULE_API_ROBOT_KEY`
+```yaml
+- name: Run Robot Tests
+  run: robot --outputdir tests/results --xunit robot-junit.xml tests/robotframework/
+  continue-on-error: true
 
-Uses `scripts/run-tests.sh` + dedicated upload step with `if: always()`.
+- name: Send Alert to QA Capsule
+  if: always()
+  env:
+    WEBHOOK_URL: ${{ secrets.QA_CAPSULE_URL }}
+    API_KEY: ${{ secrets.QA_CAPSULE_API_ROBOT_KEY }}
+  run: |
+    curl -X POST "$WEBHOOK_URL/api/webhooks/upload?framework=RobotFramework" \
+      -H "X-API-Key: $API_KEY" \
+      -H "X-Run-Id: ${{ github.run_id }}" \
+      -H "X-Execution-Env: STAGING" \
+      -H "X-Execution-Type: TEST-RUN" \
+      -F "file=@tests/results/robot-junit.xml"
+```
+
+!!! note "Headers"
+    - `X-Run-Id` groups all test results under the same pipeline run in the Execution Hub.
+    - `X-Execution-Env` accepts `PROD`, `STAGING`, `INTEGRATION`, `DEV`.
+    - `X-Execution-Type` accepts `TEST-RUN`, `NIGHTLY`, `SMOKE`, `REAL`.
 
 ← [All frameworks](../test-frameworks.md)
