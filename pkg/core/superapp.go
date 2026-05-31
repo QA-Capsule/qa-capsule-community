@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/QA-Capsule/qa-capsule-community/pkg/ai"
 	"github.com/QA-Capsule/qa-capsule-community/pkg/healing"
 	"github.com/QA-Capsule/qa-capsule-community/pkg/quarantine"
 )
@@ -13,9 +14,12 @@ import (
 var (
 	QuarantineEngine *quarantine.Engine
 	HealingService   *healing.Service
+	// AIService handles AI provider config, RCA jobs, and locator fix proposals.
+	// Nil when DB is not initialized. Check Enabled before calling.
+	AIService *ai.Service
 )
 
-// InitSuperApp wires quarantine and self-healing engines (call after InitDB).
+// InitSuperApp wires quarantine, self-healing, and AI engines (call after InitDB).
 func InitSuperApp() {
 	if DB == nil {
 		return
@@ -25,7 +29,8 @@ func InitSuperApp() {
 		quarantine.DefaultPolicy(),
 	)
 	HealingService = healing.NewService(DB)
-	slog.Info("super-app modules initialized", "healing", true, "quarantine", true)
+	AIService = ai.NewService(ai.NewSQLiteRepository(DB), nil)
+	slog.Info("super-app modules initialized", "healing", true, "quarantine", true, "ai", true)
 }
 
 // PostIncidentHooks runs async quarantine scoring after ingest.

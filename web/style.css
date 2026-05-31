@@ -3267,10 +3267,16 @@ pre {
     background: var(--accent-soft);
 }
 
-.ai-provider-option.is-active {
+.ai-provider-option.is-active,
+.ai-provider-option--selected {
     border-color: var(--accent);
     background: var(--accent-soft);
     box-shadow: 0 0 0 2px var(--accent-ring);
+}
+
+.ai-provider-option__label {
+    font-size: 12px;
+    font-weight: 600;
 }
 
 .ai-provider-option__logo {
@@ -3335,6 +3341,101 @@ pre {
 .ai-config-panel .ai-provider-picker,
 .ai-config-panel .ai-config-footer {
     max-width: none;
+}
+
+/* ── AI Config page — section headers ─────────────────────────── */
+.ai-config-section-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.ai-config-section-num {
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    background: var(--accent, #6366f1);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    letter-spacing: 0.5px;
+    margin-top: 2px;
+}
+
+.ai-config-section-title {
+    font-size: 15px;
+    font-weight: 700;
+    margin: 0 0 4px;
+    color: var(--text-primary, #f1f5f9);
+    border: none;
+    padding: 0;
+}
+
+.ai-config-section-desc {
+    font-size: 12px;
+    opacity: 0.7;
+    margin: 0;
+    line-height: 1.6;
+}
+
+/* ── AI Tools grid ────────────────────────────────────────────── */
+.ai-tools-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 12px;
+}
+
+.ai-tool-card {
+    position: relative;
+    border: 1px solid var(--border-color, rgba(255,255,255,.1));
+    border-radius: 10px;
+    padding: 16px;
+    background: var(--card-bg-inner, rgba(255,255,255,.03));
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    transition: border-color .15s;
+}
+
+.ai-tool-card:hover {
+    border-color: var(--accent, #6366f1);
+}
+
+.ai-tool-card__name {
+    font-size: 13px;
+    font-weight: 700;
+    font-family: var(--font-mono, monospace);
+    color: var(--text-primary, #f1f5f9);
+}
+
+.ai-tool-card__desc {
+    font-size: 12px;
+    opacity: 0.72;
+    line-height: 1.55;
+    flex: 1;
+}
+
+.ai-tool-card__badge {
+    align-self: flex-start;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .8px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: rgba(99,102,241,.15);
+    color: var(--accent, #818cf8);
+    border: 1px solid rgba(99,102,241,.3);
+}
+
+.ai-tool-card__badge--write {
+    background: rgba(249,115,22,.12);
+    color: #fb923c;
+    border-color: rgba(249,115,22,.3);
 }
 
 .rca-insight-card__title .ai-insight-panel__icon {

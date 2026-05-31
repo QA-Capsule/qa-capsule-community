@@ -96,53 +96,6 @@ X-Commit-Sha: abcdef</pre>
           <p>Add configuration rows to set Slack channel, Jira project, Teams webhook, etc. This defines which plugins may run for this gateway.</p>
         </article>`
     },
-    rca_quarantine: {
-        title: 'AI RCA & Quarantine',
-        breadcrumb: 'Help Center / RCA & Quarantine',
-        html: `
-        <article class="about-doc about-doc-wide">
-          <h2>AI Root Cause Analysis</h2>
-          <p>Async LLM summaries (OpenAI or Ollama) per failure. Manager configures provider; Lead+ views insights. Does not block webhooks.</p>
-          <h3>RCA &amp; AI Insights view</h3>
-          <ul class="about-detail-list">
-            <li>Browse recent summaries across projects you can access.</li>
-            <li>Re-run analysis on an incident after log updates.</li>
-            <li>Status: pending, running, completed, skipped, failed.</li>
-          </ul>
-          <h2>Smart Quarantine</h2>
-          <p>Deny-list flaky or broken tests so they stop creating incidents and firing Slack/Jira.</p>
-          <ul class="about-detail-list">
-            <li><strong>Auto</strong> — Engine may quarantine after flaky tags or repeated failures.</li>
-            <li><strong>Manual</strong> — Lead+ adds/lifts tests in Quarantine view.</li>
-            <li><strong>CI API</strong> — <code>GET /api/ci/quarantine</code> with same <code>X-API-Key</code> to skip tests in pipeline.</li>
-          </ul>
-          <div class="about-callout">Quarantined ingests return <code>quarantined_skipped</code> in webhook JSON — no incident row.</div>
-        </article>`
-    },
-    runbooks_dora: {
-        title: 'Runbooks & DORA',
-        breadcrumb: 'Help Center / Runbooks & DORA',
-        html: `
-        <article class="about-doc about-doc-wide">
-          <h2>Runbooks</h2>
-          <p class="about-lead">One-click <strong>workflow templates</strong> (502 restart, flaky triage, OOM, perf, timeout) validated against the plugin registry.</p>
-          <p>Lead+ selects gateway + template → Apply writes and enables <code>sre_workflow_json</code>. Customize afterward in WORKFLOW editor.</p>
-          <h2>DORA dashboard (Manager)</h2>
-          <table class="about-table">
-            <thead><tr><th>Metric</th><th>Source</th></tr></thead>
-            <tbody>
-              <tr><td>Deployment frequency</td><td>Pipeline runs per day</td></tr>
-              <tr><td>Lead time</td><td>Median run start → first incident</td></tr>
-              <tr><td>Change failure rate</td><td>Failed runs / total runs</td></tr>
-              <tr><td>MTTR</td><td>Mean time to resolve incidents</td></tr>
-            </tbody>
-          </table>
-          <h3>Prometheus webhook</h3>
-          <pre class="about-code">POST /api/webhooks/prometheus?project=&lt;gateway-name&gt;
-X-API-Key: &lt;key&gt;</pre>
-          <p>Correlates external alerts to incidents within ±15 minutes.</p>
-        </article>`
-    },
     analytics: {
         title: 'Dashboard analytics',
         breadcrumb: 'Help Center / Analytics',
@@ -177,7 +130,7 @@ X-API-Key: &lt;key&gt;</pre>
           <ol class="about-detail-list">
             <li><strong>Ingest</strong> — Webhook validates API key → dedup by fingerprint + run → optional flaky/perf tags → SQLite insert.</li>
             <li><strong>Remediate</strong> — Visual workflow DAG <em>or</em> legacy AUTO-RUN plugins (async, max 32 concurrent).</li>
-            <li><strong>Enrich</strong> — RCA job + quarantine stats (async hooks).</li>
+            <li><strong>Enrich</strong> — RCA job + MCP self-healing (async hooks).</li>
             <li><strong>Observe</strong> — Dashboard, DORA, FinOps, artifacts.</li>
           </ol>
           <h3>Storage</h3>

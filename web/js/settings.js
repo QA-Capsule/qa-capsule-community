@@ -7,6 +7,7 @@ import { notify, showConfirmModal, showPromptModal } from './ui.js';
 import { canManagePluginAutoRun } from './roles.js';
 import * as analyticsLayout from './analytics-layout.js';
 import { applyChartThemeDefaults, getChartTheme } from './chart-theme.js';
+import { AI_PROVIDERS, logoForProvider, getProviderMeta } from './ai-provider-icons.js';
 
 export let allProjects = [];
 let editingProjectId = null;
@@ -1395,4 +1396,176 @@ export function triggerSSO() {
                 setTimeout(() => { alert("Redirecting to: " + data.sso_url); }, 1500);
             }
         }).catch(err => notify("SSO failed. Please try again.", "error"));
+}
+
+// ── AI Provider & MCP Self-Healing ───────────────────────────────────────────
+
+let _selectedAIProvider = 'disabled';
+
+export async function loadAIConfig() {
+    // Load AI provider config
+    const res = await fetchWithAuth('/api/ai/config');
+    const { ok, data } = await parseApiJson(res);
+
+    _renderProviderPicker(ok && data ? data.provider : 'disabled');
+
+    if (ok && data) {
+        _selectedAIProvider = data.provider || 'disabled';
+        const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || ''; };
+        setVal('ai-model', data.model);
+        setVal('ai-base-url', data.base_url);
+        setVal('ai-key-env', data.api_key_env);
+        const maxTok = document.getElementById('ai-max-tokens');
+        if (maxTok) maxTok.value = data.max_tokens || 1024;
+        const timeoutEl = document.getElementById('ai-timeout');
+        if (timeoutEl) timeoutEl.value = data.timeout_seconds || 45;
+        const enabled = document.getElementById('ai-enabled');
+        if (enabled) enabled.checked = !!data.enabled;
+        const keyStatus = document.getElementById('ai-key-status');
+        if (keyStatus) {
+            keyStatus.textContent = data.api_key_set
+                ? '✓ Environment variable detected on the server'
+                : '⚠ Environment variable not set — the provider will not work';
+            keyStatus.style.color = data.api_key_set ? 'var(--success-text)' : 'var(--warn-text)';
+        }
+        // KPI cards
+        const setKpi = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+        setKpi('ai-kpi-provider', data.provider && data.provider !== 'disabled' ? data.provider : '—');
+        setKpi('ai-kpi-model', data.model || '—');
+        setKpi('ai-kpi-apikey', data.api_key_set ? '✓ Set' : '⚠ Missing');
+        const apiKpiEl = document.getElementById('ai-kpi-apikey');
+        if (apiKpiEl) apiKpiEl.style.color = data.api_key_set ? 'var(--success-text)' : 'var(--warn-text)';
+    }
+
+    // Load MCP status
+    const statusRes = await fetchWithAuth('/api/ai/status');
+    const { ok: sok, data: sdata } = await parseApiJson(statusRes);
+    _updateAIStatusBadge(sok && sdata ? sdata : null);
+    _updateMCPSection(sok && sdata ? sdata : null);
+}
+
+export async function saveAIConfig() {
+    const model    = document.getElementById('ai-model')?.value?.trim() || '';
+    const baseUrl  = document.getElementById('ai-base-url')?.value?.trim() || '';
+    const keyEnv   = document.getElementById('ai-key-env')?.value?.trim() || 'OPENAI_API_KEY';
+    const maxTok   = parseInt(document.getElementById('ai-max-tokens')?.value || '1024', 10);
+    const timeout  = parseInt(document.getElementById('ai-timeout')?.value || '45', 10);
+    const enabled  = document.getElementById('ai-enabled')?.checked || false;
+
+    const payload = {
+        provider:        _selectedAIProvider,
+        model,
+        base_url:        baseUrl,
+        api_key_env:     keyEnv,
+        max_tokens:      maxTok,
+        timeout_seconds: timeout,
+        enabled,
+    };
+
+    const res = await fetchWithAuth('/api/ai/config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    });
+    if (res.ok) {
+        notify('AI configuration saved.', 'success');
+        loadAIConfig();
+    } else {
+        notify('Failed to save configuration.', 'error');
+    }
+}
+
+function _renderProviderPicker(currentProvider) {
+    const container = document.getElementById('ai-provider-picker');
+    if (!container) return;
+    container.innerHTML = AI_PROVIDERS.map(p => {
+        const selected = p.id === (currentProvider || 'disabled');
+        return `
+        <button type="button"
+            class="ai-provider-option${selected ? ' ai-provider-option--selected' : ''}"
+            data-provider="${_esc(p.id)}"
+            title="${_esc(p.label)}"
+            onclick="window._onAIProviderClick('${_esc(p.id)}')">
+            ${logoForProvider(p.id)}
+            <span class="ai-provider-option__label">${_esc(p.label)}</span>
+        </button>`;
+    }).join('');
+}
+
+window._onAIProviderClick = function(providerId) {
+    _selectedAIProvider = providerId;
+    // Update selected state on buttons
+    document.querySelectorAll('#ai-provider-picker .ai-provider-option').forEach(btn => {
+        btn.classList.toggle('ai-provider-option--selected', btn.dataset.provider === providerId);
+    });
+    // Auto-fill defaults for this provider
+    const meta = getProviderMeta(providerId);
+    const modelEl   = document.getElementById('ai-model');
+    const baseUrlEl = document.getElementById('ai-base-url');
+    const keyEnvEl  = document.getElementById('ai-key-env');
+    if (modelEl   && !modelEl.value)   modelEl.value   = meta.defaultModel   || '';
+    if (baseUrlEl && !baseUrlEl.value) baseUrlEl.value = meta.defaultBaseUrl  || '';
+    if (keyEnvEl)                      keyEnvEl.value  = meta.defaultKeyEnv   || '';
+    // Reset and re-check key status
+    const keyStatus = document.getElementById('ai-key-status');
+    if (keyStatus) {
+        keyStatus.textContent = `Set ${meta.defaultKeyEnv || 'your API key'} as a server environment variable.`;
+        keyStatus.style.color = '';
+    }
+};
+
+function _updateAIStatusBadge(data) {
+    const badge = document.getElementById('ai-status-badge');
+    if (!badge) return;
+    if (!data || !data.enabled || data.provider === 'disabled') {
+        badge.textContent = 'AI disabled';
+        badge.className = 'intel-badge intel-badge--manual';
+    } else {
+        badge.textContent = `${data.provider} / ${data.model || 'default model'}`;
+        badge.className = 'intel-badge intel-badge--healed';
+    }
+}
+
+function _updateMCPSection(data) {
+    const urlEl = document.getElementById('mcp-server-url');
+    if (urlEl) urlEl.textContent = `${window.location.origin}/mcp`;
+
+    const tokenEl = document.getElementById('mcp-token-status');
+    if (tokenEl) {
+        if (data?.mcp_token_set) {
+            tokenEl.innerHTML = '<span style="color:var(--success-text);font-weight:600;">✓ Token configured</span> — the MCP endpoint is protected.';
+        } else {
+            tokenEl.innerHTML = '<span style="color:var(--warn-text);font-weight:600;">⚠ No token</span> — set <code>QACAPSULE_MCP_TOKEN</code> to secure the endpoint in production.';
+        }
+    }
+
+    // KPI card token MCP
+    const kpiToken = document.getElementById('ai-kpi-mcp-token');
+    if (kpiToken) {
+        kpiToken.textContent = data?.mcp_token_set ? '✓ Configured' : '⚠ Missing';
+        kpiToken.style.color = data?.mcp_token_set ? 'var(--success-text)' : 'var(--warn-text)';
+    }
+}
+
+window.copyMCPCursorConfig = function() {
+    const origin = window.location.origin;
+    const config = JSON.stringify({
+        mcpServers: {
+            'qa-capsule': {
+                url: `${origin}/mcp`,
+                headers: { Authorization: 'Bearer REMPLACE_PAR_QACAPSULE_MCP_TOKEN' },
+            },
+        },
+    }, null, 2);
+    navigator.clipboard.writeText(config).then(
+        () => notify('Cursor config copied to clipboard.', 'success'),
+        () => notify(config, 'info'),
+    );
+};
+
+window.saveAIConfig = saveAIConfig;
+window.loadAIConfig = loadAIConfig;
+
+function _esc(s) {
+    return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 }

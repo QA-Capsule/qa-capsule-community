@@ -10,9 +10,14 @@ services:
       - "9000:9000"
     environment:
       APP_ENV: development
-      # Override in production; required when APP_ENV is not development.
+      # Required in production (or set in .env file).
       QACAPSULE_JWT_SECRET: ${QACAPSULE_JWT_SECRET:-dev-compose-change-me}
       QACAPSULE_DATA_DIR: /app/data
+      # MCP server auth token — sent by Cursor/agents in Authorization: Bearer header.
+      # Leave empty in dev (no auth). Set a strong random secret in production.
+      QACAPSULE_MCP_TOKEN: ${QACAPSULE_MCP_TOKEN:-}
+      # GitHub token — required only for create_remediation_pr MCP tool.
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
     volumes:
       - ./reports:/app/reports
       - ./plugins:/app/plugins

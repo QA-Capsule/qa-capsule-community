@@ -236,17 +236,14 @@
                     <path d="M9 18h6"></path><path d="M10 22h4"></path>
                 </svg><span class="nav-text">Self-Healing Hub</span>
             </div>
-            <div class="nav-item role-non-admin" onclick="switchView('quarantine', this)" data-tooltip="Quality / Quarantine">
+            <div class="nav-item role-lead" onclick="switchView('ai-config', this)" data-tooltip="AI & MCP Configuration">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
-                </svg><span class="nav-text">Quarantine</span>
-            </div>
-            <div class="nav-item role-lead" onclick="switchView('runbooks', this)" data-tooltip="Runbooks">
-                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                    <polyline points="14 2 14 8 20 8"></polyline>
-                </svg><span class="nav-text">Runbooks</span>
+                    <circle cx="12" cy="12" r="3"></circle>
+                    <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+                    <path d="M4.93 4.93a10 10 0 0 0 0 14.14"></path>
+                    <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                    <path d="M8.46 8.46a5 5 0 0 0 0 7.07"></path>
+                </svg><span class="nav-text">AI &amp; MCP Config</span>
             </div>
             <div class="nav-section-label role-non-admin" style="margin-top: 10px;">HELP CENTER</div>
             <div class="nav-item role-non-admin" onclick="switchView('about', this)" data-tooltip="Help Center">
@@ -756,13 +753,15 @@
                         <div class="kpi-value" id="healing-stat-interventions">—</div>
                     </div>
                 </div>
-                <div class="data-card">
-                    <h3 class="form-section-title" style="border-top:none;padding-top:0;margin:0 0 12px;">MCP integration</h3>
-                    <p style="margin:0 0 12px;font-size:13px;opacity:0.85;line-height:1.5;">
-                        Connect Cursor to <code>POST /mcp</code> with tool <code>get_incident_context</code>.
-                        Use the prompts below to self-heal failed tests in your repo — no framework lock-in.
-                    </p>
-                    <button type="button" id="healing-copy-mcp-url" class="btn-secondary btn-sm">Copy MCP setup</button>
+                <!-- ── AI quick-status card ──────────────────────────────────── -->
+                <div class="data-card" style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+                    <div>
+                        <p style="font-size:13px;font-weight:600;margin:0 0 2px;">AI &amp; MCP Status</p>
+                        <p id="healing-ai-status-summary" style="font-size:12px;opacity:0.7;margin:0;">Loading…</p>
+                    </div>
+                    <button class="btn-secondary btn-sm" onclick="window.switchView && window.switchView('ai-config', null)">
+                        ⚙ Configure AI &amp; MCP →
+                    </button>
                 </div>
                 <div class="data-card">
                     <div class="intelligence-filter-row">
@@ -791,59 +790,195 @@
                 </div>
             </section>
 
-            <section id="view-quarantine" class="view-section intelligence-view">
+            <!-- ══════════════ AI & MCP CONFIGURATION ══════════════ -->
+            <section id="view-ai-config" class="view-section intelligence-view">
+
                 <div class="header-bar">
                     <div>
-                        <h1 class="intelligence-view__title">Quality / Quarantine</h1>
-                        <p class="intelligence-view__subtitle">DenyList for flaky tests — CI calls <code>GET /api/ci/quarantine</code> with <code>X-API-Key</code>.</p>
+                        <h1 class="intelligence-view__title">AI &amp; MCP Configuration</h1>
+                        <p class="intelligence-view__subtitle">Configure the LLM provider and MCP server for automatic self-healing and root cause analysis.</p>
                     </div>
+                    <span id="ai-status-badge" class="intel-badge intel-badge--manual">Loading…</span>
                 </div>
+
+                <!-- ── Health overview ────────────────────────────── -->
                 <div class="kpi-grid intelligence-kpi-grid">
                     <div class="kpi-card">
-                        <div>Active deny-list</div>
-                        <div class="kpi-value" id="quarantine-stat-active">—</div>
+                        <div>Active Provider</div>
+                        <div class="kpi-value" id="ai-kpi-provider" style="font-size:17px;text-transform:capitalize;">—</div>
                     </div>
                     <div class="kpi-card">
-                        <div>Auto-quarantined</div>
-                        <div class="kpi-value" id="quarantine-stat-auto">—</div>
+                        <div>Model</div>
+                        <div class="kpi-value" id="ai-kpi-model" style="font-size:17px;">—</div>
+                    </div>
+                    <div class="kpi-card kpi-card--healed">
+                        <div>MCP Token</div>
+                        <div class="kpi-value" id="ai-kpi-mcp-token" style="font-size:17px;">—</div>
                     </div>
                     <div class="kpi-card">
-                        <div>Manual</div>
-                        <div class="kpi-value" id="quarantine-stat-manual">—</div>
+                        <div>API Key</div>
+                        <div class="kpi-value" id="ai-kpi-apikey" style="font-size:17px;">—</div>
                     </div>
                 </div>
-                <div class="intelligence-split">
-                    <div class="data-card form-panel">
-                        <div class="form-field">
-                            <label for="quarantine-project-filter">Gateway</label>
-                            <select id="quarantine-project-filter" class="login-input" style="max-width:none;width:100%;"></select>
-                        </div>
-                        <div class="quarantine-add-row role-lead">
-                            <input type="text" id="quarantine-test-name" class="login-input" placeholder="Test name to quarantine">
-                            <button type="button" id="quarantine-add-btn" class="btn-secondary">Add to quarantine</button>
-                        </div>
-                    </div>
-                    <div class="data-card">
-                        <div class="modern-data-grid modern-data-grid--header" aria-hidden="true">
-                            <span>Test</span><span>Fingerprint</span><span>Reason</span><span>Since</span><span></span>
-                        </div>
-                        <div id="quarantine-list-body" class="modern-data-grid quarantine-data-grid" role="list"></div>
-                    </div>
-                </div>
-            </section>
 
-            <section id="view-runbooks" class="view-section intelligence-view">
-                <div class="header-bar">
-                    <div>
-                        <h1 class="intelligence-view__title">Runbooks &amp; Automations</h1>
-                        <p class="intelligence-view__subtitle">Apply curated remediation DAGs to a gateway. Actions use registered plugins only (K8s, Slack, Jira, …).</p>
+                <!-- ══ SECTION 1 — LLM Provider ═══════════════════ -->
+                <div class="data-card ai-config-panel" style="margin-top:8px;">
+                    <div class="ai-config-section-head">
+                        <div class="ai-config-section-num">01</div>
+                        <div>
+                            <h3 class="ai-config-section-title">LLM Provider</h3>
+                            <p class="ai-config-section-desc">Select the AI provider responsible for RCA summaries and locator self-healing suggestions. Model name and base URL are auto-filled and can be overridden in the next section.</p>
+                        </div>
+                    </div>
+                    <div id="ai-provider-picker" class="ai-provider-picker" role="group" aria-label="AI Provider"></div>
+                </div>
+
+                <!-- ══ SECTION 2 — Model & Endpoint ═══════════════ -->
+                <div class="data-card" style="margin-top:12px;">
+                    <div class="ai-config-section-head">
+                        <div class="ai-config-section-num">02</div>
+                        <div>
+                            <h3 class="ai-config-section-title">Model &amp; Endpoint</h3>
+                            <p class="ai-config-section-desc">Override the default model name or point to a custom OpenAI-compatible endpoint. For self-hosted Ollama, use <code>http://localhost:11434/v1</code> as the base URL.</p>
+                        </div>
+                    </div>
+                    <div class="ai-config-grid">
+                        <div class="form-field" style="margin:0;">
+                            <label for="ai-model">Model name</label>
+                            <input type="text" id="ai-model" class="login-input" placeholder="e.g. gpt-4o-mini" style="max-width:none;">
+                            <p class="form-field-hint">Exact model identifier as accepted by the provider API.</p>
+                        </div>
+                        <div class="form-field" style="margin:0;">
+                            <label for="ai-base-url">Base URL</label>
+                            <input type="text" id="ai-base-url" class="login-input" placeholder="https://api.openai.com/v1" style="max-width:none;">
+                            <p class="form-field-hint">Leave blank to use the provider default. Required for Azure OpenAI and Ollama.</p>
+                        </div>
                     </div>
                 </div>
-                <div class="data-card" style="margin-bottom:16px;">
-                    <label class="form-field-label" for="runbooks-project-select">Target CI/CD gateway</label>
-                    <select id="runbooks-project-select" class="login-input" style="max-width:none;width:100%;margin-top:6px;"></select>
+
+                <!-- ══ SECTION 3 — Authentication ═════════════════ -->
+                <div class="data-card" style="margin-top:12px;">
+                    <div class="ai-config-section-head">
+                        <div class="ai-config-section-num">03</div>
+                        <div>
+                            <h3 class="ai-config-section-title">Authentication</h3>
+                            <p class="ai-config-section-desc">The API key is <strong>never stored</strong> in the database. QA Capsule reads it at runtime from a server-side environment variable. Set it in your <code>.env</code> file or your orchestrator secrets.</p>
+                        </div>
+                    </div>
+                    <div class="ai-config-grid">
+                        <div class="form-field" style="margin:0;">
+                            <label for="ai-key-env">API key environment variable name</label>
+                            <input type="text" id="ai-key-env" class="login-input" placeholder="OPENAI_API_KEY" style="max-width:none;">
+                            <p id="ai-key-status" style="margin:6px 0 0;font-size:12px;font-weight:600;"></p>
+                            <p class="form-field-hint">e.g. <code>OPENAI_API_KEY</code> · <code>ANTHROPIC_API_KEY</code> · <code>GEMINI_API_KEY</code></p>
+                        </div>
+                        <div class="about-callout" style="margin:0;font-size:12px;line-height:1.8;align-self:flex-start;margin-top:20px;">
+                            <strong>How to set the variable</strong><br>
+                            Docker run: <code>-e OPENAI_API_KEY=sk-…</code><br>
+                            docker-compose: under <code>environment:</code><br>
+                            Kubernetes: <code>secretKeyRef</code> in pod spec<br>
+                            .env file: <code>OPENAI_API_KEY=sk-…</code>
+                        </div>
+                    </div>
                 </div>
-                <div id="runbooks-template-grid" class="runbooks-template-grid"></div>
+
+                <!-- ══ SECTION 4 — Advanced Parameters ════════════ -->
+                <div class="data-card" style="margin-top:12px;">
+                    <div class="ai-config-section-head">
+                        <div class="ai-config-section-num">04</div>
+                        <div>
+                            <h3 class="ai-config-section-title">Advanced Parameters</h3>
+                            <p class="ai-config-section-desc">Control token budget and request timeout. Higher token limits allow more detailed code suggestions; lower values reduce cost and latency.</p>
+                        </div>
+                    </div>
+                    <div class="ai-config-grid">
+                        <div class="form-field" style="margin:0;">
+                            <label for="ai-max-tokens">Max response tokens</label>
+                            <input type="number" id="ai-max-tokens" class="login-input" value="1024" min="128" max="8192" style="max-width:none;">
+                            <p class="form-field-hint">Recommended: 512–2048 for RCA · 1024–4096 for code fix suggestions.</p>
+                        </div>
+                        <div class="form-field" style="margin:0;">
+                            <label for="ai-timeout">Request timeout (seconds)</label>
+                            <input type="number" id="ai-timeout" class="login-input" value="45" min="10" max="300" style="max-width:none;">
+                            <p class="form-field-hint">Maximum wait before the AI request is abandoned. 45 s recommended.</p>
+                        </div>
+                    </div>
+                    <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border-color,rgba(255,255,255,.08));">
+                        <label class="pref-toggle-card" style="cursor:pointer;max-width:600px;">
+                            <div>
+                                <div style="font-weight:600;font-size:13px;">Enable AI provider</div>
+                                <div style="font-size:12px;opacity:0.7;margin-top:3px;">Activates automatic RCA analysis and locator self-healing for every incoming incident.</div>
+                            </div>
+                            <input type="checkbox" id="ai-enabled" role="switch" style="margin-left:auto;">
+                        </label>
+                    </div>
+                    <div style="margin-top:20px;display:flex;gap:12px;align-items:center;">
+                        <button class="btn-primary" onclick="window.saveAIConfig && window.saveAIConfig()">Save Configuration</button>
+                        <button class="btn-secondary" onclick="window.loadAIConfig && window.loadAIConfig()">Discard Changes</button>
+                    </div>
+                </div>
+
+                <!-- ══ SECTION 5 — MCP Server ══════════════════════ -->
+                <div class="data-card" style="margin-top:20px;">
+                    <div class="ai-config-section-head">
+                        <div class="ai-config-section-num">05</div>
+                        <div>
+                            <h3 class="ai-config-section-title">MCP Server</h3>
+                            <p class="ai-config-section-desc">QA Capsule exposes a <strong>Model Context Protocol</strong> server at <code id="mcp-server-url">…/mcp</code>. Connect Cursor, Claude Desktop, or any MCP-compatible agent using <code>Authorization: Bearer &lt;token&gt;</code>.</p>
+                        </div>
+                    </div>
+                    <div class="ai-config-grid">
+                        <div>
+                            <p style="font-size:13px;font-weight:600;margin:0 0 8px;">MCP Access Token</p>
+                            <p id="mcp-token-status" style="font-size:13px;margin:0 0 10px;"></p>
+                            <div class="about-callout" style="margin:0;font-size:12px;line-height:1.8;">
+                                Set <code>QACAPSULE_MCP_TOKEN</code> as a server environment variable.<br>
+                                Alternative: <code>telemetry.webhook_token</code> in <code>config.yaml</code>.
+                            </div>
+                        </div>
+                        <div>
+                            <p style="font-size:13px;font-weight:600;margin:0 0 8px;">Cursor Integration</p>
+                            <p style="font-size:12px;opacity:0.7;margin:0 0 12px;line-height:1.6;">Paste the generated snippet into <code>~/.cursor/mcp.json</code> to connect Cursor to this MCP server. The token placeholder must be replaced with your actual <code>QACAPSULE_MCP_TOKEN</code> value.</p>
+                            <button type="button" class="btn-secondary" onclick="window.copyMCPCursorConfig && window.copyMCPCursorConfig()">
+                                Copy Cursor config (mcp.json)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ══ SECTION 6 — Available MCP Tools ════════════ -->
+                <div class="data-card" style="margin-top:12px;margin-bottom:32px;">
+                    <div class="ai-config-section-head">
+                        <div class="ai-config-section-num">06</div>
+                        <div>
+                            <h3 class="ai-config-section-title">Available MCP Tools</h3>
+                            <p class="ai-config-section-desc">These tools are callable by any connected AI agent (Cursor, Claude, etc.) over the MCP protocol. The agent sends structured requests; QA Capsule returns live incident data.</p>
+                        </div>
+                    </div>
+                    <div class="ai-tools-grid">
+                        <div class="ai-tool-card">
+                            <div class="ai-tool-card__name">get_incident_context</div>
+                            <div class="ai-tool-card__desc">Returns the full context of an incident — logs, framework, locator, error message — so the agent can propose a targeted fix.</div>
+                            <div class="ai-tool-card__badge">READ</div>
+                        </div>
+                        <div class="ai-tool-card">
+                            <div class="ai-tool-card__name">detect_locator_failures</div>
+                            <div class="ai-tool-card__desc">Lists all broken locators detected in a CI run. The agent can then correct them directly in the source repository.</div>
+                            <div class="ai-tool-card__badge">READ</div>
+                        </div>
+                        <div class="ai-tool-card">
+                            <div class="ai-tool-card__name">record_healing_intervention</div>
+                            <div class="ai-tool-card__desc">Persists a self-healing intervention performed by the agent: original locator → fixed locator, confidence score, and explanation.</div>
+                            <div class="ai-tool-card__badge ai-tool-card__badge--write">WRITE</div>
+                        </div>
+                        <div class="ai-tool-card">
+                            <div class="ai-tool-card__name">list_recent_failures</div>
+                            <div class="ai-tool-card__desc">Returns the N most recent active incidents with their fingerprint, enabling the agent to prioritize the most impactful fixes first.</div>
+                            <div class="ai-tool-card__badge">READ</div>
+                        </div>
+                    </div>
+                </div>
+
             </section>
 
             <section id="view-dora" class="view-section executive-view">
@@ -1079,6 +1214,7 @@
                     </div>
                 </div>
 
+
             </section>
 
             <section id="view-profile" class="view-section profile-view">
@@ -1134,8 +1270,7 @@
                                         <option value="dora">DORA Metrics</option>
                                         <option value="plugins">Plugin Engine</option>
                                         <option value="healing">Self-Healing Hub</option>
-                                        <option value="quarantine">Quarantine</option>
-                                        <option value="runbooks">Runbooks</option>
+                                        <option value="ai-config">AI &amp; MCP Configuration</option>
                                         <option value="about">Help Center</option>
                                     </select>
                                     <p class="form-field-hint">Opened after sign-in when your role allows access.</p>

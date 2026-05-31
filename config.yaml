@@ -17,6 +17,8 @@ security:
 telemetry:
     report_path: ./reports/cypress-crash.json
     websocket_timeout_sec: 60
+    # webhook_token is also used as the MCP server auth token.
+    # Prefer setting QACAPSULE_MCP_TOKEN env var instead of hardcoding here.
     webhook_token: ""
 storage:
     local_path: ./data/artifacts

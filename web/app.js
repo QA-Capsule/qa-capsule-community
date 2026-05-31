@@ -17,8 +17,6 @@ import * as executionHub from './js/execution-hub.js';
 import * as reportViewer from './js/report-viewer.js';
 import * as workflowEditor from './js/workflow-editor.js';
 import * as healing from './js/healing.js';
-import * as quarantine from './js/quarantine.js';
-import * as runbooks from './js/runbooks.js';
 import * as dora from './js/dora.js';
 import { setupAutocomplete } from './js/autocomplete.js';
 import { initTheme, applyTheme } from './js/ui.js';
@@ -53,12 +51,6 @@ for (const [key, value] of Object.entries(workflowEditor)) {
     if (typeof value === 'function') window[key] = value;
 }
 for (const [key, value] of Object.entries(healing)) {
-    if (typeof value === 'function') window[key] = value;
-}
-for (const [key, value] of Object.entries(quarantine)) {
-    if (typeof value === 'function') window[key] = value;
-}
-for (const [key, value] of Object.entries(runbooks)) {
     if (typeof value === 'function') window[key] = value;
 }
 for (const [key, value] of Object.entries(dora)) {
@@ -1400,6 +1392,24 @@ window.submitNewPassword = function () {
         }).catch(() => notify("Network error", "error"));
 }
 
+async function _loadHealingAIStatusSummary() {
+    const el = document.getElementById('healing-ai-status-summary');
+    if (!el) return;
+    try {
+        const res = await fetchWithAuth('/api/ai/status');
+        const { ok, data } = await parseApiJson(res);
+        if (ok && data && data.enabled && data.provider !== 'disabled') {
+            el.textContent = `✓ ${data.provider} / ${data.model || 'default model'} — AI active`;
+            el.style.color = 'var(--success-text, #4ade80)';
+        } else {
+            el.textContent = '⚠ No AI provider configured — click Configure to enable self-healing.';
+            el.style.color = 'var(--warn-text, #f59e0b)';
+        }
+    } catch (_) {
+        el.textContent = 'Unable to load AI status.';
+    }
+}
+
 window.switchView = function (id, el) {
     if (id === 'rca') id = 'healing';
     const payload = parseJwt(localStorage.getItem('sre-jwt'));
@@ -1450,12 +1460,10 @@ window.switchView = function (id, el) {
     }
     if ((id === 'healing' || id === 'rca') && payload && canAccessView(payload.role, 'healing')) {
         if (window.loadHealingView) window.loadHealingView();
+        _loadHealingAIStatusSummary();
     }
-    if (id === 'quarantine' && payload && canAccessView(payload.role, 'quarantine')) {
-        if (window.loadQuarantineView) window.loadQuarantineView();
-    }
-    if (id === 'runbooks' && payload && canAccessView(payload.role, 'runbooks')) {
-        if (window.loadRunbooksView) window.loadRunbooksView();
+    if (id === 'ai-config' && payload && canAccessView(payload.role, 'healing')) {
+        if (window.loadAIConfig) window.loadAIConfig();
     }
     if (id === 'dora' && payload && canAccessView(payload.role, 'dora')) {
         if (window.loadDORAView) window.loadDORAView();

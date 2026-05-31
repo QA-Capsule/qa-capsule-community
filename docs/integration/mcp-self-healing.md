@@ -1,339 +1,437 @@
 # MCP Self-Healing — Guide complet
 
-## Vue d'ensemble
+## Réponses rapides
 
-QA Capsule fournit un système de **self-healing framework-agnostique** basé sur le protocole MCP (Model Context Protocol).  
-Il fonctionne en **deux modes complémentaires** :
-
-| Mode | Nécessite un LLM ? | Ce que ça fait |
-|------|-------------------|----------------|
-| **Automatique (Healing Gate)** | Non | Détecte les locator failures, enregistre les interventions, notifie Slack/Teams |
-| **Agent AI (Cursor/Claude)** | Oui — ton modèle | Lit le code source, raisonne sur le DOM, applique le fix précis, crée la PR |
-
----
-
-## Architecture
-
-```
-CI Pipeline (any framework)
-│
-├── 1. Run Tests           → JUnit XML produit
-├── 2. Upload Results      → POST /api/webhooks/upload
-│                             incidents créés en base
-│
-└── 3. MCP Healing Gate    → POST /api/healing/gate
-          │
-          ├── Détecte les failure locator dans les incidents du run
-          ├── Enregistre dans locator_healings (original → healed)
-          ├── Marque l'incident mcp_healed = 1
-          └── Notifie Slack/Teams/Jira si configuré
-
-                    ↕  MCP JSON-RPC  ↕
-
-QA Capsule MCP Server (/mcp)
-│
-├── detect_locator_failures     ← Cursor appelle ça après /gate
-├── record_healing_intervention ← Cursor enregistre son fix
-├── get_incident_context        ← Contexte complet (logs, stack, selector)
-├── propose_healing             ← Hints rule-based sans LLM
-├── submit_healing_patch        ← Soumet le patch pour audit
-└── create_remediation_pr       ← Crée la PR GitHub
-
-                    ↕  IDE MCP  ↕
-
-Agent AI externe (Cursor, Copilot, etc.)
-     └── Modèle AI = celui de ton IDE (Claude, GPT-4, etc.)
-         QA Capsule ne contient aucun LLM interne
-```
+| Question | Réponse |
+|----------|---------|
+| Où est le MCP server ? | **Intégré dans QA Capsule**, même process, même port — endpoint `POST /mcp` |
+| Comment le configurer ? | Variable d'env `QACAPSULE_MCP_TOKEN` + config Cursor `~/.cursor/mcp.json` |
+| Quel modèle AI choisir ? | **Ton modèle dans Cursor** (Claude, GPT-4…) — QA Capsule n'a aucun LLM interne |
+| Outil MCP externe ? | Dans Cursor, tu combines QA Capsule MCP + `filesystem` MCP + `github` MCP |
 
 ---
 
-## Mode 1 — Healing Gate (sans LLM, opérationnel immédiatement)
+## 1. Où est le MCP server ?
 
-### Ce que fait le Healing Gate
-
-À chaque run CI, après l'upload du JUnit XML, le step "MCP Healing Gate" appelle :
+Le MCP server est **déjà dans QA Capsule**. Rien à installer séparément.
 
 ```
-POST /api/healing/gate
-X-API-Key: <project key>
-X-Run-Id:  <github.run_id>
-X-Framework: Playwright   # optionnel, améliore la détection
+QA Capsule (port 9000)
+├── GET  /              → UI web
+├── POST /api/webhooks/upload  → ingest JUnit XML
+├── GET  /api/healing/insights → Self-Healing Hub
+└── POST /mcp           → ← MCP server JSON-RPC 2.0
+                              (accessible dès le lancement de l'app)
 ```
 
-Le serveur :
-1. Lit tous les incidents du run (`pipeline_run_id = run_id`)
-2. Pour chaque incident dont l'`error_message` contient un pattern locator :
-   - Extrait le sélecteur cassé (`#stripe-pay-button`, `[data-testid=...]`, etc.)
-   - Génère une suggestion heuristique (`#id` → `[data-testid="id"]`)
-   - Insère dans `locator_healings`
-   - Met à jour `incidents.mcp_healed = 1`
-3. Si au moins une intervention : déclenche la notification (Slack/Teams)
-4. Retourne un JSON avec le rapport complet
-
-### Détection multi-framework
-
-| Framework | Pattern reconnu | Exemple |
-|-----------|----------------|---------|
-| **Playwright** | `locator('...')` | `locator('#pay-btn').click: Timeout 3000ms` |
-| **Cypress** | `Expected to find element: '...'` | `Expected to find element: '#dashboard'` |
-| **Selenium** | `NoSuchElementException`, `Unable to locate element` | `Unable to locate element: {"selector":"#login"}` |
-| **Robot Framework** | `Element '...' not found` | `Element '#submit-form' not found` |
-| **Générique** | Tout `#id` ou `[data-testid=...]` dans l'erreur | — |
-
-### Format de la notification
-
-Quand le gate détecte une intervention, la notification envoyée ressemble à :
-
-> **[MCP] Locator healing — test_checkout_flow**  
-> [MCP Healing Gate] 2 locator intervention(s) détectées dans le run 12345678.
+Quand tu lances QA Capsule (`docker compose up` ou `go run`), le MCP server
+démarre automatiquement. Il n'y a pas de commande séparée.
 
 ---
 
-## Mode 2 — Agent AI dans Cursor (avec LLM)
+## 2. Configuration côté serveur
 
-### Configuration (une seule fois)
+### Étape 1 — Générer un token MCP
 
-Dans **Cursor → Settings → MCP** (ou `~/.cursor/mcp.json`) :
+```bash
+# Linux/macOS
+openssl rand -hex 32
+# → ex: a3f8c2d1e7b9044f6a2d0e5c8b1f3a7d9e2c4b6a8d0f2e4c6a8b0d2f4e6c8a0b
+
+# Windows PowerShell
+[System.Web.Security.Membership]::GeneratePassword(48, 8)
+```
+
+### Étape 2 — Injecter le token dans QA Capsule
+
+**Via Docker (recommandé) :**
+
+Crée/modifie `.env` à la racine du repo :
+```env
+QACAPSULE_JWT_SECRET=ton-secret-jwt-fort
+QACAPSULE_MCP_TOKEN=a3f8c2d1e7b9044f6a2d0e5c8b1f3a7d9e2c4b6a8d0f2e4c6a8b0d2f4e6c8a0b
+GITHUB_TOKEN=ghp_xxxxxxxxxxxx   # pour create_remediation_pr
+```
+
+Le `docker-compose.yml` injecte ces variables automatiquement :
+```bash
+docker compose up -d --build
+```
+
+**Via `config.yaml` (dev local) :**
+```yaml
+telemetry:
+    webhook_token: "ton-token-mcp-ici"
+```
+
+**Priorité de lecture :**
+1. Variable d'env `QACAPSULE_MCP_TOKEN` (prioritaire)
+2. Fallback sur `config.yaml → telemetry.webhook_token`
+3. Si les deux sont vides → **aucune auth** (dev local uniquement)
+
+### Vérification
+
+```bash
+# Sans token (dev)
+curl -X POST http://localhost:9000/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
+
+# Avec token (prod)
+curl -X POST http://localhost:9000/mcp \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ton-token" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
+```
+
+Réponse attendue :
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "tools": [
+      {"name": "detect_locator_failures", ...},
+      {"name": "record_healing_intervention", ...},
+      ...
+    ]
+  }
+}
+```
+
+---
+
+## 3. Configuration côté Cursor (client MCP)
+
+### Étape 1 — Ouvrir la config MCP Cursor
+
+Deux options :
+
+- **Config globale** : `~/.cursor/mcp.json` (s'applique à tous tes projets)
+- **Config projet** : `.cursor/mcp.json` dans ce repo (s'applique à ce projet uniquement)
+
+Un fichier template est fourni à `.cursor/mcp.json.example`.
+
+### Étape 2 — Coller la configuration
 
 ```json
 {
   "mcpServers": {
     "qa-capsule": {
-      "url": "https://ton-qa-capsule.example.com/mcp",
+      "url": "http://localhost:9000/mcp",
       "headers": {
-        "Authorization": "Bearer TON_QACAPSULE_MCP_TOKEN"
+        "Authorization": "Bearer ton-token-mcp"
       }
     }
   }
 }
 ```
 
-Le `QACAPSULE_MCP_TOKEN` est défini côté serveur QA Capsule :
-- Variable d'environnement : `QACAPSULE_MCP_TOKEN`
-- Ou `config.Telemetry.WebhookToken` dans la config YAML
-
-### Workflow agent AI (Cursor + Claude)
-
-Une fois le MCP configuré, Cursor voit ces outils disponibles :
-
-```
-qa-capsule/detect_locator_failures
-qa-capsule/record_healing_intervention
-qa-capsule/get_incident_context
-qa-capsule/propose_healing
-qa-capsule/submit_healing_patch
-qa-capsule/create_remediation_pr
-qa-capsule/list_failed_incidents
-qa-capsule/get_flaky_tests
-qa-capsule/resolve_incident
+Pour une instance distante (staging, prod) :
+```json
+{
+  "mcpServers": {
+    "qa-capsule": {
+      "url": "https://qa-capsule.ton-domaine.com/mcp",
+      "headers": {
+        "Authorization": "Bearer ton-token-mcp"
+      }
+    }
+  }
+}
 ```
 
-**Exemple de session Cursor après un run CI qui échoue :**
+### Étape 3 — Vérifier dans Cursor
+
+`Cursor → Settings (⌘,) → MCP` — tu dois voir `qa-capsule` avec un point vert et les 9 outils listés :
 
 ```
-Toi dans Cursor:
-  "Le run 12345678 a des échecs — analyse et corrige les locators cassés"
-
-Cursor (Claude) appelle automatiquement:
-  1. detect_locator_failures(run_id="12345678")
-     → Retourne: [{incident_id: 42, test: "checkout_test", locator: "#stripe-pay-button"}]
-
-  2. get_incident_context(incident_id=42)
-     → Retourne: stack trace, logs console, hint sélecteur, suggested_actions
-
-  3. Claude lit tests/playwright/checkout.spec.js depuis le repo
-     → Repère la ligne avec #stripe-pay-button
-     → Comprend que le bouton a été renommé data-testid="checkout-cta"
-
-  4. record_healing_intervention(
-       incident_id=42,
-       original_locator="#stripe-pay-button",
-       healed_locator="[data-testid='checkout-cta']",
-       explanation="ID renommé après refactor Stripe, data-testid stable",
-       confidence=0.92
-     )
-
-  5. submit_healing_patch(incident_id=42, repo="org/repo", file_path="...", code="...")
-
-  6. create_remediation_pr(repo="org/repo", file_path="...", code="...")
-     → PR GitHub créée automatiquement
+qa-capsule  ●  connected
+  detect_locator_failures
+  record_healing_intervention
+  get_incident_context
+  propose_healing
+  submit_healing_patch
+  create_remediation_pr
+  list_failed_incidents
+  get_flaky_tests
+  resolve_incident
 ```
 
 ---
 
-## UI — Self-Healing Hub
+## 4. Choisir le modèle AI
 
-Dans QA Capsule → **Self-Healing Hub**, tu trouves :
-
-### KPI bar (4 métriques)
-
-| Métrique | Description |
-|----------|-------------|
-| **Open failures** | Incidents non résolus |
-| **Categorized** | Failures avec catégorie détectée (locator, timeout, etc.) |
-| **MCP-ready** | Toutes les failures sont MCP-ready (contexte disponible) |
-| **MCP interventions** | Nombre d'incidents où le Healing Gate est intervenu |
-
-### Liste des failures (insights)
-
-Chaque carte montre :
-- Nom du test
-- Badge **"MCP Healed"** (vert) si le gate a déjà enregistré une intervention pour ce test
-- Catégorie de l'erreur (`locator`, `timeout`, `assertion`, `network`)
-- Bouton **"Context"** → charge le contexte complet (sélecteur, actions suggérées, prompt MCP)
-- Bouton **"Copy MCP prompt"** → copie le prompt prêt à coller dans Cursor
-
-### Section "Locator Interventions MCP"
-
-Tableau de toutes les interventions enregistrées :
+QA Capsule **n'a aucun LLM interne**. Il expose un contexte structuré via MCP.
+C'est **ton modèle dans Cursor** qui raisonne dessus.
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│  [MCP]  test_checkout_flow                   [mcp_gate]         │
-│  INC #42  Playwright  confidence 60%  5m ago                    │
-│                                                                 │
-│  #stripe-pay-button  →  [data-testid="stripe-pay-button"]       │
-│                                                                 │
-│  ID selectors are fragile; prefer data-testid or ARIA role.     │
-└─────────────────────────────────────────────────────────────────┘
+Cursor (Claude Sonnet 4.5)  ←── ton modèle
+        │
+        │  MCP JSON-RPC
+        ▼
+QA Capsule /mcp              ←── données structurées, pas d'IA
+  get_incident_context()     → retourne logs, stack, sélecteur
+  detect_locator_failures()  → retourne la liste des locators cassés
 ```
 
-- Locator **original** (barré, fond rouge) → Locator **suggéré** (fond vert)
-- Score de confiance avec couleur (vert ≥ 70%, orange ≥ 40%, gris sinon)
-- Source de l'intervention (`mcp_gate` = automatique, `cursor_mcp` = agent Cursor, etc.)
+### Quel modèle choisir ?
+
+Dans `Cursor → Settings → Models` :
+
+| Modèle | Recommandé pour | Note |
+|--------|----------------|------|
+| **Claude Sonnet 4.5** | Healing quotidien | Bon équilibre vitesse/qualité |
+| **Claude Opus 4** | Cas complexes, multi-fichiers | Plus lent mais plus précis sur le code |
+| **GPT-4o** | Alternative | Fonctionne bien avec les outils MCP |
+
+> **Conseil** : commence avec Claude Sonnet 4.5. Si le locator est dans un
+> composant complexe (shadow DOM, iframe, microfrontend), passe sur Opus.
 
 ---
 
-## Secrets GitHub Actions requis
+## 5. Utiliser des outils MCP externes (multi-MCP)
+
+Pour qu'un agent AI réalise un healing complet, il a besoin de **plusieurs outils MCP** :
+
+```
+Cursor (agent AI)
+│
+├── qa-capsule MCP   → contexte de l'incident, enregistrement
+├── filesystem MCP   → lit les fichiers de test dans le repo
+└── github MCP       → crée la PR avec le fix (alternatif à create_remediation_pr)
+```
+
+### Configuration multi-MCP complète
+
+```json
+{
+  "mcpServers": {
+
+    "qa-capsule": {
+      "url": "http://localhost:9000/mcp",
+      "headers": {
+        "Authorization": "Bearer ton-token-mcp"
+      }
+    },
+
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/chemin/absolu/vers/ton/repo/de/tests"
+      ]
+    },
+
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "ghp_xxxxxxxxxxxx"
+      }
+    }
+
+  }
+}
+```
+
+**Installation des serveurs MCP locaux :**
+
+```bash
+# Vérifie que Node.js est installé
+node --version   # >= 18
+
+# Les serveurs sont téléchargés automatiquement par npx
+# Pas de npm install global nécessaire
+```
+
+### Ce que chaque MCP apporte
+
+| MCP | Outils utilisés | Rôle dans le healing |
+|-----|----------------|---------------------|
+| `qa-capsule` | `detect_locator_failures`, `get_incident_context`, `record_healing_intervention`, `create_remediation_pr` | Détecte le problème, enregistre le fix |
+| `filesystem` | `read_file`, `list_directory` | Lit le fichier test pour trouver le locator à changer |
+| `github` | `create_pull_request`, `get_file_contents` | Crée la PR (alternative au `create_remediation_pr` de QA Capsule) |
+
+---
+
+## 6. Session de healing complète — exemple concret
+
+Voici comment se déroule une vraie session dans Cursor après un run CI qui échoue.
+
+### Situation
+
+```
+Run GitHub Actions #12345678
+❌ test_checkout_flow     — locator('#stripe-pay-button') timeout
+❌ test_add_to_cart       — locator('#add-cart-btn') not found
+✅ test_product_listing   — OK
+```
+
+### Session Cursor
+
+**Toi :**
+> Le run CI 12345678 a des échecs de locator. Analyse et corrige les sélecteurs cassés.
+
+**Claude (via QA Capsule MCP) :**
+
+```
+Appel : detect_locator_failures(run_id="12345678")
+← Retourne :
+  [
+    { incident_id: 42, test: "test_checkout_flow", locator: "#stripe-pay-button" },
+    { incident_id: 43, test: "test_add_to_cart",   locator: "#add-cart-btn"      }
+  ]
+```
+
+```
+Appel : get_incident_context(incident_id=42)
+← Retourne :
+  error_category: "locator"
+  selector_hint:  "locator('#stripe-pay-button')"
+  suggested_actions: ["Replace brittle CSS/XPath with role-based selectors..."]
+  mcp_prompt: "1. Call get_incident_context... 2. Read test source... 3. Apply fix..."
+```
+
+```
+Appel : filesystem/read_file("tests/playwright/checkout.spec.js")
+← Claude lit le fichier et trouve :
+  ligne 34: await page.locator('#stripe-pay-button').click();
+  → Il inspecte le HTML du composant et voit que l'ID a changé en data-testid="checkout-cta"
+```
+
+**Claude :**
+> J'ai trouvé le problème. Le bouton Stripe a été renommé lors du refactor de la page checkout.
+> 
+> **Fix à appliquer :**
+> - `#stripe-pay-button` → `[data-testid="checkout-cta"]` (confiance: 92%)
+> - `#add-cart-btn` → `[data-testid="add-to-cart"]` (confiance: 88%)
+>
+> Je crée la PR ?
+
+**Toi :** Oui
+
+```
+Appel : record_healing_intervention(
+  incident_id=42,
+  original_locator="#stripe-pay-button",
+  healed_locator="[data-testid='checkout-cta']",
+  explanation="ID renommé lors du refactor Stripe checkout, data-testid stable",
+  confidence=0.92,
+  agent_source="cursor_claude"
+)
+
+Appel : create_remediation_pr(
+  repo="mon-org/mon-repo",
+  file_path="tests/playwright/checkout.spec.js",
+  code="...fichier complet avec les deux locators corrigés..."
+)
+← Retourne: { pr_url: "https://github.com/mon-org/mon-repo/pull/456" }
+```
+
+**Claude :**
+> PR créée : https://github.com/mon-org/mon-repo/pull/456
+> 
+> Les deux incidents sont marqués "MCP Healed" dans QA Capsule.
+
+---
+
+## 7. Accès depuis GitHub Actions (MCP dans CI)
+
+Tu peux aussi appeler le MCP directement depuis un pipeline CI pour des
+workflows avancés (ex: un agent AI qui corrige automatiquement les tests après chaque échec).
+
+```yaml
+- name: AI Healing — analyse et PR automatique
+  if: failure()
+  env:
+    QA_CAPSULE_URL: ${{ secrets.QA_CAPSULE_URL }}
+    MCP_TOKEN: ${{ secrets.QA_CAPSULE_MCP_TOKEN }}
+  run: |
+    # Appel JSON-RPC direct au MCP
+    curl -s -X POST "$QA_CAPSULE_URL/mcp" \
+      -H "Content-Type: application/json" \
+      -H "Authorization: Bearer $MCP_TOKEN" \
+      -d '{
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/call",
+        "params": {
+          "name": "detect_locator_failures",
+          "arguments": {
+            "run_id": "${{ github.run_id }}"
+          }
+        }
+      }' | tee mcp-failures.json || true
+
+    echo "MCP locator failures detected:"
+    cat mcp-failures.json
+```
+
+> Ce pattern est utile pour des pipelines qui notifient un système externe
+> ou alimentent un tableau de bord. La correction automatique par LLM en CI
+> nécessite un agent externe (ex: Cursor SDK, LangChain, etc.) — pas natif ici.
+
+---
+
+## 8. Référence — Variables d'environnement
+
+| Variable | Où ? | Rôle |
+|----------|------|------|
+| `QACAPSULE_MCP_TOKEN` | Serveur QA Capsule | Token d'auth pour `POST /mcp`. Vide = pas d'auth (dev). |
+| `QACAPSULE_JWT_SECRET` | Serveur QA Capsule | Signature JWT pour l'UI web (obligatoire en prod). |
+| `GITHUB_TOKEN` / `GITHUB_PAT` | Serveur QA Capsule | Nécessaire pour `create_remediation_pr`. |
+| `QACAPSULE_DATA_DIR` | Serveur QA Capsule | Dossier SQLite + artifacts (défaut : `./data`). |
+
+Côté CI (GitHub Actions secrets) :
 
 | Secret | Utilisé par |
 |--------|------------|
 | `QA_CAPSULE_URL` | Tous les pipelines |
-| `QA_CAPSULE_API_PLAYWRIGHT_KEY` | Playwright pipeline |
-| `QA_CAPSULE_API_CYPRESS_KEY` | Cypress pipeline |
-| `QA_CAPSULE_API_PYTEST_KEY` | Pytest pipeline |
-| `QA_CAPSULE_API_ROBOT_KEY` | Robot Framework pipeline |
-| `QA_CAPSULE_API_SELENIUM_KEY` | Selenium pipeline |
-| `QA_CAPSULE_API_NEWMAN_KEY` | Newman pipeline |
-| `QA_CAPSULE_API_JUNIT_JAVA_KEY` | JUnit Java pipeline |
-
-> Les clés API de projet se trouvent dans **QA Capsule → Settings → Gateways**.
+| `QA_CAPSULE_MCP_TOKEN` | Step "AI Healing" avancé (optionnel) |
+| `QA_CAPSULE_API_*_KEY` | Chaque pipeline framework (upload + healing gate) |
 
 ---
 
-## Pipeline CI — Structure du step Healing Gate
+## 9. Référence — Outils MCP disponibles
 
-Le step est identique pour tous les frameworks :
-
-```yaml
-- name: MCP Healing Gate
-  if: always()
-  env:
-    WEBHOOK_URL: ${{ secrets.QA_CAPSULE_URL }}
-    API_KEY: ${{ secrets.QA_CAPSULE_API_XXX_KEY }}
-  run: |
-    curl -s -X POST "$WEBHOOK_URL/api/healing/gate" \
-      -H "X-API-Key: $API_KEY" \
-      -H "X-Run-Id: ${{ github.run_id }}" \
-      -H "X-Framework: Playwright" \
-      | tee healing-report.json || true
-    echo "--- MCP Healing Report ---"
-    cat healing-report.json 2>/dev/null || true
-```
-
-**Pourquoi `|| true` ?** — Le gate ne doit jamais faire échouer le pipeline. Si QA Capsule est indisponible, le CI continue normalement.
-
-**Pourquoi `if: always()` ?** — Le gate doit s'exécuter même si les tests ont échoué (c'est précisément dans ce cas qu'il y a du travail à faire).
-
-### Exemple de réponse JSON
-
-```json
-{
-  "project": "my-project",
-  "run_id": "12345678",
-  "locator_failures": 2,
-  "interventions": 2,
-  "healings": [
-    {
-      "id": 1,
-      "incident_id": 42,
-      "run_id": "12345678",
-      "framework": "Playwright",
-      "original_locator": "#stripe-pay-button",
-      "healed_locator": "[data-testid=\"stripe-pay-button\"]",
-      "confidence": 0.60,
-      "explanation": "ID selectors are fragile; prefer data-testid or ARIA role.",
-      "agent_source": "mcp_gate",
-      "test_name": "test_checkout_flow",
-      "created_at": "2026-05-27T11:42:00Z"
-    }
-  ],
-  "status": "ok"
-}
-```
+| Outil | Auth | Description |
+|-------|------|-------------|
+| `detect_locator_failures` | Token MCP | Trouve les sélecteurs cassés d'un run CI |
+| `record_healing_intervention` | Token MCP | Enregistre un fix MCP (original → healed) |
+| `get_incident_context` | Token MCP | Contexte complet : logs, stack, selector, actions suggérées |
+| `propose_healing` | Token MCP | Hints rule-based sans LLM + prompt prêt pour l'agent |
+| `submit_healing_patch` | Token MCP | Enregistre un patch pour audit et traçabilité |
+| `create_remediation_pr` | Token MCP + `GITHUB_TOKEN` | Crée une PR GitHub avec le fix |
+| `list_failed_incidents` | Token MCP | Liste les incidents ouverts (filtrable par projet) |
+| `get_flaky_tests` | Token MCP | Tests flaky avec fingerprint et taux d'échec |
+| `resolve_incident` | Token MCP | Marque un incident résolu |
 
 ---
 
-## API Reference
+## 10. FAQ
 
-### `POST /api/healing/gate`
+**Q : Le MCP server nécessite-t-il un process séparé ?**  
+R : Non. Il tourne dans le même process que QA Capsule, sur le même port.
 
-Endpoint CI — Auth par `X-API-Key`.
+**Q : Puis-je utiliser le MCP sans Cursor ?**  
+R : Oui. Tout client MCP compatible JSON-RPC 2.0 fonctionne : VS Code Copilot,
+Continue.dev, ou même un script curl/Python. Le protocole est standard.
 
-| Header | Requis | Description |
-|--------|--------|-------------|
-| `X-API-Key` | Oui | Clé API du projet |
-| `X-Run-Id` | Oui | ID du run CI (ex: `${{ github.run_id }}`) |
-| `X-Framework` | Non | Hint framework (`Playwright`, `Cypress`, `Selenium`, `RobotFramework`, `JUnit`, `Postman`) |
+**Q : QA Capsule consomme-t-il des tokens LLM ?**  
+R : Non. QA Capsule ne fait aucun appel LLM. Les tokens sont consommés côté
+client (Cursor/Claude) quand le modèle traite les réponses MCP.
 
-### `GET /api/healing/locator-interventions`
+**Q : Le token MCP est-il le même que la clé API projet ?**  
+R : Non. Ce sont deux choses distinctes :
+- **Clé API projet** (`X-API-Key`) → upload JUnit XML, Healing Gate CI
+- **Token MCP** (`Authorization: Bearer`) → accès aux outils MCP depuis l'IDE
 
-Endpoint UI — Auth JWT (Observer+).
+**Q : Que se passe-t-il si `QACAPSULE_MCP_TOKEN` est vide ?**  
+R : Le endpoint `/mcp` accepte toutes les requêtes sans vérifier l'auth.
+C'est acceptable en développement local, dangereux en production.
 
-| Query | Description |
-|-------|-------------|
-| `project` | Filtre par projet |
-| `limit` | Nombre de résultats (défaut 50) |
-
-### `GET /api/healing/insights`
-
-Liste des failures avec `mcp_healed: true/false`.
-
-### `POST /mcp` (JSON-RPC 2.0)
-
-MCP tools disponibles :
-
-| Tool | Description |
-|------|-------------|
-| `detect_locator_failures` | Détecte les failures locator pour un `run_id` |
-| `record_healing_intervention` | Enregistre une intervention MCP (original → healed) |
-| `get_incident_context` | Contexte complet d'un incident pour l'agent AI |
-| `propose_healing` | Hints rule-based (sans LLM) |
-| `submit_healing_patch` | Soumet un patch pour audit |
-| `create_remediation_pr` | Crée une PR GitHub avec le fix |
-| `list_failed_incidents` | Liste les incidents ouverts |
-| `get_flaky_tests` | Liste les tests flaky |
-| `resolve_incident` | Marque un incident résolu |
-
----
-
-## FAQ
-
-**Q : Je n'ai pas de LLM configuré. Le Healing Gate fonctionne quand même ?**  
-R : Oui. Le gate fonctionne entièrement sans LLM — il utilise des heuristiques (règles regex) pour détecter et suggérer des corrections. La notification Slack/Teams est envoyée automatiquement.
-
-**Q : Quel modèle AI le MCP utilise-t-il ?**  
-R : Aucun. QA Capsule n'a pas de LLM interne. Le MCP *expose le contexte* ; c'est l'agent AI de ton IDE (Claude dans Cursor, GPT-4 dans Copilot, etc.) qui raisonne dessus.
-
-**Q : Puis-je désactiver le Healing Gate pour un pipeline ?**  
-R : Oui — retire simplement le step "MCP Healing Gate" du workflow YAML. L'upload normal continue de fonctionner.
-
-**Q : Comment améliorer les suggestions de locator ?**  
-R : Connecte Cursor au MCP avec `QACAPSULE_MCP_TOKEN`. L'agent AI lira le code source et proposera le vrai locator corrigé plutôt qu'une heuristique générique.
-
-**Q : La suggestion automatique est-elle toujours correcte ?**  
-R : Non — c'est une heuristique (confiance 30–60%). L'objectif est de te donner une direction immédiate et de notifier l'équipe. Pour une correction précise, utilise l'agent Cursor.
-
-**Q : Comment voir toutes les interventions passées ?**  
-R : Dans **Self-Healing Hub → Locator Interventions MCP** (section en bas de page). Filtre par gateway si nécessaire.
+**Q : La PR créée par `create_remediation_pr` est-elle mergée automatiquement ?**  
+R : Non. La PR est ouverte, le développeur la review et merge manuellement.
+C'est intentionnel — l'humain garde le contrôle final.

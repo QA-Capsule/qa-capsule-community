@@ -13,8 +13,6 @@ const TOPIC_ICONS = {
     gateways: '<svg class="about-topic-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>',
     workflow: '<svg class="about-topic-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><path d="M8.5 8.5L15.5 15.5"/></svg>',
     plugins: '<svg class="about-topic-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>',
-    rca_quarantine: '<svg class="about-topic-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a7 7 0 0 1 7 7c0 5-7 13-7 13S5 14 5 9a7 7 0 0 1 7-7z"/><circle cx="12" cy="9" r="2"/></svg>',
-    runbooks_dora: '<svg class="about-topic-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>',
     analytics: '<svg class="about-topic-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>',
     finops_metrics: '<svg class="about-topic-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>',
     glossary: '<svg class="about-topic-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>'
@@ -30,7 +28,7 @@ const ABOUT_TOPICS = {
           <p class="about-lead">
             QA Capsule is a <strong>flight recorder for CI quality</strong>: signed gateways ingest failures,
             fingerprints deduplicate noise, flaky tests are tagged, and remediation runs through
-            <strong>visual workflows</strong> or legacy plugins — plus AI summaries, quarantine, runbooks, and DORA.
+            <strong>visual workflows</strong> or legacy plugins — plus AI summaries, self-healing, and DORA.
           </p>
           <h3>Major capabilities</h3>
           <ul class="about-detail-list">
@@ -38,9 +36,7 @@ const ABOUT_TOPICS = {
             <li><strong>CI/CD Gateways</strong> — API keys, routing matrix, workflow badges.</li>
             <li><strong>Plugin Engine</strong> — Native Go integrations (Slack, Jira, PagerDuty, …).</li>
             <li><strong>Visual Workflows</strong> — DAG editor with simulate dry-run.</li>
-            <li><strong>AI RCA</strong> — Async LLM incident summaries.</li>
-            <li><strong>Quarantine</strong> — Deny-list + CI skip API.</li>
-            <li><strong>Runbooks</strong> — Template workflows in one click.</li>
+            <li><strong>AI RCA & Self-Healing</strong> — Async LLM summaries and MCP-driven locator healing.</li>
             <li><strong>DORA</strong> — Deployment metrics + Prometheus correlation.</li>
             <li><strong>FinOps</strong> — Cost of failures and flaky waste (Manager).</li>
           </ul>
@@ -118,10 +114,6 @@ const ABOUT_TOPICS = {
             <dd>No enabled workflow — linear AUTO-RUN on plugin <code>trigger_on</code> keywords.</dd>
             <dt>DAG / Visual workflow</dt>
             <dd>Enabled <code>sre_workflow_json</code> executed by WorkflowEngine.</dd>
-            <dt>Quarantine</dt>
-            <dd>Test on deny-list — ingest suppressed, CI may skip via API.</dd>
-            <dt>Runbook</dt>
-            <dd>Pre-built workflow template applied to a gateway.</dd>
             <dt>RCA</dt>
             <dd>AI-generated root cause summary stored per incident.</dd>
             <dt>Analytics layout</dt>
@@ -150,8 +142,8 @@ function buildRolesDoc() {
       <div class="about-callout" style="margin-top:20px;">
         <strong>Platform Admin</strong> — Workspaces, IAM, Settings.<br>
         <strong>Manager</strong> — FinOps, DORA, gateways, plugins, full triage.<br>
-        <strong>Lead</strong> — Operations, gateways, plugins, workflows, quarantine.<br>
-        <strong>Observer</strong> — Read-only dashboard and RCA/quarantine lists.
+        <strong>Lead</strong> — Operations, gateways, plugins, workflows, self-healing.<br>
+        <strong>Observer</strong> — Read-only dashboard and RCA lists.
       </div>
     </article>`;
 }
@@ -163,7 +155,7 @@ export function loadAboutView() {
         nav.dataset.built = '1';
         const order = [
             'overview', 'architecture', 'roles', 'operations', 'gateways',
-            'workflow', 'plugins', 'rca_quarantine', 'runbooks_dora',
+            'workflow', 'plugins',
             'analytics', 'finops_metrics', 'glossary'
         ];
         nav.innerHTML = order

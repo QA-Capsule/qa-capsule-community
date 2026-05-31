@@ -19,7 +19,10 @@ security:
 telemetry:
     report_path: ./reports/cypress-crash.json
     websocket_timeout_sec: 60
-    webhook_token: ""   # optional shared secret for inbound webhooks
+    # webhook_token = token MCP (POST /mcp).
+    # Prefer QACAPSULE_MCP_TOKEN env var — keep this empty and inject via CI/Docker secret.
+    # If empty, the /mcp endpoint accepts all requests (dev only).
+    webhook_token: ""
 
 storage:
     local_path: ./data/artifacts

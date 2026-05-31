@@ -80,10 +80,6 @@ export function canViewRCA(role) {
     return canViewHealing(role);
 }
 
-export function canViewQuarantine(role) {
-    return canViewHealing(role);
-}
-
 export function canManageHealing(role) {
     return hasMinRole(role, 'lead');
 }
@@ -93,15 +89,7 @@ export function canConfigureAI(role) {
     return false;
 }
 
-export function canManageQuarantine(role) {
-    return hasMinRole(role, 'lead');
-}
-
 export function canPatchExecutionFlags(role) {
-    return hasMinRole(role, 'lead');
-}
-
-export function canAccessRunbooks(role) {
     return hasMinRole(role, 'lead');
 }
 
@@ -205,10 +193,8 @@ export function canAccessView(role, viewId) {
         case 'healing':
         case 'rca':
             return canViewHealing(role);
-        case 'quarantine':
-            return canViewQuarantine(role);
-        case 'runbooks':
-            return canAccessRunbooks(role);
+        case 'ai-config':
+            return hasMinRole(role, 'lead');
         case 'dora':
             return canAccessDORA(role);
         default:
@@ -227,8 +213,7 @@ export function accessDeniedMessage(viewId) {
         ingestion: 'CI/CD Gateways',
         healing: 'Self-Healing Hub',
         rca: 'Self-Healing Hub',
-        quarantine: 'Quarantine',
-        runbooks: 'Runbooks',
+        'ai-config': 'AI & MCP Configuration',
         dora: 'DORA Dashboard'
     };
     const name = labels[viewId] || viewId;

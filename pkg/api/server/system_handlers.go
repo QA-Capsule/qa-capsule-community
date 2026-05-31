@@ -18,6 +18,7 @@ import (
 
 // registerSystemRoutes binds plugins, system settings, and websocket endpoints
 func registerSystemRoutes(config *core.Config) {
+	registerAIRoutes(config)
 
 	// List remediation integrations (loaded at startup; no shell scripts).
 	http.HandleFunc("/api/plugins", jwtAuthMiddleware(config, "", func(w http.ResponseWriter, r *http.Request) {
