@@ -3,7 +3,7 @@
  */
 import { fetchWithAuth, parseApiJson, parseJwt } from './api.js';
 import { notify } from './ui.js';
-import { canManageHealing } from './roles.js';
+import { canManageHealing, canDeleteIncidents } from './roles.js';
 
 let currentRole = '';
 
@@ -17,6 +17,7 @@ export function loadHealingView() {
     loadHealingProjects(projectSel);
     loadHealingInsights();
     loadLocatorInterventions();
+    _loadAIChip();
 
     if (projectSel && !projectSel.dataset.bound) {
         projectSel.dataset.bound = '1';
@@ -30,6 +31,25 @@ export function loadHealingView() {
     if (copyBtn && !copyBtn.dataset.bound) {
         copyBtn.dataset.bound = '1';
         copyBtn.addEventListener('click', () => copyMCPSetup());
+    }
+}
+
+async function _loadAIChip() {
+    const chip = document.getElementById('healing-ai-chip');
+    if (!chip) return;
+    try {
+        const res = await fetchWithAuth('/api/ai/status');
+        const { ok, data } = await parseApiJson(res);
+        if (!ok || !data) return;
+        if (data.enabled && data.provider && data.provider !== 'disabled') {
+            chip.textContent = `AI: ${data.provider} / ${data.model || '—'}`;
+            chip.className = 'intel-badge intel-badge--healed';
+        } else {
+            chip.textContent = 'AI: disabled';
+            chip.className = 'intel-badge intel-badge--manual';
+        }
+    } catch {
+        chip.textContent = 'AI: unavailable';
     }
 }
 
@@ -84,31 +104,66 @@ function renderHealingCard(r) {
     const category = escapeHtml(r.error_category || 'unknown');
     const incidentId = Number(r.incident_id) || 0;
     const mcpBadge = r.mcp_healed
-        ? `<span class="intel-badge intel-badge--healed" title="Le MCP Healing Gate a enregistré une intervention locator pour ce test">MCP Healed</span>`
+        ? `<span class="intel-badge intel-badge--healed" title="MCP Healing Gate recorded an intervention for this test">MCP Healed</span>`
         : '';
-    const actions = canManageHealing(currentRole)
-        ? `<button type="button" class="btn-secondary btn-sm" onclick="window.openHealingContext(${incidentId})">Context</button>
-           <button type="button" class="btn-secondary btn-sm" onclick="window.copyMCPPrompt(${incidentId})">Copy MCP prompt</button>`
-        : `<button type="button" class="btn-secondary btn-sm" onclick="window.openHealingContext(${incidentId})">Context</button>`;
+    const canDelete = canDeleteIncidents(currentRole);
+    const canManage = canManageHealing(currentRole);
+
+    const actions = `
+        ${canManage ? `<button type="button" class="btn-secondary btn-sm" onclick="window.openHealingContext(${incidentId})">Context</button>` : ''}
+        ${canManage ? `<button type="button" class="btn-secondary btn-sm" onclick="window.copyMCPPrompt(${incidentId})">Copy prompt</button>` : ''}
+        ${canManage ? `<button type="button" class="btn-primary btn-sm" onclick="window.openProposeFix(${incidentId})">✦ Propose fix</button>` : ''}
+        ${canDelete ? `<button type="button" class="btn-danger btn-sm" title="Delete this failure" onclick="window.deleteHealingFailure(${incidentId})">Delete</button>` : ''}
+    `.trim();
+
     return `
-        <article class="data-card rca-insight-card${r.mcp_healed ? ' rca-insight-card--healed' : ''}" role="listitem">
+        <article class="data-card rca-insight-card${r.mcp_healed ? ' rca-insight-card--healed' : ''}" role="listitem" id="healing-card-${incidentId}">
             <header class="rca-insight-card__head">
                 <div class="rca-insight-card__title-wrap">
                     <h3 class="rca-insight-card__title">${escapeHtml(r.test_name || 'Unknown test')} ${mcpBadge}</h3>
                     <p class="rca-insight-card__meta">
-                        ${escapeHtml(r.project_name || '—')}
+                        <span>${escapeHtml(r.project_name || '—')}</span>
                         <span class="rca-insight-card__status">${category}</span>
                         <span class="rca-insight-card__status">INC #${incidentId}</span>
                     </p>
                 </div>
-                <div style="display:flex;gap:6px;flex-shrink:0;">${actions}</div>
+                <div class="rca-insight-card__actions">${actions}</div>
             </header>
             <p class="rca-insight-card__body">${escapeHtml(r.summary || 'Open failure — use MCP get_incident_context to self-heal.')}</p>
+            <div id="fix-proposal-${incidentId}" class="fix-proposal-panel" style="display:none;"></div>
         </article>
     `;
 }
 
 window.loadHealingInsights = loadHealingInsights;
+
+// ── Delete failure ────────────────────────────────────────────────────────────
+
+export function deleteHealingFailure(incidentId) {
+    if (!canDeleteIncidents(currentRole)) {
+        notify('Manager or Lead role required to delete failures.', 'error');
+        return;
+    }
+    window.showConfirmModal(
+        'Delete Failure?',
+        `Permanently delete INC #${incidentId}? This action cannot be undone.`,
+        'danger',
+        async () => {
+            const res = await fetchWithAuth(`/api/incidents?ids=${incidentId}`, { method: 'DELETE' });
+            const { ok } = await parseApiJson(res);
+            if (!ok) {
+                notify('Failed to delete failure.', 'error');
+                return;
+            }
+            const card = document.getElementById(`healing-card-${incidentId}`);
+            if (card) card.remove();
+            notify(`INC #${incidentId} deleted.`, 'success');
+            loadHealingInsights();
+        }
+    );
+}
+
+window.deleteHealingFailure = deleteHealingFailure;
 
 // ── Locator Interventions ─────────────────────────────────────────────────────
 
@@ -121,15 +176,14 @@ export async function loadLocatorInterventions() {
     const res = await fetchWithAuth(`/api/healing/locator-interventions${q}`);
     const { ok, data } = await parseApiJson(res);
     if (!ok) {
-        el.innerHTML = '<p class="modern-data-grid__empty">Impossible de charger les interventions locator.</p>';
+        el.innerHTML = '<p class="modern-data-grid__empty">Failed to load locator interventions.</p>';
         return;
     }
     const rows = Array.isArray(data) ? data : [];
-    // Update KPI with precise count from DB
     const kpiEl = document.getElementById('healing-stat-interventions');
     if (kpiEl) kpiEl.textContent = String(rows.length);
     if (!rows.length) {
-        el.innerHTML = '<p class="modern-data-grid__empty">Aucune intervention locator. Le MCP Healing Gate notifiera ici lors de la prochaine failure de sélecteur.</p>';
+        el.innerHTML = '<p class="modern-data-grid__empty">No locator interventions recorded. The Healing Gate will notify here on the next selector failure.</p>';
         return;
     }
     el.innerHTML = rows.map(h => renderLocatorInterventionCard(h)).join('');
@@ -150,18 +204,18 @@ function renderLocatorInterventionCard(h) {
                         ${escapeHtml(h.test_name || 'INC #' + h.incident_id)}
                     </h3>
                     <p class="rca-insight-card__meta">
-                        INC #${Number(h.incident_id) || '—'}
+                        <span>INC #${Number(h.incident_id) || '—'}</span>
                         <span class="rca-insight-card__status">${fw}</span>
                         <span class="rca-insight-card__status locator-confidence--${confidenceClass}">confidence ${confidence}</span>
-                        <span style="margin-left:8px;">${ago}</span>
+                        <span>${ago}</span>
                     </p>
                 </div>
                 <span class="intel-badge intel-badge--manual" style="flex-shrink:0;">${agentLabel}</span>
             </header>
             <div class="locator-intervention-card__locators">
-                <code class="locator-intervention-card__original" title="Locator original (cassé)">${escapeHtml(h.original_locator || '—')}</code>
+                <code class="locator-intervention-card__original" title="Original (broken) locator">${escapeHtml(h.original_locator || '—')}</code>
                 <span class="locator-intervention-card__arrow" aria-hidden="true">→</span>
-                <code class="locator-intervention-card__healed" title="Locator suggéré par le MCP">${escapeHtml(h.healed_locator || 'à définir par l\'agent')}</code>
+                <code class="locator-intervention-card__healed" title="Suggested replacement by the MCP">${escapeHtml(h.healed_locator || 'to be defined by agent')}</code>
             </div>
             ${h.explanation ? `<p class="rca-insight-card__body" style="margin-top:8px;">${escapeHtml(h.explanation)}</p>` : ''}
         </article>
@@ -223,7 +277,7 @@ export async function copyMCPPrompt(incidentId) {
 function copyMCPSetup() {
     const origin = window.location.origin;
     const text = [
-        'QA Capsule MCP setup (Cursor):',
+        'QA Capsule MCP setup:',
         `URL: ${origin}/mcp`,
         'Header: Authorization: Bearer <QACAPSULE_MCP_TOKEN>',
         'Tools: get_incident_context, get_flaky_tests',
@@ -234,6 +288,61 @@ function copyMCPSetup() {
         () => notify(text, 'info')
     );
 }
+
+export async function openProposeFix(incidentId) {
+    const panel = document.getElementById(`fix-proposal-${incidentId}`);
+    if (!panel) return;
+
+    // Toggle off if already open
+    if (panel.style.display !== 'none') {
+        panel.style.display = 'none';
+        return;
+    }
+
+    panel.style.display = 'block';
+    panel.innerHTML = `<p class="modern-data-grid__loading" style="margin:12px 0;">Asking AI to generate fix proposal…</p>`;
+
+    try {
+        const res = await fetchWithAuth(`/api/incidents/${incidentId}/healing/propose`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ file_content: '' }),
+        });
+        const { ok, data } = await parseApiJson(res);
+
+        if (!ok || !data) {
+            panel.innerHTML = `<p class="fix-proposal-panel__error">Failed to get fix proposal.</p>`;
+            return;
+        }
+
+        const confidence = data.confidence ? Math.round(data.confidence * 100) : '—';
+        const confClass = data.confidence >= 0.7 ? 'healed' : data.confidence >= 0.4 ? 'warn' : 'unknown';
+
+        panel.innerHTML = `
+            <div class="fix-proposal-panel__header">
+                <span class="fix-proposal-panel__title">✦ AI Fix Proposal</span>
+                <span class="intel-badge intel-badge--${confClass}">confidence ${confidence}%</span>
+                <button type="button" class="btn-secondary btn-sm" onclick="window.copyFixCode(${incidentId})">Copy fix</button>
+                <button type="button" class="btn-secondary btn-sm" style="margin-left:4px;" onclick="document.getElementById('fix-proposal-${incidentId}').style.display='none'">✕</button>
+            </div>
+            <p class="fix-proposal-panel__explanation">${escapeHtml(data.explanation || '')}</p>
+            <pre class="fix-proposal-panel__code" id="fix-code-${incidentId}">${escapeHtml(data.code || '')}</pre>
+        `;
+        window[`__fixCode_${incidentId}`] = data.code || '';
+    } catch (e) {
+        panel.innerHTML = `<p class="fix-proposal-panel__error">${escapeHtml(String(e))}</p>`;
+    }
+}
+
+window.openProposeFix = openProposeFix;
+
+window.copyFixCode = function(incidentId) {
+    const code = window[`__fixCode_${incidentId}`] || '';
+    navigator.clipboard.writeText(code).then(
+        () => notify('Fix code copied to clipboard.', 'success'),
+        () => notify(code, 'info')
+    );
+};
 
 function escapeHtml(s) {
     return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');

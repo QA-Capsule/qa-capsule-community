@@ -1412,9 +1412,13 @@ export async function loadAIConfig() {
     if (ok && data) {
         _selectedAIProvider = data.provider || 'disabled';
         const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || ''; };
-        setVal('ai-model', data.model);
+        // Populate model select first, then set base URL and key env
+        _populateModelSelect(_selectedAIProvider, data.model);
         setVal('ai-base-url', data.base_url);
         setVal('ai-key-env', data.api_key_env);
+        // Never pre-fill the key input — only indicate whether a key is already stored
+        const apiKeyInput = document.getElementById('ai-api-key');
+        if (apiKeyInput) apiKeyInput.value = '';
         const maxTok = document.getElementById('ai-max-tokens');
         if (maxTok) maxTok.value = data.max_tokens || 1024;
         const timeoutEl = document.getElementById('ai-timeout');
@@ -1423,10 +1427,14 @@ export async function loadAIConfig() {
         if (enabled) enabled.checked = !!data.enabled;
         const keyStatus = document.getElementById('ai-key-status');
         if (keyStatus) {
-            keyStatus.textContent = data.api_key_set
-                ? '✓ Environment variable detected on the server'
-                : '⚠ Environment variable not set — the provider will not work';
-            keyStatus.style.color = data.api_key_set ? 'var(--success-text)' : 'var(--warn-text)';
+            if (data.api_key_set) {
+                const src = data.api_key_stored ? 'stored in database' : 'environment variable on server';
+                keyStatus.textContent = `✓ API key active (${src})`;
+                keyStatus.style.color = 'var(--success-text)';
+            } else {
+                keyStatus.textContent = '⚠ No API key found — enter one below or set the environment variable';
+                keyStatus.style.color = 'var(--warn-text)';
+            }
         }
         // KPI cards
         const setKpi = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
@@ -1445,9 +1453,14 @@ export async function loadAIConfig() {
 }
 
 export async function saveAIConfig() {
-    const model    = document.getElementById('ai-model')?.value?.trim() || '';
+    // Read model from select; fall back to custom input if "__custom__" selected
+    const sel = document.getElementById('ai-model-select');
+    const model = (sel?.value === '__custom__' || !sel)
+        ? (document.getElementById('ai-model')?.value?.trim() || '')
+        : (sel?.value?.trim() || '');
     const baseUrl  = document.getElementById('ai-base-url')?.value?.trim() || '';
-    const keyEnv   = document.getElementById('ai-key-env')?.value?.trim() || 'OPENAI_API_KEY';
+    const keyEnv   = document.getElementById('ai-key-env')?.value?.trim() || '';
+    const apiKey   = document.getElementById('ai-api-key')?.value?.trim() || '';
     const maxTok   = parseInt(document.getElementById('ai-max-tokens')?.value || '1024', 10);
     const timeout  = parseInt(document.getElementById('ai-timeout')?.value || '45', 10);
     const enabled  = document.getElementById('ai-enabled')?.checked || false;
@@ -1457,6 +1470,7 @@ export async function saveAIConfig() {
         model,
         base_url:        baseUrl,
         api_key_env:     keyEnv,
+        api_key:         apiKey,
         max_tokens:      maxTok,
         timeout_seconds: timeout,
         enabled,
@@ -1486,30 +1500,70 @@ function _renderProviderPicker(currentProvider) {
             data-provider="${_esc(p.id)}"
             title="${_esc(p.label)}"
             onclick="window._onAIProviderClick('${_esc(p.id)}')">
-            ${logoForProvider(p.id)}
+            <span class="ai-provider-option__logo">${logoForProvider(p.id)}</span>
             <span class="ai-provider-option__label">${_esc(p.label)}</span>
         </button>`;
     }).join('');
 }
 
+function _populateModelSelect(providerId, currentModel) {
+    const sel = document.getElementById('ai-model-select');
+    const customRow = document.getElementById('ai-model-custom-row');
+    const customInput = document.getElementById('ai-model');
+    if (!sel) return;
+
+    const meta = getProviderMeta(providerId);
+    const models = meta.models || [];
+
+    if (models.length === 0) {
+        // Provider like Disabled or unknown — show only custom input
+        sel.innerHTML = '<option value="__custom__">Custom model…</option>';
+        if (customRow) customRow.classList.add('visible');
+        if (customInput) customInput.value = currentModel || '';
+        return;
+    }
+
+    const opts = models.map(m =>
+        `<option value="${_esc(m.id)}"${m.id === (currentModel || meta.defaultModel) ? ' selected' : ''}>${_esc(m.label)}</option>`
+    );
+    opts.push(`<option value="__custom__"${!models.find(m => m.id === currentModel) && currentModel ? ' selected' : ''}>Custom model…</option>`);
+    sel.innerHTML = opts.join('');
+
+    const isCustom = sel.value === '__custom__';
+    if (customRow) customRow.classList.toggle('visible', isCustom);
+    if (customInput && isCustom && currentModel && !models.find(m => m.id === currentModel)) {
+        customInput.value = currentModel;
+    } else if (customInput && !isCustom) {
+        customInput.value = '';
+    }
+}
+
+window._onAIModelSelectChange = function(value) {
+    const customRow = document.getElementById('ai-model-custom-row');
+    if (customRow) customRow.classList.toggle('visible', value === '__custom__');
+};
+
 window._onAIProviderClick = function(providerId) {
     _selectedAIProvider = providerId;
-    // Update selected state on buttons
     document.querySelectorAll('#ai-provider-picker .ai-provider-option').forEach(btn => {
         btn.classList.toggle('ai-provider-option--selected', btn.dataset.provider === providerId);
     });
-    // Auto-fill defaults for this provider
     const meta = getProviderMeta(providerId);
-    const modelEl   = document.getElementById('ai-model');
+
+    // Populate model select for new provider
+    _populateModelSelect(providerId, meta.defaultModel);
+
+    // Auto-fill base URL and key env (always overwrite on provider change)
     const baseUrlEl = document.getElementById('ai-base-url');
     const keyEnvEl  = document.getElementById('ai-key-env');
-    if (modelEl   && !modelEl.value)   modelEl.value   = meta.defaultModel   || '';
-    if (baseUrlEl && !baseUrlEl.value) baseUrlEl.value = meta.defaultBaseUrl  || '';
-    if (keyEnvEl)                      keyEnvEl.value  = meta.defaultKeyEnv   || '';
-    // Reset and re-check key status
+    if (baseUrlEl) baseUrlEl.value = meta.defaultBaseUrl || '';
+    if (keyEnvEl)  keyEnvEl.value  = meta.defaultKeyEnv  || '';
+
     const keyStatus = document.getElementById('ai-key-status');
     if (keyStatus) {
-        keyStatus.textContent = `Set ${meta.defaultKeyEnv || 'your API key'} as a server environment variable.`;
+        keyStatus.textContent = meta.defaultKeyEnv
+            ? `Set ${meta.defaultKeyEnv} as a server environment variable.`
+            : providerId === 'ollama' ? 'No API key required for Ollama.' : '';
         keyStatus.style.color = '';
     }
 };
@@ -1547,18 +1601,18 @@ function _updateMCPSection(data) {
     }
 }
 
-window.copyMCPCursorConfig = function() {
+window.copyMCPAgentConfig = function() {
     const origin = window.location.origin;
     const config = JSON.stringify({
         mcpServers: {
             'qa-capsule': {
                 url: `${origin}/mcp`,
-                headers: { Authorization: 'Bearer REMPLACE_PAR_QACAPSULE_MCP_TOKEN' },
+                headers: { Authorization: 'Bearer <QACAPSULE_MCP_TOKEN>' },
             },
         },
     }, null, 2);
     navigator.clipboard.writeText(config).then(
-        () => notify('Cursor config copied to clipboard.', 'success'),
+        () => notify('MCP connection config copied to clipboard.', 'success'),
         () => notify(config, 'info'),
     );
 };
@@ -1566,6 +1620,58 @@ window.copyMCPCursorConfig = function() {
 window.saveAIConfig = saveAIConfig;
 window.loadAIConfig = loadAIConfig;
 
+// ── Test LLM Connection ──────────────────────────────────────────────────────
+
+window.testAIConnection = async function testAIConnection() {
+    const btn = document.getElementById('ai-test-btn');
+    const resultEl = document.getElementById('ai-test-result');
+    if (!resultEl) return;
+
+    if (btn) { btn.disabled = true; btn.textContent = 'Testing…'; }
+    resultEl.style.display = 'none';
+    resultEl.className = 'ai-test-result';
+
+    try {
+        const { fetchWithAuth, parseApiJson } = await import('./api.js');
+        const res = await fetchWithAuth('/api/ai/test', { method: 'POST' });
+        const { ok, data } = await parseApiJson(res);
+        const payload = data || {};
+        if (ok && payload.ok) {
+            resultEl.className = 'ai-test-result ai-test-result--ok';
+            resultEl.innerHTML = `
+                <strong>Connection successful</strong>
+                <span class="ai-test-meta">${_esc(payload.provider)} / ${_esc(payload.model)} &nbsp;·&nbsp; ${payload.elapsed_ms}ms</span>
+                <p class="ai-test-response">${_esc(payload.response || '')}</p>
+            `;
+        } else {
+            resultEl.className = 'ai-test-result ai-test-result--error';
+            resultEl.innerHTML = `
+                <strong>Connection failed</strong>
+                <p class="ai-test-response">${_esc(payload.error || 'Unknown error')}</p>
+            `;
+        }
+    } catch (e) {
+        resultEl.className = 'ai-test-result ai-test-result--error';
+        resultEl.innerHTML = `<strong>Connection failed</strong><p class="ai-test-response">${_esc(String(e))}</p>`;
+    } finally {
+        resultEl.style.display = 'block';
+        if (btn) { btn.disabled = false; btn.textContent = 'Test Connection'; }
+    }
+};
+
 function _esc(s) {
     return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 }
+
+window._toggleAPIKeyVisibility = function() {
+    const input = document.getElementById('ai-api-key');
+    const btn   = document.getElementById('ai-api-key-toggle');
+    if (!input) return;
+    if (input.type === 'password') {
+        input.type = 'text';
+        if (btn) btn.textContent = 'Hide';
+    } else {
+        input.type = 'password';
+        if (btn) btn.textContent = 'Show';
+    }
+};

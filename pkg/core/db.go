@@ -28,9 +28,9 @@ func InitDB(ignoredPath string) {
 		log.Fatalf("[FATAL] Failed to open SQLite database: %v", err)
 	}
 
-	// SQLite write concurrency: cap pool size to reduce WAL contention under parallel ingest.
-	DB.SetMaxOpenConns(4)
-	DB.SetMaxIdleConns(4)
+	// SQLite write concurrency: 2 conns reduce SQLITE_BUSY under parallel ingest.
+	DB.SetMaxOpenConns(2)
+	DB.SetMaxIdleConns(2)
 	DB.SetConnMaxLifetime(time.Hour)
 
 	_, err = DB.Exec("PRAGMA journal_mode=WAL;")

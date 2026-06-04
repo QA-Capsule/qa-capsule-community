@@ -1,9 +1,0 @@
-{
-  "name": "@qa-capsule/playwright-reporter",
-  "version": "1.0.0",
-  "private": true,
-  "description": "Real-time QA Capsule reporter for Playwright",
-  "peerDependencies": {
-    "@playwright/test": ">=1.40.0"
-  }
-}

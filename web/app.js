@@ -1392,23 +1392,6 @@ window.submitNewPassword = function () {
         }).catch(() => notify("Network error", "error"));
 }
 
-async function _loadHealingAIStatusSummary() {
-    const el = document.getElementById('healing-ai-status-summary');
-    if (!el) return;
-    try {
-        const res = await fetchWithAuth('/api/ai/status');
-        const { ok, data } = await parseApiJson(res);
-        if (ok && data && data.enabled && data.provider !== 'disabled') {
-            el.textContent = `✓ ${data.provider} / ${data.model || 'default model'} — AI active`;
-            el.style.color = 'var(--success-text, #4ade80)';
-        } else {
-            el.textContent = '⚠ No AI provider configured — click Configure to enable self-healing.';
-            el.style.color = 'var(--warn-text, #f59e0b)';
-        }
-    } catch (_) {
-        el.textContent = 'Unable to load AI status.';
-    }
-}
 
 window.switchView = function (id, el) {
     if (id === 'rca') id = 'healing';
@@ -1460,7 +1443,6 @@ window.switchView = function (id, el) {
     }
     if ((id === 'healing' || id === 'rca') && payload && canAccessView(payload.role, 'healing')) {
         if (window.loadHealingView) window.loadHealingView();
-        _loadHealingAIStatusSummary();
     }
     if (id === 'ai-config' && payload && canAccessView(payload.role, 'healing')) {
         if (window.loadAIConfig) window.loadAIConfig();

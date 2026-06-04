@@ -239,11 +239,17 @@ func chatCompletionsURL(cfg ProviderConfig) string {
 }
 
 func apiKeyFromEnv(cfg ProviderConfig) string {
+	// 1. Env var takes priority (set at server level — most secure).
 	if cfg.APIKeyEnv != "" {
 		if k := os.Getenv(cfg.APIKeyEnv); k != "" {
 			return k
 		}
 	}
+	// 2. Key entered directly from the UI and stored in the local DB.
+	if strings.TrimSpace(cfg.APIKey) != "" {
+		return strings.TrimSpace(cfg.APIKey)
+	}
+	// 3. Well-known fallback env var names per provider.
 	switch cfg.Provider {
 	case ProviderOpenAI, ProviderAzure:
 		return os.Getenv("OPENAI_API_KEY")

@@ -28,13 +28,19 @@ func NewSQLiteRepository(db *sql.DB) *SQLiteRepository {
 	return &SQLiteRepository{db: db}
 }
 
+func (r *SQLiteRepository) migrateAPIKeyColumn(ctx context.Context) {
+	// Idempotent — adds the api_key column only if it does not already exist.
+	_, _ = r.db.ExecContext(ctx, `ALTER TABLE ai_provider_config ADD COLUMN api_key TEXT NOT NULL DEFAULT ''`)
+}
+
 func (r *SQLiteRepository) LoadConfig(ctx context.Context) (ProviderConfig, error) {
+	r.migrateAPIKeyColumn(ctx)
 	row := r.db.QueryRowContext(ctx, `
-		SELECT provider, model, base_url, api_key_env, max_tokens, timeout_seconds, enabled
+		SELECT provider, model, base_url, api_key_env, COALESCE(api_key,''), max_tokens, timeout_seconds, enabled
 		FROM ai_provider_config WHERE id = 1`)
 	var cfg ProviderConfig
 	var enabled int
-	err := row.Scan(&cfg.Provider, &cfg.Model, &cfg.BaseURL, &cfg.APIKeyEnv, &cfg.MaxTokens, &cfg.TimeoutSeconds, &enabled)
+	err := row.Scan(&cfg.Provider, &cfg.Model, &cfg.BaseURL, &cfg.APIKeyEnv, &cfg.APIKey, &cfg.MaxTokens, &cfg.TimeoutSeconds, &enabled)
 	if err == sql.ErrNoRows {
 		return ProviderConfig{Provider: ProviderDisabled, APIKeyEnv: "OPENAI_API_KEY", MaxTokens: 1024, TimeoutSeconds: 45}, nil
 	}
@@ -43,19 +49,26 @@ func (r *SQLiteRepository) LoadConfig(ctx context.Context) (ProviderConfig, erro
 }
 
 func (r *SQLiteRepository) SaveConfig(ctx context.Context, cfg ProviderConfig) error {
+	r.migrateAPIKeyColumn(ctx)
 	en := 0
 	if cfg.Enabled {
 		en = 1
 	}
 	_, err := r.db.ExecContext(ctx, `
-		INSERT INTO ai_provider_config (id, provider, model, base_url, api_key_env, max_tokens, timeout_seconds, enabled, updated_at)
-		VALUES (1, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+		INSERT INTO ai_provider_config (id, provider, model, base_url, api_key_env, api_key, max_tokens, timeout_seconds, enabled, updated_at)
+		VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
 		ON CONFLICT(id) DO UPDATE SET
-			provider = excluded.provider, model = excluded.model, base_url = excluded.base_url,
-			api_key_env = excluded.api_key_env, max_tokens = excluded.max_tokens,
-			timeout_seconds = excluded.timeout_seconds, enabled = excluded.enabled,
-			updated_at = CURRENT_TIMESTAMP`,
-		string(cfg.Provider), cfg.Model, cfg.BaseURL, cfg.APIKeyEnv, cfg.MaxTokens, cfg.TimeoutSeconds, en)
+			provider        = excluded.provider,
+			model           = excluded.model,
+			base_url        = excluded.base_url,
+			api_key_env     = excluded.api_key_env,
+			api_key         = CASE WHEN excluded.api_key != '' THEN excluded.api_key ELSE api_key END,
+			max_tokens      = excluded.max_tokens,
+			timeout_seconds = excluded.timeout_seconds,
+			enabled         = excluded.enabled,
+			updated_at      = CURRENT_TIMESTAMP`,
+		string(cfg.Provider), cfg.Model, cfg.BaseURL, cfg.APIKeyEnv, cfg.APIKey,
+		cfg.MaxTokens, cfg.TimeoutSeconds, en)
 	return err
 }
 

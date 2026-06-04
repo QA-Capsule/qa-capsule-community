@@ -1,11 +1,20 @@
 name: E2E Tests | Robot Framework
 
 on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 jobs:
   robot:
     runs-on: ubuntu-latest
+
+    # Required secrets in GitHub → Settings → Secrets and variables → Actions:
+    #   QA_CAPSULE_URL           → Base URL of your QA Capsule instance (e.g. https://your-instance.com)
+    #   QA_CAPSULE_API_ROBOT_KEY → API Key of the Robot gateway project in QA Capsule
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -15,47 +24,104 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Setup Chrome
-        uses: browser-actions/setup-chrome@v1
-
       - name: Install Dependencies
-        run: pip install -r tests/requirements.txt
+        run: |
+          pip install --upgrade pip
+          pip install robotframework robotframework-browser
+
+      - name: Install Playwright Browsers
+        run: rfbrowser init chromium
 
       - name: Run Robot Tests
-        run: robot --outputdir tests/results --xunit robot-junit.xml tests/robotframework/
+        # continue-on-error keeps the pipeline alive so the upload step always runs
+        id: robot_run
+        run: |
+          robot \
+            --outputdir tests/results \
+            --xunit    robot-junit.xml \
+            --log      robot-log.html \
+            --report   robot-report.html \
+            --variable BROWSER:chromium \
+            tests/robotframework/login_broken_selector.robot
         continue-on-error: true
 
-      - name: Send Alert to QA Capsule
+      # ── Step 1 : Send results to QA Capsule (JUnit XML upload) ───────────────
+      - name: Upload Results to QA Capsule
         if: always()
         env:
-          WEBHOOK_URL: ${{ secrets.QA_CAPSULE_URL }}
-          API_KEY: ${{ secrets.QA_CAPSULE_API_ROBOT_KEY }}
+          QA_CAPSULE_URL: ${{ secrets.QA_CAPSULE_URL }}
+          QA_CAPSULE_API_ROBOT_KEY: ${{ secrets.QA_CAPSULE_API_ROBOT_KEY }}
         run: |
-          curl -X POST "$WEBHOOK_URL/api/webhooks/upload?framework=RobotFramework" \
-            -H "X-API-Key: $API_KEY" \
-            -H "X-Run-Id: ${{ github.run_id }}" \
+          echo "▶ Uploading JUnit XML to QA Capsule…"
+          HTTP_STATUS=$(curl -s -o /tmp/qac-ingest.json -w "%{http_code}" \
+            -X POST "${QA_CAPSULE_URL}/api/webhooks/upload?framework=RobotFramework" \
+            -H "X-API-Key: ${QA_CAPSULE_API_ROBOT_KEY}" \
+            -H "X-Run-Id: ${{ github.run_id }}-${{ github.run_attempt }}" \
+            -H "X-Commit-Sha: ${{ github.sha }}" \
+            -H "X-Branch: ${{ github.ref_name }}" \
             -H "X-Execution-Env: STAGING" \
             -H "X-Execution-Type: TEST-RUN" \
-            -F "file=@tests/results/robot-junit.xml"
+            -F "file=@tests/results/robot-junit.xml")
 
-      - name: MCP Healing Gate
-        if: always()
+          echo "QA Capsule response (HTTP $HTTP_STATUS):"
+          cat /tmp/qac-ingest.json
+
+          if [ "$HTTP_STATUS" -ge 400 ]; then
+            echo "⚠ QA Capsule ingestion returned HTTP $HTTP_STATUS — check your secrets."
+          else
+            echo "✅ Results queued for processing."
+          fi
+
+      # ── Step 2 : Self-Healing Gate ─────────────────────────────────────────
+      # This step asks QA Capsule to look for open incidents from this run
+      # and return the Gemini-powered healing context for each failure.
+      # Configure Gemini first in QA Capsule UI → Settings → AI & Self-Healing.
+      - name: Self-Healing Gate (Gemini)
+        if: steps.robot_run.outcome == 'failure'
         env:
-          WEBHOOK_URL: ${{ secrets.QA_CAPSULE_URL }}
-          API_KEY: ${{ secrets.QA_CAPSULE_API_ROBOT_KEY }}
+          QA_CAPSULE_URL: ${{ secrets.QA_CAPSULE_URL }}
+          QA_CAPSULE_API_ROBOT_KEY: ${{ secrets.QA_CAPSULE_API_ROBOT_KEY }}
         run: |
-          curl -s -X POST "$WEBHOOK_URL/api/healing/gate" \
-            -H "X-API-Key: $API_KEY" \
+          echo "▶ Querying QA Capsule Self-Healing Gate…"
+
+          # Give the async ingest worker a few seconds to process the XML
+          sleep 10
+
+          curl -s \
+            -X POST "${QA_CAPSULE_URL}/api/healing/gate" \
+            -H "X-API-Key: ${QA_CAPSULE_API_ROBOT_KEY}" \
             -H "X-Run-Id: ${{ github.run_id }}" \
             -H "X-Framework: RobotFramework" \
-            | tee healing-report.json || true
-          echo "--- MCP Healing Report ---"
-          cat healing-report.json 2>/dev/null || true
+            | tee /tmp/healing-report.json || true
 
-      - name: Upload Robot artifacts
+          echo ""
+          echo "══════════════════════════════════════════"
+          echo "  QA Capsule — Gemini Self-Healing Report "
+          echo "══════════════════════════════════════════"
+          # Pretty-print if jq is available, otherwise raw output
+          if command -v jq &>/dev/null; then
+            jq '.' /tmp/healing-report.json 2>/dev/null || cat /tmp/healing-report.json
+          else
+            cat /tmp/healing-report.json
+          fi
+          echo ""
+          echo "👉 Open QA Capsule → Self-Healing Hub to see Gemini's full fix proposal."
+
+      # ── Step 3 : Fail the pipeline if tests failed ────────────────────────
+      - name: Fail Pipeline on Test Failures
+        if: steps.robot_run.outcome == 'failure'
+        run: |
+          echo "❌ Robot tests failed. Check QA Capsule → Self-Healing Hub for Gemini fix proposals."
+          exit 1
+
+      # ── Artifacts ──────────────────────────────────────────────────────────
+      - name: Upload Robot Artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: robot-results
-          path: tests/results/
+          name: robot-results-${{ github.run_id }}
+          path: |
+            tests/results/robot-junit.xml
+            tests/results/robot-log.html
+            tests/results/robot-report.html
           if-no-files-found: ignore

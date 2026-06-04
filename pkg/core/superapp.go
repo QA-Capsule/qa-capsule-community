@@ -19,18 +19,20 @@ var (
 	AIService *ai.Service
 )
 
-// InitSuperApp wires quarantine, self-healing, and AI engines (call after InitDB).
+// InitSuperApp wires self-healing and AI engines (call after InitDB).
+// Quarantine engine is intentionally disabled — all tests are ingested regardless of flakiness history.
 func InitSuperApp() {
 	if DB == nil {
 		return
 	}
-	QuarantineEngine = quarantine.NewEngine(
-		quarantine.NewSQLiteRepository(DB),
-		quarantine.DefaultPolicy(),
-	)
+	QuarantineEngine = nil
+	// Clear any existing quarantine entries so no test is blocked on restart.
+	if _, err := DB.Exec(`UPDATE test_quarantine_entries SET is_active = 0`); err != nil {
+		slog.Warn("could not clear quarantine entries", "error", err)
+	}
 	HealingService = healing.NewService(DB)
 	AIService = ai.NewService(ai.NewSQLiteRepository(DB), nil)
-	slog.Info("super-app modules initialized", "healing", true, "quarantine", true, "ai", true)
+	slog.Info("super-app modules initialized", "healing", true, "quarantine", false, "ai", true)
 }
 
 // PostIncidentHooks runs async quarantine scoring after ingest.
