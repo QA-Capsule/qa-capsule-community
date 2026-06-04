@@ -22,10 +22,14 @@ type StubAnalyzer struct{}
 func (StubAnalyzer) GenerateFixProposal(ctx context.Context, cfg ProviderConfig, incident Incident, fileContent string) (FixProposal, error) {
 	_ = ctx
 	_ = cfg
-	explanation := fmt.Sprintf("Review test %q failure and update the source file accordingly.", incident.TestName)
+	explanation := fmt.Sprintf(
+		"AI provider not configured. Based on the error %q, review test %q and apply the minimal fix.",
+		truncate(incident.ErrorMessage, 120), incident.TestName,
+	)
 	code := fileContent
-	if code == "" {
-		code = "// no file content supplied — paste source before applying self-healing"
+	if strings.TrimSpace(code) == "" {
+		code = fmt.Sprintf("# Test: %s\n# Error: %s\n# Fix: update the test logic to match the actual application behaviour.",
+			incident.TestName, truncate(incident.ErrorMessage, 200))
 	}
 	return FixProposal{
 		Code:        code,
@@ -125,16 +129,18 @@ func GenerateFixProposal(ctx context.Context, cfg ProviderConfig, incident Incid
 func buildFixProposalPrompt(incident Incident, fileContent string) string {
 	var b strings.Builder
 	b.WriteString(`You are an expert software engineer performing test-driven self-healing for a CI failure.
-QA Capsule does not know the programming language — infer it only from the stack trace and source file content.
+Infer the test framework and language from the test name, stack trace, and error message.
 Respond with a single JSON object (no markdown fences) with keys:
-  "code" (string: full updated file content, not a diff),
-  "explanation" (string: concise rationale),
+  "code" (string: the corrected test code),
+  "explanation" (string: concise rationale — what was wrong and what was changed),
   "confidence" (number 0-1).
 
 Rules:
-- Use only the telemetry and source below; do not assume a specific test framework.
-- Preserve unrelated code; apply the smallest correct fix for the failure.
-- If the file content is empty, return the original structure with a comment explaining what is missing.
+- When source file content is provided, return the full corrected file.
+- When source file content is ABSENT, generate a minimal corrected version of the failing test
+  based solely on the error message, stack trace, and test name. Do NOT ask for source code.
+- Apply the smallest correct fix. Do not rewrite unrelated logic.
+- Never output markdown fences, only raw JSON.
 
 `)
 	fmt.Fprintf(&b, "TestName: %s\nStatus: %s\nProject: %s\n", incident.TestName, incident.Status, incident.ProjectName)
@@ -146,8 +152,10 @@ Rules:
 		b.WriteString("\nConsoleLogs:\n")
 		b.WriteString(truncate(incident.ConsoleLogs, 3000))
 	}
-	b.WriteString("\n--- Source file (raw) ---\n")
-	b.WriteString(truncate(fileContent, 12000))
+	if strings.TrimSpace(fileContent) != "" {
+		b.WriteString("\n--- Source file (raw) ---\n")
+		b.WriteString(truncate(fileContent, 12000))
+	}
 	return b.String()
 }
 

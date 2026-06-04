@@ -41,6 +41,7 @@ jobs:
             --xunit    robot-junit.xml \
             --log      robot-log.html \
             --report   robot-report.html \
+            --listener tests/robotframework/resources/dom_capture_listener.py \
             --variable BROWSER:chromium \
             tests/robotframework/login_broken_selector.robot
         continue-on-error: true

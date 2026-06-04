@@ -228,24 +228,19 @@ func DetectLocatorFailuresForRun(runID, projectName string) ([]LocatorError, err
 
 // ── Healing suggestion (heuristic, no LLM required) ──────────────────────────
 
-// SuggestHealedLocator returns an alternative locator based on simple heuristics.
-// When an LLM is wired, replace this with an LLM call using the page HTML as context.
+// SuggestHealedLocator returns an alternative locator based on heuristics.
+// For AI-powered healing with page DOM, use SuggestHealedLocatorWithContext
+// which is called from the healing gate handler when AIService is available.
 func SuggestHealedLocator(original, framework string) (healed string, confidence float64, explanation string) {
 	original = strings.TrimSpace(original)
 	if original == "" {
 		return "", 0, "no locator detected"
 	}
-
-	// ID → data-testid equivalent suggestion
 	if strings.HasPrefix(original, "#") {
-		name := strings.TrimPrefix(original, "#")
-		name = strings.ReplaceAll(name, "-", " ")
 		return fmt.Sprintf("[data-testid=%q]", strings.TrimPrefix(original, "#")),
 			0.60,
 			fmt.Sprintf("ID selectors are fragile; prefer data-testid or ARIA role. Original: %s", original)
 	}
-
-	// data-testid already good but element was missing → suggest aria role
 	if strings.Contains(original, "data-testid") {
 		role := "button"
 		if strings.Contains(strings.ToLower(original), "input") {
@@ -257,15 +252,29 @@ func SuggestHealedLocator(original, framework string) (healed string, confidence
 			0.45,
 			fmt.Sprintf("data-testid not found; element may have changed. Try ARIA role: %s", role)
 	}
-
-	// Class selector → more stable alternative
 	if strings.HasPrefix(original, ".") {
 		return fmt.Sprintf("[class*=%q]", strings.TrimPrefix(original, ".")),
 			0.50,
 			fmt.Sprintf("Class selectors break on CSS refactors; partial match is more resilient. Original: %s", original)
 	}
-
 	return original, 0.30, "locator pattern not recognized; manual inspection recommended"
+}
+
+// ExtractDOMSnapshot extracts the page HTML captured by the Robot listener
+// from the console_logs field (between QA_CAPSULE_DOM_SNAPSHOT_START/END markers).
+func ExtractDOMSnapshot(consoleLogs string) string {
+	const start = "[QA_CAPSULE_DOM_SNAPSHOT_START]"
+	const end = "[QA_CAPSULE_DOM_SNAPSHOT_END]"
+	i := strings.Index(consoleLogs, start)
+	if i < 0 {
+		return ""
+	}
+	i += len(start)
+	j := strings.Index(consoleLogs[i:], end)
+	if j < 0 {
+		return strings.TrimSpace(consoleLogs[i:])
+	}
+	return strings.TrimSpace(consoleLogs[i : i+j])
 }
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
