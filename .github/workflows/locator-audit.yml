@@ -1,0 +1,60 @@
+name: Locator Audit (Continuous Monitoring)
+
+on:
+  # Runs every hour automatically
+  schedule:
+    - cron: '0 * * * *'
+  # Also on every push to main (catch regressions early)
+  push:
+    branches: [main]
+  # Manual trigger
+  workflow_dispatch:
+    inputs:
+      app_url:
+        description: 'App URL to audit (overrides secret)'
+        required: false
+
+# Required secrets:
+#   APP_URL                 → URL of your running application
+#   QA_CAPSULE_URL          → Base URL of QA Capsule
+#   QA_CAPSULE_API_ROBOT_KEY → Project API key
+
+jobs:
+  locator-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Dependencies
+        run: |
+          pip install playwright beautifulsoup4 requests
+          playwright install chromium --with-deps
+
+      - name: Run Locator Audit
+        env:
+          APP_URL:            ${{ github.event.inputs.app_url || secrets.APP_URL }}
+          QA_CAPSULE_URL:     ${{ secrets.QA_CAPSULE_URL }}
+          QA_CAPSULE_API_KEY: ${{ secrets.QA_CAPSULE_API_ROBOT_KEY }}
+          TESTS_DIR:          tests/
+          GITHUB_RUN_ID:      ${{ github.run_id }}
+        run: |
+          echo "▶ Starting proactive locator audit on $APP_URL"
+          python scripts/locator_audit.py \
+            --app-url  "$APP_URL" \
+            --tests-dir "$TESTS_DIR" \
+            --qac-url  "$QA_CAPSULE_URL" \
+            --api-key  "$QA_CAPSULE_API_KEY"
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Locator Audit" >> $GITHUB_STEP_SUMMARY
+          echo "Open QA Capsule → Self-Healing Hub to see Groq fix proposals." >> $GITHUB_STEP_SUMMARY
