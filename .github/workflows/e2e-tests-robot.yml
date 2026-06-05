@@ -1,5 +1,6 @@
 name: E2E Tests | Robot Framework
 
+# Trigger on push / PR to main branches, or manually.
 on:
   push:
     branches: [main, develop]
@@ -11,43 +12,46 @@ jobs:
   robot:
     runs-on: ubuntu-latest
 
-    # Required secrets in GitHub → Settings → Secrets and variables → Actions:
-    #   QA_CAPSULE_URL           → Base URL of your QA Capsule instance (e.g. https://your-instance.com)
-    #   QA_CAPSULE_API_ROBOT_KEY → API Key of the Robot gateway project in QA Capsule
+    # Required secrets (GitHub → Settings → Secrets and variables → Actions):
+    #   QA_CAPSULE_URL           : Base URL of your QA Capsule instance
+    #   QA_CAPSULE_API_ROBOT_KEY : API key of the Robot gateway project
 
     steps:
-      - name: Checkout Code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Python
+      - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      - name: Install Dependencies
+      - name: Install Robot Framework and Browser library
         run: |
           pip install --upgrade pip
           pip install robotframework robotframework-browser
 
-      - name: Install Playwright Browsers
+      - name: Install Playwright browsers for Robot
         run: rfbrowser init chromium
 
-      - name: Run Robot Tests
-        # continue-on-error keeps the pipeline alive so the upload step always runs
+      # ── Run the full practice_login suite ──────────────────────────────────
+      # continue-on-error keeps the job alive so the upload step always runs,
+      # even when one or more tests fail.
+      - name: Run Robot Framework tests
         id: robot_run
         run: |
           robot \
             --outputdir tests/results \
-            --xunit    robot-junit.xml \
-            --log      robot-log.html \
-            --report   robot-report.html \
-            --listener tests/robotframework/resources/dom_capture_listener.py \
-            --variable BROWSER:chromium \
-            tests/robotframework/login_broken_selector.robot
+            --xunit     robot-junit.xml \
+            --log       robot-log.html \
+            --report    robot-report.html \
+            --listener  tests/robotframework/resources/dom_capture_listener.py \
+            tests/robotframework/practice_login.robot \
+            tests/robotframework/smoke_tests.robot \
+            tests/robotframework/api_health.robot
         continue-on-error: true
 
-      # ── Step 1 : Send results to QA Capsule (JUnit XML upload) ───────────────
-      - name: Upload Results to QA Capsule
+      # ── Step 1: Upload JUnit XML to QA Capsule ─────────────────────────────
+      - name: Upload results to QA Capsule
         if: always()
         env:
           QA_CAPSULE_URL: ${{ secrets.QA_CAPSULE_URL }}
@@ -64,30 +68,30 @@ jobs:
             -H "X-Execution-Type: TEST-RUN" \
             -F "file=@tests/results/robot-junit.xml")
 
-          echo "QA Capsule response (HTTP $HTTP_STATUS):"
+          echo "QA Capsule HTTP status: $HTTP_STATUS"
           cat /tmp/qac-ingest.json
 
           if [ "$HTTP_STATUS" -ge 400 ]; then
-            echo "WARNING: QA Capsule ingestion returned HTTP $HTTP_STATUS - check your secrets."
+            echo "WARNING: ingestion returned HTTP $HTTP_STATUS. Check your secrets."
           else
             echo "Results queued for processing."
           fi
 
-      # ── Step 2 : Self-Healing Gate ─────────────────────────────────────────
-      # This step asks QA Capsule to look for open incidents from this run
-      # and return the Gemini-powered healing context for each failure.
-      # Configure Gemini first in QA Capsule UI → Settings → AI & Self-Healing.
-      - name: Self-Healing Gate (Gemini)
+      # ── Step 2: Self-Healing Gate ──────────────────────────────────────────
+      # Waits for the async ingest worker to process the XML, then asks QA
+      # Capsule to return the AI-powered healing analysis for every failure.
+      # Requires Groq or Gemini API key configured in QA Capsule UI
+      # (Settings -> AI & Self-Healing, manager role only).
+      - name: Self-Healing Gate
         if: steps.robot_run.outcome == 'failure'
         env:
           QA_CAPSULE_URL: ${{ secrets.QA_CAPSULE_URL }}
           QA_CAPSULE_API_ROBOT_KEY: ${{ secrets.QA_CAPSULE_API_ROBOT_KEY }}
         run: |
-          echo "Querying QA Capsule Self-Healing Gate..."
-
-          # Give the async ingest worker a few seconds to process the XML
+          echo "Waiting for QA Capsule to process the results..."
           sleep 10
 
+          echo "Calling Self-Healing Gate..."
           curl -s \
             -X POST "${QA_CAPSULE_URL}/api/healing/gate" \
             -H "X-API-Key: ${QA_CAPSULE_API_ROBOT_KEY}" \
@@ -96,8 +100,7 @@ jobs:
             | tee /tmp/healing-report.json || true
 
           echo ""
-          echo "--- QA Capsule: Self-Healing Report ---"
-          # Pretty-print if jq is available, otherwise raw output
+          echo "--- Self-Healing Report ---"
           if command -v jq &>/dev/null; then
             jq '.' /tmp/healing-report.json 2>/dev/null || cat /tmp/healing-report.json
           else
@@ -105,16 +108,18 @@ jobs:
           fi
           echo ""
           echo "Open QA Capsule -> Self-Healing Hub to view the full AI fix proposal."
+          echo "In Cursor: run the heal_incident MCP tool with the incident ID shown above."
 
-      # ── Step 3 : Fail the pipeline if tests failed ────────────────────────
-      - name: Fail Pipeline on Test Failures
+      # ── Step 3: Fail the pipeline on test failures ─────────────────────────
+      - name: Fail pipeline on test failures
         if: steps.robot_run.outcome == 'failure'
         run: |
-          echo "FAILED: Robot tests failed. Check QA Capsule -> Self-Healing Hub for AI fix proposals."
+          echo "FAILED: One or more Robot Framework tests failed."
+          echo "Check QA Capsule -> Self-Healing Hub for AI fix proposals."
           exit 1
 
       # ── Artifacts ──────────────────────────────────────────────────────────
-      - name: Upload Robot Artifacts
+      - name: Upload Robot artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:

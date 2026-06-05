@@ -1,12 +1,13 @@
 {
-  "name": "qa-capsule-playwright-sample",
+  "name": "qa-capsule-playwright-demo",
   "private": true,
   "version": "1.0.0",
+  "description": "Playwright self-healing demo for QA Capsule. TC-04 fails intentionally with a broken locator so the AI can propose the fix.",
   "scripts": {
     "test": "playwright test",
-    "test:ci": "playwright test"
+    "test:ci": "playwright test --reporter=list,junit,./reporters/qa-capsule-reporter.js"
   },
   "devDependencies": {
-    "@playwright/test": "latest"
+    "@playwright/test": "^1.44.0"
   }
 }

@@ -1,12 +1,13 @@
 {
-  "name": "qa-capsule-cypress-sample",
+  "name": "qa-capsule-cypress-demo",
   "private": true,
   "version": "1.0.0",
+  "description": "Cypress self-healing demo for QA Capsule. TC-04 fails intentionally with a broken locator so the AI can propose the fix.",
   "scripts": {
-    "test:ci": "cypress run"
+    "test:ci": "cypress run --reporter mocha-junit-reporter --reporter-options mochaFile=cypress-results.xml,toConsole=true"
   },
   "devDependencies": {
-    "cypress": "latest",
-    "mocha-junit-reporter": "latest"
+    "cypress": "^13.0.0",
+    "mocha-junit-reporter": "^2.2.0"
   }
 }
