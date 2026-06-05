@@ -6,7 +6,9 @@ import (
 	"strings"
 )
 
-// NewProviderFromEnv selects local or S3 (stub) from STORAGE_PROVIDER.
+// NewProviderFromEnv instantiates a storage Provider based on the
+// STORAGE_PROVIDER environment variable. Accepted values are "local" (default)
+// and "s3" (enterprise builds only — returns an error on the community edition).
 func NewProviderFromEnv(localBase string) (Provider, error) {
 	provider := strings.ToLower(strings.TrimSpace(os.Getenv("STORAGE_PROVIDER")))
 	if provider == "" {

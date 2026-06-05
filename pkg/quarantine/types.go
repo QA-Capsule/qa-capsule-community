@@ -1,3 +1,8 @@
+// Package quarantine implements the optional test-quarantine subsystem. A
+// quarantined test is excluded from blocking the CI pipeline even if it
+// fails, and its failures are still recorded as incidents for later triage.
+// The engine is disabled in the community build (QuarantineEngine = nil in
+// core.InitSuperApp), so all public functions are no-ops at runtime.
 package quarantine
 
 import "time"

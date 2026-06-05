@@ -199,7 +199,7 @@ def main():
         print("ERROR: --app-url or APP_URL required", file=sys.stderr)
         sys.exit(1)
 
-    print(f"🔍 Scanning test files in '{args.tests_dir}'…")
+    print(f"Scanning test files in '{args.tests_dir}'...")
     all_files = scan_test_files(args.tests_dir)
     total_locators = sum(len(v) for v in all_files.values())
     print(f"   Found {len(all_files)} files, {total_locators} locator references")
@@ -212,7 +212,7 @@ def main():
 
         for file_path, locators in all_files.items():
             unique = {loc for loc, fw, ln in locators}
-            print(f"\n📄 {Path(file_path).name} — checking {len(unique)} unique locators on {args.app_url}")
+            print(f"\n[file] {Path(file_path).name} - checking {len(unique)} unique locators on {args.app_url}")
 
             results  = check_locators_on_page(page, args.app_url, list(unique))
             html     = get_page_html(page)
@@ -222,11 +222,11 @@ def main():
                 if found is False:
                     check = LocatorCheck(loc, fw, file_path, lineno, False, args.app_url)
                     broken.append((check, html))
-                    print(f"  ❌ BROKEN  {loc}  ({fw})  line {lineno}")
+                    print(f"  [BROKEN]  {loc}  ({fw})  line {lineno}")
                 elif found is True:
-                    print(f"  ✅ ok      {loc}")
+                    print(f"  [ok]      {loc}")
                 else:
-                    print(f"  ⚠️  unknown {loc}")
+                    print(f"  [unknown] {loc}")
 
         browser.close()
 
@@ -235,24 +235,24 @@ def main():
     print(f"{'='*60}\n")
 
     if not broken:
-        print("✅ All locators are healthy.")
+        print("All locators are healthy.")
         sys.exit(0)
 
     if args.dry_run or not args.qac_url or not args.api_key:
-        print("ℹ️  --dry-run or missing QA Capsule credentials — not reporting incidents.")
+        print("--dry-run or missing QA Capsule credentials - not reporting incidents.")
         for check, _ in broken:
-            print(f"  • {check.locator}  [{check.source_file}:{check.source_line}]")
+            print(f"  - {check.locator}  [{check.source_file}:{check.source_line}]")
         sys.exit(1)
 
-    print(f"📤 Reporting {len(broken)} broken locators to QA Capsule…")
+    print(f"Reporting {len(broken)} broken locators to QA Capsule...")
     reported = 0
     for check, html in broken:
         if report_broken_locator(args.qac_url, args.api_key, check, html):
             reported += 1
-            print(f"  ✅ Reported: {check.locator}")
+            print(f"  Reported: {check.locator}")
 
-    print(f"\n✅ {reported}/{len(broken)} incidents created in QA Capsule.")
-    print("   Open Self-Healing Hub → Groq/Gemini will propose fixes automatically.")
+    print(f"\n{reported}/{len(broken)} incidents created in QA Capsule.")
+    print("Open Self-Healing Hub -> AI will propose fixes automatically.")
     sys.exit(1 if broken else 0)
 
 

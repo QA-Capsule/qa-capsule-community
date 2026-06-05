@@ -11,9 +11,6 @@
 # Output of the go coverage tool
 *.out
 
-file.txt
-env.txt
-
 qacapsule.db
 qacapsule.db-*
 data/*.db
@@ -76,10 +73,6 @@ temp/
 
 # MkDocs build output (regenerate with: mkdocs build)
 site/
-
-# Local scratch (never commit)
-file.txt
-env.txt
 
 # Air (live reload tool)
 .air/

@@ -17,9 +17,13 @@ type Analyzer interface {
 	GenerateFixProposal(ctx context.Context, cfg ProviderConfig, incident Incident, fileContent string) (FixProposal, error)
 }
 
-type StubAnalyzer struct{}
+// NoOpAnalyzer satisfies the Analyzer interface and is used when no AI
+// provider is configured (ProviderDisabled) or when the provider encounters
+// an error. It returns deterministic, rule-based summaries derived from the
+// incident data alone, without making any network calls.
+type NoOpAnalyzer struct{}
 
-func (StubAnalyzer) GenerateFixProposal(ctx context.Context, cfg ProviderConfig, incident Incident, fileContent string) (FixProposal, error) {
+func (NoOpAnalyzer) GenerateFixProposal(ctx context.Context, cfg ProviderConfig, incident Incident, fileContent string) (FixProposal, error) {
 	_ = ctx
 	_ = cfg
 	explanation := fmt.Sprintf(
@@ -35,11 +39,11 @@ func (StubAnalyzer) GenerateFixProposal(ctx context.Context, cfg ProviderConfig,
 		Code:        code,
 		Explanation: explanation,
 		Confidence:  0.3,
-		RawJSON:     `{"source":"stub"}`,
+		RawJSON:     `{"source":"no_op"}`,
 	}, nil
 }
 
-func (StubAnalyzer) Analyze(ctx context.Context, cfg ProviderConfig, in AnalysisInput) (AnalysisResult, error) {
+func (NoOpAnalyzer) Analyze(ctx context.Context, cfg ProviderConfig, in AnalysisInput) (AnalysisResult, error) {
 	summary := fmt.Sprintf("Test %q failed with status %s. Review the error and console output for the failing step.", in.TestName, in.Status)
 	if strings.Contains(strings.ToLower(in.ErrorMessage), "timeout") {
 		summary = fmt.Sprintf("Likely timeout on %q — increase wait or stabilize the target element before assertion.", in.TestName)
@@ -50,7 +54,7 @@ func (StubAnalyzer) Analyze(ctx context.Context, cfg ProviderConfig, in Analysis
 		SuggestedFix: "Verify selectors, network stability, and test data for this step.",
 		SelectorHint: extractSelectorHint(in.ErrorMessage),
 		Confidence:   0.5,
-		RawJSON:      `{"source":"stub"}`,
+		RawJSON:      `{"source":"no_op"}`,
 	}, nil
 }
 
@@ -68,7 +72,7 @@ func (HTTPAnalyzer) Analyze(ctx context.Context, cfg ProviderConfig, in Analysis
 	case ProviderOpenAI, ProviderMistral, ProviderGroq, ProviderOpenRouter, ProviderAzure:
 		return callOpenAI(ctx, cfg, prompt)
 	default:
-		return StubAnalyzer{}.Analyze(ctx, cfg, in)
+		return NoOpAnalyzer{}.Analyze(ctx, cfg, in)
 	}
 }
 
@@ -101,7 +105,7 @@ func (HTTPAnalyzer) GenerateFixProposal(ctx context.Context, cfg ProviderConfig,
 		}
 		text = llmTextFromAnalysis(res)
 	default:
-		return StubAnalyzer{}.GenerateFixProposal(ctx, cfg, incident, fileContent)
+		return NoOpAnalyzer{}.GenerateFixProposal(ctx, cfg, incident, fileContent)
 	}
 	return parseFixProposal(text), nil
 }
@@ -117,7 +121,7 @@ func llmTextFromAnalysis(res AnalysisResult) string {
 func GenerateFixProposal(ctx context.Context, cfg ProviderConfig, incident Incident, fileContent string) (code string, explanation string, err error) {
 	var analyzer Analyzer = HTTPAnalyzer{}
 	if cfg.Provider == ProviderDisabled || !cfg.Enabled {
-		analyzer = StubAnalyzer{}
+		analyzer = NoOpAnalyzer{}
 	}
 	prop, err := analyzer.GenerateFixProposal(ctx, cfg, incident, fileContent)
 	if err != nil {

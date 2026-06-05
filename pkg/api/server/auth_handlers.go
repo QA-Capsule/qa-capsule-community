@@ -1,3 +1,7 @@
+// Package server wires all HTTP handlers for the QA Capsule REST API. Each
+// handler file covers one domain: authentication, incidents, self-healing,
+// AI configuration, MCP, integrations, RBAC, and telemetry ingestion.
+// All routes are registered in server.go via RegisterRoutes.
 package server
 
 import (
@@ -199,7 +203,7 @@ func registerAuthRoutes(config *core.Config) {
 						<p><strong>Username:</strong> <code>%s</code></p>
 						<p><strong>Password:</strong> <code>%s</code></p>
 					</div>
-					<p style="color: #ff7b72;">⚠️ You will be required to change this temporary password upon your first login.</p>
+					<p style="color: #ff7b72;"><strong>Warning:</strong> You will be required to change this temporary password upon your first login.</p>
 				</div>`, newUser.Fullname, newUser.Username, tempPwd)
 
 				go sendEmail(config, newUser.Username, "QA Flight Recorder - Your Access Credentials", htmlBody)
@@ -231,7 +235,7 @@ func registerAuthRoutes(config *core.Config) {
 					<p><strong>Username:</strong> <code>%s</code></p>
 					<p><strong>New Password:</strong> <code>%s</code></p>
 				</div>
-				<p style="color: #ff7b72;">⚠️ You will be required to change this temporary password upon your next login.</p>
+				<p style="color: #ff7b72;"><strong>Warning:</strong> You will be required to change this temporary password upon your next login.</p>
 			</div>`, req.Username, tempPwd)
 
 			go sendEmail(config, req.Username, "QA Flight Recorder - Password Reset", htmlBody)

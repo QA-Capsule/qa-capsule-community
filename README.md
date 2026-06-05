@@ -42,11 +42,11 @@ When a shared dependency fails, hundreds of tests can fail at once. QA Capsule *
 | Area | Capability |
 |------|------------|
 | **Ingestion** | JSON webhooks, JUnit XML, async queue (`202 queued`) |
-| **Intelligence** | `[FLAKY]`, `[PERF]`, quarantine CI API, AI RCA |
-| **Integrations** | Go HTTP engine + visual workflow DAG |
-| **Operations** | Dashboard, Execution Hub, runbooks, FinOps, DORA |
-| **Security** | JWT sessions, RBAC, per-project API keys, optional MCP token |
-| **Developer tools** | `qacapsule run` CLI, Playwright reporter, JUnit agent |
+| **Intelligence** | `[FLAKY]`, `[PERF]` tagging, AI root-cause analysis (RCA), self-healing |
+| **Integrations** | Go HTTP engine + visual workflow DAG (Slack, Jira, PagerDuty, GitHub …) |
+| **Operations** | Dashboard, Execution Hub, runbooks, FinOps, DORA metrics |
+| **Security** | JWT sessions, RBAC (admin/manager/lead/observer), per-project API keys |
+| **Developer tools** | `qacapsule run` CLI, Playwright reporter, JUnit agent, MCP endpoint |
 
 **Full list:** [docs/reference/feature-catalog.md](docs/reference/feature-catalog.md)
 
@@ -126,11 +126,13 @@ On failure, the CLI warns if the fingerprint is already marked **flaky** in the 
 | **Published docs** | https://qa-capsule.github.io/qa-capsule-community/ |
 | Home / map | [docs/index.md](docs/index.md) |
 | Security & JWT | [docs/setup/security-authentication.md](docs/setup/security-authentication.md) |
-| Webhooks | [docs/api/webhooks.md](docs/api/webhooks.md) |
+| RBAC & Teams | [docs/setup/rbac-teams.md](docs/setup/rbac-teams.md) |
+| Webhooks API | [docs/api/webhooks.md](docs/api/webhooks.md) |
 | Incidents API | [docs/api/incidents-api.md](docs/api/incidents-api.md) |
-| MCP & self-healing tests | [docs/guides/mcp-self-healing-testing.md](docs/guides/mcp-self-healing-testing.md) |
+| AI & self-healing | [docs/guides/mcp-self-healing-testing.md](docs/guides/mcp-self-healing-testing.md) |
 | Plugin engine | [docs/plugins/overview.md](docs/plugins/overview.md) |
-| Configuration (two-sided) | [docs/plugins/configuration-guide.md](docs/plugins/configuration-guide.md) |
+| CI/CD integration | [docs/integration/cicd-overview.md](docs/integration/cicd-overview.md) |
+| Feature catalog | [docs/reference/feature-catalog.md](docs/reference/feature-catalog.md) |
 
 Build docs locally:
 

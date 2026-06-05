@@ -2,7 +2,6 @@ package core
 
 import (
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"strings"
 )
@@ -227,20 +226,4 @@ func globalReportStatus(summary ExecutionSummary, outcome string) string {
 		return "unknown"
 	}
 	return "passed"
-}
-
-// ReportJSONSnapshot returns raw report_json for debugging (optional).
-func ReportJSONSnapshot(projectName, pipelineRunID string) (json.RawMessage, error) {
-	var raw sql.NullString
-	err := DB.QueryRow(`
-		SELECT report_json FROM pipeline_runs
-		WHERE project_name = ? AND pipeline_run_id = ?`,
-		projectName, pipelineRunID).Scan(&raw)
-	if err != nil {
-		return nil, err
-	}
-	if !raw.Valid || raw.String == "" {
-		return json.RawMessage("{}"), nil
-	}
-	return json.RawMessage(raw.String), nil
 }

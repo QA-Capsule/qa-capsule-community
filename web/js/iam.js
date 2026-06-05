@@ -245,10 +245,12 @@ export function toggleTree(e, id) {
     const icon = e.target;
     if (el.style.display === 'none') {
         el.style.display = 'block';
-        icon.innerText = '▼';
+        icon.setAttribute('data-expanded', 'true');
+        icon.innerHTML = '<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1 3l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>';
     } else {
         el.style.display = 'none';
-        icon.innerText = '▶';
+        icon.setAttribute('data-expanded', 'false');
+        icon.innerHTML = '<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M3 1l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>';
     }
 }
 

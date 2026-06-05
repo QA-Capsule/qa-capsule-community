@@ -82,7 +82,6 @@ nav:
       - Cypress: integration/frameworks/cypress.md
       - Pytest: integration/frameworks/pytest.md
       - Robot Framework: integration/frameworks/robot-framework.md
-      - Robot Framework (legacy redirect): integration/robot-framework.md
       - Selenium: integration/frameworks/selenium.md
       - Postman / Newman: integration/frameworks/postman-newman.md
       - JUnit / Maven / Gradle: integration/frameworks/junit-java.md
@@ -111,7 +110,7 @@ nav:
   - Dashboard & Operations:
       - Dashboard Guide: guides/dashboard-operations.md
       - Incident Lifecycle: guides/incident-lifecycle.md
-      - AI RCA & Quarantine: guides/intelligence-quarantine.md
+      - AI RCA & Intelligence: guides/intelligence-quarantine.md
       - Runbooks & DORA: guides/runbooks-dora.md
       - Artifacts & Developer CLI: guides/artifacts-and-cli.md
       - Analytics & FinOps: guides/finops-analytics.md
@@ -140,9 +139,6 @@ nav:
       - Operations & health: api/operations-health.md
   - Deployment:
       - Documentation CI/CD: deployment/docs-pipeline.md
-  - Project:
-      - Audit report: AUDIT-REPORT.md
-
 extra:
   social:
     - icon: fontawesome/brands/github

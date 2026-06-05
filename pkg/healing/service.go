@@ -1,3 +1,7 @@
+// Package healing implements the self-healing engine for QA Capsule. It
+// classifies test failures into error categories, produces rule-based fix
+// suggestions and remediation hints, persists healing records, and exposes
+// the data needed by the REST layer to drive the Self-Healing Hub UI.
 package healing
 
 import (
@@ -104,7 +108,9 @@ func (s *Service) ProposeFix(incidentID int64, fileContent string) (*Proposal, e
 	}
 	code := strings.TrimSpace(fileContent)
 	if code == "" {
-		code = "// Paste test source here or use MCP in Cursor to read the file from your repo.\n// Incident #" + formatInt(incidentID) + " — " + ctx.TestName
+		// No file content was supplied; return a minimal context comment so
+		// callers (AI layer, API handlers) know which incident this pertains to.
+		code = "// No source file content available for incident #" + formatInt(incidentID) + " (" + ctx.TestName + ").\n// Provide the test file path in the project settings to enable AI fix proposals."
 	}
 	return &Proposal{
 		Code:             code,

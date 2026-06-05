@@ -1,3 +1,8 @@
+// Package ai provides the LLM integration layer for QA Capsule. It covers
+// provider configuration (Groq, Gemini, OpenAI, Ollama, Anthropic, Mistral,
+// Azure OpenAI, OpenRouter), the Repository interface for persisting settings
+// and analysis results, and the Analyzer interface that drives Root Cause
+// Analysis (RCA) and code fix proposals from incident telemetry.
 package ai
 
 import "time"

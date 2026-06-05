@@ -53,7 +53,7 @@ jobs:
           QA_CAPSULE_URL: ${{ secrets.QA_CAPSULE_URL }}
           QA_CAPSULE_API_ROBOT_KEY: ${{ secrets.QA_CAPSULE_API_ROBOT_KEY }}
         run: |
-          echo "▶ Uploading JUnit XML to QA Capsule…"
+          echo "Uploading JUnit XML to QA Capsule..."
           HTTP_STATUS=$(curl -s -o /tmp/qac-ingest.json -w "%{http_code}" \
             -X POST "${QA_CAPSULE_URL}/api/webhooks/upload?framework=RobotFramework" \
             -H "X-API-Key: ${QA_CAPSULE_API_ROBOT_KEY}" \
@@ -68,9 +68,9 @@ jobs:
           cat /tmp/qac-ingest.json
 
           if [ "$HTTP_STATUS" -ge 400 ]; then
-            echo "⚠ QA Capsule ingestion returned HTTP $HTTP_STATUS — check your secrets."
+            echo "WARNING: QA Capsule ingestion returned HTTP $HTTP_STATUS - check your secrets."
           else
-            echo "✅ Results queued for processing."
+            echo "Results queued for processing."
           fi
 
       # ── Step 2 : Self-Healing Gate ─────────────────────────────────────────
@@ -83,7 +83,7 @@ jobs:
           QA_CAPSULE_URL: ${{ secrets.QA_CAPSULE_URL }}
           QA_CAPSULE_API_ROBOT_KEY: ${{ secrets.QA_CAPSULE_API_ROBOT_KEY }}
         run: |
-          echo "▶ Querying QA Capsule Self-Healing Gate…"
+          echo "Querying QA Capsule Self-Healing Gate..."
 
           # Give the async ingest worker a few seconds to process the XML
           sleep 10
@@ -96,9 +96,7 @@ jobs:
             | tee /tmp/healing-report.json || true
 
           echo ""
-          echo "══════════════════════════════════════════"
-          echo "  QA Capsule — Gemini Self-Healing Report "
-          echo "══════════════════════════════════════════"
+          echo "--- QA Capsule: Self-Healing Report ---"
           # Pretty-print if jq is available, otherwise raw output
           if command -v jq &>/dev/null; then
             jq '.' /tmp/healing-report.json 2>/dev/null || cat /tmp/healing-report.json
@@ -106,13 +104,13 @@ jobs:
             cat /tmp/healing-report.json
           fi
           echo ""
-          echo "👉 Open QA Capsule → Self-Healing Hub to see Gemini's full fix proposal."
+          echo "Open QA Capsule -> Self-Healing Hub to view the full AI fix proposal."
 
       # ── Step 3 : Fail the pipeline if tests failed ────────────────────────
       - name: Fail Pipeline on Test Failures
         if: steps.robot_run.outcome == 'failure'
         run: |
-          echo "❌ Robot tests failed. Check QA Capsule → Self-Healing Hub for Gemini fix proposals."
+          echo "FAILED: Robot tests failed. Check QA Capsule -> Self-Healing Hub for AI fix proposals."
           exit 1
 
       # ── Artifacts ──────────────────────────────────────────────────────────

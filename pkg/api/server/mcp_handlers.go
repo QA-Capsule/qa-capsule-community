@@ -194,19 +194,35 @@ func mcpToolDefinitions() []map[string]interface{} {
 			},
 		},
 		{
+			// heal_incident is the primary self-healing entry-point for IDE agents.
+			// It automatically classifies the failure, reads the test file from disk
+			// or extracts the captured page DOM, calls the configured AI provider,
+			// and returns a structured fix with a plain-English explanation.
+			"name":        "heal_incident",
+			"description": "Full AI-powered self-healing for one incident. Classifies the failure (locator vs script), reads the test file or captured page DOM automatically, calls Groq/Gemini/OpenAI, and returns the corrected locator or corrected code with a detailed explanation and next steps.",
+			"inputSchema": map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"incident_id": map[string]interface{}{"type": "integer", "description": "Incident primary key (from list_failed_incidents)"},
+				},
+				"required": []string{"incident_id"},
+			},
+		},
+		{
 			"name":        "record_healing_intervention",
-			"description": "Record that the MCP agent healed a locator for a specific incident and optionally propose an alternative selector. Also triggers a notification (Slack/Teams if configured).",
+			"description": "Record a locator healing intervention for a specific incident. If healed_locator is omitted, the server calls the configured AI provider (with the captured page DOM if available) to propose the best replacement automatically.",
 			"inputSchema": map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
 					"incident_id":      map[string]interface{}{"type": "integer", "description": "Incident primary key"},
 					"run_id":           map[string]interface{}{"type": "string", "description": "CI pipeline run ID"},
-					"framework":        map[string]interface{}{"type": "string", "description": "Test framework (e.g. Playwright, Selenium, Cypress)"},
+					"framework":        map[string]interface{}{"type": "string", "description": "Test framework (e.g. Playwright, Selenium, Cypress, RobotFramework)"},
 					"original_locator": map[string]interface{}{"type": "string", "description": "The selector that failed"},
-					"healed_locator":   map[string]interface{}{"type": "string", "description": "The replacement selector proposed by the agent"},
+					"healed_locator":   map[string]interface{}{"type": "string", "description": "Replacement selector — if omitted, AI proposes one automatically"},
+					"page_html":        map[string]interface{}{"type": "string", "description": "Optional page HTML for AI context (auto-extracted from console_logs if omitted)"},
 					"explanation":      map[string]interface{}{"type": "string", "description": "Short rationale for the change"},
 					"confidence":       map[string]interface{}{"type": "number", "description": "Confidence score 0–1"},
-					"agent_source":     map[string]interface{}{"type": "string", "description": "Agent identifier (e.g. cursor_mcp, github_copilot)"},
+					"agent_source":     map[string]interface{}{"type": "string", "description": "Agent identifier (e.g. cursor_mcp)"},
 				},
 				"required": []string{"incident_id", "original_locator"},
 			},
@@ -258,7 +274,17 @@ func dispatchMCPTool(params json.RawMessage) (map[string]interface{}, error) {
 			return nil, telErr
 		}
 		return mcpTextResult(tel), nil
+	case "heal_incident":
+		// Full AI-powered self-healing: classify → read DOM/file → call AI → return fix.
+		id, err := parseIncidentIDArg(call.Arguments)
+		if err != nil {
+			return nil, err
+		}
+		return mcpHealIncident(id)
+
 	case "propose_healing":
+		// propose_healing now also routes through AI when available, with
+		// automatic test-file reading.  Rule-based fallback is preserved.
 		if core.HealingService == nil {
 			return nil, fmt.Errorf("healing service not initialized")
 		}
@@ -267,6 +293,28 @@ func dispatchMCPTool(params json.RawMessage) (map[string]interface{}, error) {
 			return nil, err
 		}
 		fileContent := parseStringArg(call.Arguments, "file_content")
+
+		// Auto-read test file when content was not passed explicitly.
+		if fileContent == "" {
+			fileContent = autoReadTestFile(id)
+		}
+
+		// Use the AI service when available — Groq/Gemini/OpenAI.
+		if core.AIService != nil {
+			ctx := context.Background()
+			code, explanation, aiErr := core.AIService.ProposeFixFromIncidentID(ctx, id, fileContent)
+			if aiErr == nil {
+				return mcpTextResult(map[string]interface{}{
+					"code":        code,
+					"explanation": explanation,
+					"confidence":  0.80,
+					"ai_powered":  true,
+					"file_read":   fileContent != "",
+				}), nil
+			}
+		}
+
+		// Rule-based fallback.
 		prop, err := core.HealingService.ProposeFix(id, fileContent)
 		if err != nil {
 			return nil, err
@@ -381,12 +429,34 @@ func dispatchMCPTool(params json.RawMessage) (map[string]interface{}, error) {
 		healedLocator := parseStringArg(call.Arguments, "healed_locator")
 		explanation := parseStringArg(call.Arguments, "explanation")
 		agentSource := parseStringArg(call.Arguments, "agent_source")
+		pageHTML := parseStringArg(call.Arguments, "page_html")
 		var confidence float64
 		if v, ok := call.Arguments["confidence"].(float64); ok {
 			confidence = v
 		}
 		if healedLocator == "" {
-			healedLocator, confidence, explanation = core.SuggestHealedLocator(originalLocator, framework)
+			// No healed locator provided — ask AI first, then fall back to heuristics.
+			aiResult, aiErr := mcpAIHealLocatorDirect(id, originalLocator, framework, pageHTML)
+			if aiErr == nil {
+				if content, ok := aiResult["content"].([]map[string]string); ok && len(content) > 0 {
+					var inner struct {
+						HealedLocator string  `json:"healed_locator"`
+						Confidence    float64 `json:"confidence"`
+						Explanation   string  `json:"explanation"`
+					}
+					if jsonErr := unmarshalMCPContent(content[0]["text"], &inner); jsonErr == nil && inner.HealedLocator != "" {
+						healedLocator = inner.HealedLocator
+						confidence = inner.Confidence
+						explanation = inner.Explanation
+					}
+				}
+			}
+			if healedLocator == "" {
+				healedLocator, confidence, explanation = core.SuggestHealedLocator(originalLocator, framework)
+			}
+		}
+		if agentSource == "" {
+			agentSource = "mcp_agent"
 		}
 		healing, err := core.RecordLocatorHealing(id, runID, framework, originalLocator, healedLocator, explanation, agentSource, confidence)
 		if err != nil {
@@ -401,7 +471,11 @@ func dispatchMCPTool(params json.RawMessage) (map[string]interface{}, error) {
 			"confidence":       healing.Confidence,
 			"explanation":      healing.Explanation,
 			"agent_source":     healing.AgentSource,
-			"next_step":        "apply healed_locator in the test file, then call create_remediation_pr",
+			"next_steps": []string{
+				"apply healed_locator in the test file",
+				"call submit_healing_patch with the updated file",
+				"call create_remediation_pr to open a PR",
+			},
 		}), nil
 
 	default:
@@ -490,6 +564,12 @@ func writeJSONRPCResult(w http.ResponseWriter, id interface{}, result interface{
 		"id":      id,
 		"result":  result,
 	})
+}
+
+// unmarshalMCPContent parses a JSON string (from an MCP content text field)
+// into the target struct.  Used to read values returned by mcpAIHealLocatorDirect.
+func unmarshalMCPContent(text string, target interface{}) error {
+	return json.Unmarshal([]byte(text), target)
 }
 
 func writeJSONRPCError(w http.ResponseWriter, id interface{}, code int, message string) {

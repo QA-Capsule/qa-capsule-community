@@ -1,3 +1,7 @@
+// Package storage provides a pluggable artifact storage layer. The community
+// build ships with LocalProvider, which writes artifacts to the local
+// filesystem. An S3Provider interface is defined for enterprise builds but
+// always returns an error in this edition.
 package storage
 
 import (

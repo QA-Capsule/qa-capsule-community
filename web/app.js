@@ -62,9 +62,9 @@ for (const [key, value] of Object.entries(executionHub)) {
 for (const [key, value] of Object.entries(reportViewer)) {
     if (typeof value === 'function') window[key] = value;
 }
-// ==========================================
-// VARIABLES GLOBALES & FINOPS SRE
-// ==========================================
+// ------------------------------------------
+// Global application state
+// ------------------------------------------
 window.currentIncidents = [];
 window.selectedIncidents = new Set();
 window.pausePollingUntil = 0;

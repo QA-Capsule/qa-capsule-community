@@ -15,7 +15,9 @@ type S3Config struct {
 	SecretKey string
 }
 
-// S3Provider is a placeholder for enterprise object storage.
+// S3Provider satisfies the Provider interface but is not implemented in the
+// community edition. All operations return an error directing the operator to
+// use local storage or upgrade to the enterprise build.
 type S3Provider struct {
 	Config S3Config
 }

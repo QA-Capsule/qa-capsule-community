@@ -112,7 +112,7 @@ function renderHealingCard(r) {
     const actions = `
         ${canManage ? `<button type="button" class="btn-secondary btn-sm" onclick="window.openHealingContext(${incidentId})">Context</button>` : ''}
         ${canManage ? `<button type="button" class="btn-secondary btn-sm" onclick="window.copyMCPPrompt(${incidentId})">Copy prompt</button>` : ''}
-        ${canManage ? `<button type="button" class="btn-primary btn-sm" onclick="window.openProposeFix(${incidentId})">✦ Propose fix</button>` : ''}
+        ${canManage ? `<button type="button" class="btn-primary btn-sm" onclick="window.openProposeFix(${incidentId})"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg> Propose fix</button>` : ''}
         ${canDelete ? `<button type="button" class="btn-danger btn-sm" title="Delete this failure" onclick="window.deleteHealingFailure(${incidentId})">Delete</button>` : ''}
     `.trim();
 
@@ -320,10 +320,10 @@ export async function openProposeFix(incidentId) {
 
         panel.innerHTML = `
             <div class="fix-proposal-panel__header">
-                <span class="fix-proposal-panel__title">✦ AI Fix Proposal</span>
+                <span class="fix-proposal-panel__title"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg> AI Fix Proposal</span>
                 <span class="intel-badge intel-badge--${confClass}">confidence ${confidence}%</span>
                 <button type="button" class="btn-secondary btn-sm" onclick="window.copyFixCode(${incidentId})">Copy fix</button>
-                <button type="button" class="btn-secondary btn-sm" style="margin-left:4px;" onclick="document.getElementById('fix-proposal-${incidentId}').style.display='none'">✕</button>
+                <button type="button" class="btn-secondary btn-sm" style="margin-left:4px;" onclick="document.getElementById('fix-proposal-${incidentId}').style.display='none'" aria-label="Close"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
             </div>
             <p class="fix-proposal-panel__explanation">${escapeHtml(data.explanation || '')}</p>
             <pre class="fix-proposal-panel__code" id="fix-code-${incidentId}">${escapeHtml(data.code || '')}</pre>

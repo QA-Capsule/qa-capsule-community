@@ -1429,10 +1429,10 @@ export async function loadAIConfig() {
         if (keyStatus) {
             if (data.api_key_set) {
                 const src = data.api_key_stored ? 'stored in database' : 'environment variable on server';
-                keyStatus.textContent = `✓ API key active (${src})`;
+                keyStatus.textContent = `API key active (${src})`;
                 keyStatus.style.color = 'var(--success-text)';
             } else {
-                keyStatus.textContent = '⚠ No API key found — enter one below or set the environment variable';
+                keyStatus.textContent = 'No API key found - enter one below or set the environment variable';
                 keyStatus.style.color = 'var(--warn-text)';
             }
         }
@@ -1440,7 +1440,7 @@ export async function loadAIConfig() {
         const setKpi = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
         setKpi('ai-kpi-provider', data.provider && data.provider !== 'disabled' ? data.provider : '—');
         setKpi('ai-kpi-model', data.model || '—');
-        setKpi('ai-kpi-apikey', data.api_key_set ? '✓ Set' : '⚠ Missing');
+        setKpi('ai-kpi-apikey', data.api_key_set ? 'Set' : 'Missing');
         const apiKpiEl = document.getElementById('ai-kpi-apikey');
         if (apiKpiEl) apiKpiEl.style.color = data.api_key_set ? 'var(--success-text)' : 'var(--warn-text)';
     }
@@ -1587,16 +1587,16 @@ function _updateMCPSection(data) {
     const tokenEl = document.getElementById('mcp-token-status');
     if (tokenEl) {
         if (data?.mcp_token_set) {
-            tokenEl.innerHTML = '<span style="color:var(--success-text);font-weight:600;">✓ Token configured</span> — the MCP endpoint is protected.';
+            tokenEl.innerHTML = '<span style="color:var(--success-text);font-weight:600;">Token configured</span> &mdash; the MCP endpoint is protected.';
         } else {
-            tokenEl.innerHTML = '<span style="color:var(--warn-text);font-weight:600;">⚠ No token</span> — set <code>QACAPSULE_MCP_TOKEN</code> to secure the endpoint in production.';
+            tokenEl.innerHTML = '<span style="color:var(--warn-text);font-weight:600;">No token</span> &mdash; set <code>QACAPSULE_MCP_TOKEN</code> to secure the endpoint in production.';
         }
     }
 
     // KPI card token MCP
     const kpiToken = document.getElementById('ai-kpi-mcp-token');
     if (kpiToken) {
-        kpiToken.textContent = data?.mcp_token_set ? '✓ Configured' : '⚠ Missing';
+        kpiToken.textContent = data?.mcp_token_set ? 'Configured' : 'Missing';
         kpiToken.style.color = data?.mcp_token_set ? 'var(--success-text)' : 'var(--warn-text)';
     }
 }

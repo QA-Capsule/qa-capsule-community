@@ -36,13 +36,18 @@ type JUnitTestSuites struct {
 
 // JUnitTestSuite represents a group of test cases (Robot/rebot may nest suites).
 type JUnitTestSuite struct {
-	Name       string           `xml:"name,attr"`
-	Tests      int              `xml:"tests,attr"`
-	Failures   int              `xml:"failures,attr"`
-	Skipped    int              `xml:"skipped,attr"`
-	Time       float64          `xml:"time,attr"`
-	TestCases  []JUnitTestCase  `xml:"testcase"`
-	Nested     []JUnitTestSuite `xml:"testsuite"`
+	Name      string           `xml:"name,attr"`
+	Tests     int              `xml:"tests,attr"`
+	Failures  int              `xml:"failures,attr"`
+	Skipped   int              `xml:"skipped,attr"`
+	Time      float64          `xml:"time,attr"`
+	TestCases []JUnitTestCase  `xml:"testcase"`
+	Nested    []JUnitTestSuite `xml:"testsuite"`
+	// SystemOut captures suite-level stdout (e.g. from Robot Framework listeners
+	// that print outside per-test scope).  It is distributed to failing test
+	// cases that have no per-testcase system-out so that the DOM snapshot
+	// markers from dom_capture_listener are always discoverable.
+	SystemOut string `xml:"system-out"`
 }
 
 // JUnitTestCase represents a single test execution result
@@ -306,8 +311,17 @@ func ParseJUnitReport(data []byte, framework string) JUnitParseResult {
 				if strings.TrimSpace(tc.SystemErr) != "" {
 					stderrBuilder.WriteString(fmt.Sprintf("\n--- CONSOLE STDERR ---\n%s\n", strings.TrimSpace(tc.SystemErr)))
 				}
-				if strings.TrimSpace(tc.SystemOut) != "" {
-					stdoutBuilder.WriteString(fmt.Sprintf("--- CONSOLE STDOUT ---\n%s\n", strings.TrimSpace(tc.SystemOut)))
+
+				// Use per-testcase stdout when available.  When it is empty (which
+				// happens with some Robot Framework xunit outputs where listener
+				// prints land at the suite level), fall back to the suite-level
+				// system-out so the DOM snapshot markers are not lost.
+				testStdout := strings.TrimSpace(tc.SystemOut)
+				if testStdout == "" {
+					testStdout = strings.TrimSpace(suite.SystemOut)
+				}
+				if testStdout != "" {
+					stdoutBuilder.WriteString(fmt.Sprintf("--- CONSOLE STDOUT ---\n%s\n", testStdout))
 				} else {
 					stdoutBuilder.WriteString("[INFO] No standard output (stdout) captured for this test.")
 				}

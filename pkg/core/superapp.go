@@ -1,3 +1,8 @@
+// Package core is the central domain layer of QA Capsule. It owns the SQLite
+// database handle, all cross-cutting repository functions, the ingest
+// pipeline, locator healing, DORA metrics, pipeline execution records,
+// external-signal ingestion, gitops remediation, and the super-app bootstrap
+// that wires every subsystem together at startup.
 package core
 
 import (

@@ -148,22 +148,6 @@ func RecordLocatorHealing(incidentID int64, runID, framework, originalLocator, h
 	}, nil
 }
 
-// GetLocatorHealingsForRun returns all locator healings for a pipeline run.
-func GetLocatorHealingsForRun(runID string) ([]LocatorHealing, error) {
-	if DB == nil {
-		return nil, fmt.Errorf("database not initialized")
-	}
-	rows, err := DB.Query(`
-		SELECT id, incident_id, run_id, framework, original_locator,
-		       healed_locator, confidence, explanation, agent_source, created_at
-		FROM locator_healings WHERE run_id = ? ORDER BY id ASC`, runID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	return scanLocatorHealings(rows)
-}
-
 // ListLocatorHealings returns recent locator healings for a project (via incidents join).
 func ListLocatorHealings(projectName string, limit int) ([]LocatorHealing, error) {
 	if DB == nil {

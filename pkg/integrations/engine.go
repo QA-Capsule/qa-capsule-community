@@ -1,3 +1,8 @@
+// Package integrations provides the plugin engine that connects QA Capsule
+// incidents to external collaboration and alerting platforms (Jira, Slack,
+// PagerDuty, GitHub Actions, webhooks, email, etc.). Each integration is
+// described by a Manifest, configured through YAML-based workflow definitions,
+// and executed by a typed Runner registered in the global Registry.
 package integrations
 
 import (
