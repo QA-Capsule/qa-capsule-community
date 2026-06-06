@@ -106,7 +106,9 @@ func mcpHealIncident(incidentID int64) (map[string]interface{}, error) {
 
 	// ── 2. Classify the failure and detect the framework ─────────────────────
 	framework := detectFramework(testName, stackTrace, errorMsg)
-	isLocator := core.IsLocatorError(errorMsg)
+	testSource := autoReadTestFile(incidentID)
+	combinedErr := errorMsg + "\n" + stackTrace
+	isLocator := core.IsLocatorFailure(combinedErr, stackTrace, testSource, testName)
 
 	errorType := "script_failure"
 	if isLocator {
@@ -135,12 +137,15 @@ func mcpHealIncident(incidentID int64) (map[string]interface{}, error) {
 // It extracts the captured DOM snapshot from console_logs and asks the
 // AI to find the correct replacement selector on the page.
 func mcpHealLocator(base HealResult, errorMsg, consoleLogs, stackTrace string) (map[string]interface{}, error) {
-	// Extract the broken locator from the error message.
-	originalLocator := core.ExtractLocator(errorMsg, base.Framework)
+	testSource := autoReadTestFile(base.IncidentID)
+	combinedErr := errorMsg + "\n" + stackTrace
+
+	// Extract the broken locator from error logs and/or the test source file.
+	originalLocator := core.ResolveOriginalLocator(combinedErr, testSource, base.Framework)
 	base.OriginalLocator = originalLocator
 
-	// Extract the page HTML that the Robot/Playwright listener captured.
-	pageHTML := core.ExtractDOMSnapshot(consoleLogs)
+	// Extract the page HTML that the test listener captured (stdout or stderr).
+	pageHTML := core.ExtractDOMSnapshotFromLogs(consoleLogs, stackTrace)
 	base.DOMCaptured = pageHTML != ""
 
 	// Build the locator error struct needed by aiLocatorHeal.
@@ -402,24 +407,31 @@ func mcpAIHealLocatorDirect(incidentID int64, originalLocator, framework, pageHT
 		f.ErrorMessage = errorMsg
 	}
 
-	// If no page HTML was passed in, try to extract it from the stored console_logs.
+	// If no page HTML was passed in, try console_logs and error_logs.
 	if pageHTML == "" && incidentID > 0 && core.DB != nil {
-		var consoleLogs string
-		core.DB.QueryRow(`SELECT COALESCE(console_logs,'') FROM incidents WHERE id = ?`, incidentID).Scan(&consoleLogs)
-		pageHTML = core.ExtractDOMSnapshot(consoleLogs)
+		var consoleLogs, errorLogs string
+		core.DB.QueryRow(
+			`SELECT COALESCE(console_logs,''), COALESCE(error_logs,'') FROM incidents WHERE id = ?`,
+			incidentID,
+		).Scan(&consoleLogs, &errorLogs)
+		pageHTML = core.ExtractDOMSnapshotFromLogs(consoleLogs, errorLogs)
 	}
 
 	prompt := buildLocatorPrompt(originalLocator, framework, pageHTML, f.ErrorMessage)
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 
-	res, callErr := aiPkg.HTTPAnalyzer{}.Analyze(ctx, cfg, aiPkg.AnalysisInput{
-		ProjectName:  "locator-healing",
-		TestName:     fmt.Sprintf("incident-%d", incidentID),
-		Status:       "FAILED",
-		ErrorMessage: prompt,
-	})
+	rawText, callErr := aiPkg.AnalyzeRaw(ctx, cfg, prompt)
 	if callErr != nil {
+		if healed, conf, expl, ok := core.HealLocatorFromHTML(originalLocator, pageHTML); ok {
+			return mcpTextResult(map[string]interface{}{
+				"healed_locator": healed,
+				"confidence":     conf,
+				"explanation":    expl,
+				"ai_powered":     false,
+				"dom_used":       pageHTML != "",
+			}), nil
+		}
 		healed, conf, expl := core.SuggestHealedLocator(originalLocator, framework)
 		return mcpTextResult(map[string]interface{}{
 			"healed_locator": healed,
@@ -430,13 +442,24 @@ func mcpAIHealLocatorDirect(incidentID int64, originalLocator, framework, pageHT
 		}), nil
 	}
 
-	parsed := parseLocatorResponse(res.RawJSON)
-	if parsed.healed != "" {
+	parsed := parseLocatorResponse(rawText)
+	if parsed.healed != "" && parsed.healed != originalLocator {
+		if pageHTML == "" || core.LocatorExistsInHTML(pageHTML, parsed.healed) {
+			return mcpTextResult(map[string]interface{}{
+				"healed_locator": parsed.healed,
+				"confidence":     parsed.confidence,
+				"explanation":    parsed.explanation,
+				"ai_powered":     true,
+				"dom_used":       pageHTML != "",
+			}), nil
+		}
+	}
+	if healed, conf, expl, ok := core.HealLocatorFromHTML(originalLocator, pageHTML); ok {
 		return mcpTextResult(map[string]interface{}{
-			"healed_locator": parsed.healed,
-			"confidence":     parsed.confidence,
-			"explanation":    parsed.explanation,
-			"ai_powered":     true,
+			"healed_locator": healed,
+			"confidence":     conf,
+			"explanation":    expl,
+			"ai_powered":     false,
 			"dom_used":       pageHTML != "",
 		}), nil
 	}

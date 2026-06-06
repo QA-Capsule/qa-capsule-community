@@ -15,13 +15,17 @@ const (
 func ClassifyError(err string) string {
 	lower := strings.ToLower(err)
 	switch {
-	case strings.Contains(lower, "timeout"), strings.Contains(lower, "timed out"), strings.Contains(lower, "waiting for"):
-		return CategoryTimeout
+	// Locator before timeout — "waiting for locator(...)" must not become timeout.
+	case strings.Contains(lower, "locator"), strings.Contains(lower, "selector"), strings.Contains(lower, "getbyrole"),
+		strings.Contains(lower, "getbytext"), strings.Contains(lower, "element not found"), strings.Contains(lower, "no such element"),
+		strings.Contains(lower, "data-qa"), strings.Contains(lower, "data-testid"), strings.Contains(lower, "unable to find element"):
+		return CategoryLocator
 	case strings.Contains(lower, "stale element"), strings.Contains(lower, "staleelementreference"):
 		return CategoryStaleElement
-	case strings.Contains(lower, "locator"), strings.Contains(lower, "selector"), strings.Contains(lower, "getbyrole"),
-		strings.Contains(lower, "getbytext"), strings.Contains(lower, "element not found"), strings.Contains(lower, "no such element"):
-		return CategoryLocator
+	case strings.Contains(lower, "timeout"), strings.Contains(lower, "timed out"):
+		return CategoryTimeout
+	case strings.Contains(lower, "waiting for"):
+		return CategoryTimeout
 	case strings.Contains(lower, "assert"), strings.Contains(lower, " should be"),
 		strings.Contains(lower, "should equal"), strings.Contains(lower, "does not match"),
 		strings.Contains(lower, " expected "), strings.HasPrefix(lower, "expected "):

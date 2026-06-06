@@ -7,7 +7,7 @@ func TestClassifyError(t *testing.T) {
 		err  string
 		want string
 	}{
-		{"Timeout 30000ms exceeded waiting for locator", CategoryTimeout},
+		{"Timeout 30000ms exceeded waiting for locator", CategoryLocator},
 		{"Element is stale: stale element reference", CategoryStaleElement},
 		{"locator.click: Error: strict mode violation", CategoryLocator},
 		{"AssertionError: expected true to be false", CategoryAssertion},

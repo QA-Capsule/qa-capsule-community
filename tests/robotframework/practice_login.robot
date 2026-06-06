@@ -54,7 +54,7 @@ TC-02 Login Form Elements Are Present
     New Page    ${BASE_URL}
     Get Element    id=username
     Get Element    id=password
-    Get Element    id=submit
+    Get Element    id=submitrt
     Close Page
 
 TC-03 Valid Credentials Log In Successfully

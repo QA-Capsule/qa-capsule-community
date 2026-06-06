@@ -728,74 +728,93 @@
                 </div>
             </section>
 
-            <section id="view-healing" class="view-section intelligence-view">
+            <section id="view-healing" class="view-section hc-page">
 
-                <!-- ── Page header ──────────────────────────────────────────── -->
-                <div class="healing-page-header">
-                    <div class="healing-page-header__left">
-                        <h1 class="intelligence-view__title">Self-Healing Hub</h1>
-                        <p class="intelligence-view__subtitle">Framework-agnostic failure context for MCP agents — Robot, Playwright, Newman, Selenium and more.</p>
+                <!-- ── Header ── -->
+                <div class="hc-header">
+                    <div class="hc-header__left">
+                        <h1 class="hc-header__title">Self-Healing Hub</h1>
+                        <p class="hc-header__sub">AI scans the live page HTML and proposes the correct locator — Robot Framework, Playwright, Cypress and more.</p>
                     </div>
-                    <div class="healing-page-header__right">
-                        <span id="healing-ai-chip" class="intel-badge intel-badge--manual">AI: Loading…</span>
-                        <button class="btn-secondary btn-sm" onclick="window.switchView && window.switchView('ai-config', null)">Configure AI &amp; MCP</button>
+                    <div class="hc-header__right">
+                        <span id="healing-ai-chip" class="hc-chip hc-chip--off">
+                            <span class="hc-dot"></span>AI loading…
+                        </span>
+                        <button class="hc-btn-configure" onclick="window.switchView && window.switchView('ai-config', null)">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                            Configure AI &amp; MCP
+                        </button>
                     </div>
                 </div>
 
-                <!-- ── KPI strip ─────────────────────────────────────────────── -->
-                <div class="healing-kpi-strip">
-                    <div class="healing-kpi-item">
-                        <span class="healing-kpi-label">Open failures</span>
-                        <span class="healing-kpi-value" id="healing-stat-total">—</span>
+                <!-- ── Stats strip ── -->
+                <div class="hc-stats">
+                    <div class="hc-stat hc-stat--danger">
+                        <span class="hc-stat__val" id="healing-stat-total">—</span>
+                        <span class="hc-stat__lbl">Open failures</span>
                     </div>
-                    <div class="healing-kpi-sep"></div>
-                    <div class="healing-kpi-item">
-                        <span class="healing-kpi-label">Categorized</span>
-                        <span class="healing-kpi-value" id="healing-stat-categorized">—</span>
+                    <div class="hc-stat-sep"></div>
+                    <div class="hc-stat hc-stat--warn">
+                        <span class="hc-stat__val" id="healing-stat-categorized">—</span>
+                        <span class="hc-stat__lbl">Categorized</span>
                     </div>
-                    <div class="healing-kpi-sep"></div>
-                    <div class="healing-kpi-item">
-                        <span class="healing-kpi-label">MCP-ready</span>
-                        <span class="healing-kpi-value" id="healing-stat-mcp-ready">—</span>
+                    <div class="hc-stat-sep"></div>
+                    <div class="hc-stat hc-stat--info">
+                        <span class="hc-stat__val" id="healing-stat-mcp-ready">—</span>
+                        <span class="hc-stat__lbl">MCP-ready</span>
                     </div>
-                    <div class="healing-kpi-sep"></div>
-                    <div class="healing-kpi-item">
-                        <span class="healing-kpi-label">MCP interventions</span>
-                        <span class="healing-kpi-value healing-kpi-value--accent" id="healing-stat-interventions">—</span>
-                    </div>
-                </div>
-
-                <!-- ── Open Failures ─────────────────────────────────────────── -->
-                <div class="data-card" style="margin-top:0;">
-                    <div class="healing-section-head">
-                        <div>
-                            <h2 class="healing-section-title">Open Failures</h2>
-                            <p class="healing-section-desc">Failures awaiting MCP intervention. Use <code>get_incident_context</code> from your AI agent to self-heal.</p>
-                        </div>
-                        <div class="healing-section-actions">
-                            <div class="form-field" style="margin:0;min-width:180px;">
-                                <select id="healing-project-filter" class="login-input" style="max-width:none;width:100%;" title="Filter by gateway"></select>
-                            </div>
-                            <button type="button" class="btn-secondary btn-sm" onclick="window.loadHealingInsights && window.loadHealingInsights()">Refresh</button>
-                        </div>
-                    </div>
-                    <div id="healing-insights-body" class="modern-data-grid rca-insights-list" role="list">
-                        <p class="modern-data-grid__empty">Open this view to load healable failures.</p>
+                    <div class="hc-stat-sep"></div>
+                    <div class="hc-stat hc-stat--pass">
+                        <span class="hc-stat__val" id="healing-stat-interventions">—</span>
+                        <span class="hc-stat__lbl">AI healed</span>
                     </div>
                 </div>
 
-                <!-- ── Locator Interventions ─────────────────────────────────── -->
-                <div class="data-card" style="margin-bottom:32px;">
-                    <div class="healing-section-head">
-                        <div>
-                            <h2 class="healing-section-title">Locator Interventions</h2>
-                            <p class="healing-section-desc">Broken selectors detected by the Healing Gate with automatic replacement suggestions.</p>
+                <!-- ── Open Failures ── -->
+                <div class="hc-section">
+                    <div class="hc-section__head">
+                        <div class="hc-section__left">
+                            <span class="hc-section__dot hc-section__dot--fail"></span>
+                            <h2 class="hc-section__title">Open Failures</h2>
+                            <span class="hc-section__hint">Select failures and click <strong>Propose fix</strong> — AI fetches the live page and finds the correct locator</span>
                         </div>
-                        <button type="button" class="btn-secondary btn-sm" onclick="window.loadLocatorInterventions && window.loadLocatorInterventions()">Refresh</button>
+                        <div class="hc-section__controls">
+                            <label class="hc-selall">
+                                <input type="checkbox" id="hc-select-all" onchange="window._selectAll && window._selectAll(this.checked)">
+                                Select all
+                            </label>
+                            <select id="healing-project-filter" class="hc-ctrl-select" title="Filter by gateway"></select>
+                            <button class="hc-ctrl-btn" onclick="window.loadHealingInsights && window.loadHealingInsights()">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-.08-1.96"/></svg>
+                                Refresh
+                            </button>
+                        </div>
                     </div>
-                    <div id="healing-interventions-body" class="modern-data-grid rca-insights-list" role="list">
-                        <p class="modern-data-grid__empty">No locator interventions recorded yet. The Healing Gate will notify here on the next selector failure.</p>
+                    <!-- Bulk action bar -->
+                    <div id="hc-bulk-bar" class="hc-bulk-bar">
+                        <span id="hc-bulk-count">0 selected</span>
+                        <button class="hc-bulk-del" onclick="window.bulkDelete && window.bulkDelete()">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M9 6V4h6v2"/></svg>
+                            Delete selected
+                        </button>
                     </div>
+                    <div id="healing-insights-body" role="list"></div>
+                </div>
+
+                <!-- ── Locator Interventions ── -->
+                <div class="hc-section">
+                    <div class="hc-section__head">
+                        <div class="hc-section__left">
+                            <span class="hc-section__dot hc-section__dot--heal"></span>
+                            <h2 class="hc-section__title">Locator Interventions</h2>
+                            <span class="hc-section__hint">Healed selectors recorded by the CI Healing Gate</span>
+                        </div>
+                        <button class="hc-ctrl-btn" onclick="window.loadLocatorInterventions && window.loadLocatorInterventions()">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-.08-1.96"/></svg>
+                            Refresh
+                        </button>
+                    </div>
+                    <div id="healing-interventions-body" role="list"></div>
                 </div>
 
             </section>

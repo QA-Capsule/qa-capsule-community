@@ -62,10 +62,13 @@ class dom_capture_listener:
     def _capture_html(self, browser, test_name: str) -> None:
         """Write the page HTML between QA Capsule DOM snapshot markers.
 
-        Robot Framework's robot_logger.info() writes into the test's log
-        context, which means it ends up in the per-testcase <system-out>
-        element in the xunit XML output.  Plain print() would only write to
-        the process stdout and would not be associated with the failing test.
+        We write directly to sys.stdout so that Robot Framework's xunit
+        reporter captures the output in the <system-out> element of the
+        failing <testcase>.  robot.api.logger.info() inside a listener's
+        end_test hook is NOT guaranteed to appear in the per-test system-out;
+        it may be written to the suite-level block or the log.html file only.
+
+        sys.stdout.write() is the most reliable cross-version approach.
         """
         try:
             html = browser.get_page_source()
@@ -73,16 +76,16 @@ class dom_capture_listener:
                 return
             trimmed = html[:MAX_HTML_CHARS]
             snapshot = (
-                f"[QA_CAPSULE_DOM_SNAPSHOT_START]\n"
+                f"\n[QA_CAPSULE_DOM_SNAPSHOT_START]\n"
                 f"{trimmed}\n"
-                f"[QA_CAPSULE_DOM_SNAPSHOT_END]"
+                f"[QA_CAPSULE_DOM_SNAPSHOT_END]\n"
             )
-            # Use robot_logger so the output is tied to the test case context.
+            # Direct stdout write — always captured in xunit <system-out>.
+            sys.stdout.write(snapshot)
+            sys.stdout.flush()
+            # Also write to Robot Framework log.html for human inspection.
             if robot_logger is not None:
-                robot_logger.info(snapshot, also_console=True)
-            else:
-                # Fallback for environments where the Robot logger is unavailable.
-                print(snapshot, flush=True)
+                robot_logger.info(f"DOM snapshot captured ({len(trimmed)} chars)", also_console=False)
         except Exception as exc:
             _warn(f"DOM capture failed for '{test_name}': {exc}")
 

@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"log/slog"
 	"net/http"
-	"os"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -57,12 +57,114 @@ func handleIncidentHealingAction(w http.ResponseWriter, r *http.Request, idStr, 
 
 		fileContent := strings.TrimSpace(req.FileContent)
 
-		// Auto-read the test file from the local repo when no content was supplied.
+		// Load the incident to determine the failure type before choosing a strategy.
+		var errMsg, consoleLogs, errorLogs, framework, testName string
+		if core.DB != nil {
+			core.DB.QueryRow(
+				`SELECT COALESCE(error_message,''), COALESCE(console_logs,''),
+				        COALESCE(error_logs,''), COALESCE(framework,''), COALESCE(name,'')
+				 FROM incidents WHERE id = ?`, id,
+			).Scan(&errMsg, &consoleLogs, &errorLogs, &framework, &testName)
+		}
+
+		// Diagnostic logs — visible in the server console to help triage issues.
+		domSnapshot := core.ExtractDOMSnapshotFromLogs(consoleLogs, errorLogs)
+
+		testSource := fileContent
+		if testSource == "" {
+			testSource = autoReadTestFile(id)
+		}
+		combinedErr := errMsg + "\n" + errorLogs
+		isLocatorFail := core.IsLocatorFailure(combinedErr, errorLogs, testSource, testName)
+
+		slog.Info("propose-fix: incident loaded",
+			"incident_id", id,
+			"framework", framework,
+			"is_locator_error", isLocatorFail,
+			"test_source_bytes", len(testSource),
+			"dom_captured", domSnapshot != "",
+			"dom_bytes", len(domSnapshot),
+			"error_msg_preview", truncateStr(errMsg, 120),
+		)
+
+		// For locator failures, route to the DOM-aware healer (works with or without AI).
+		if isLocatorFail {
+			originalLocator := core.ResolveOriginalLocator(combinedErr, testSource, framework)
+			domUsed := domSnapshot != ""
+
+			// When the DOM was not captured during the test run, attempt to
+			// fetch the page HTML live.  This works for public or intranet pages
+			// that are still accessible and serve static HTML.
+			if !domUsed {
+				// Primary: scan logs/error message for URLs.
+				liveHTML := fetchLivePageHTML(errMsg, errorLogs, consoleLogs)
+
+				// Secondary: if no URL found in logs, read the test source file
+				// and extract URLs from it (e.g. ${BASE_URL} assignments).
+				if liveHTML == "" {
+					if testSource == "" {
+						testSource = autoReadTestFile(id)
+					}
+					if testSource != "" {
+						liveHTML = fetchLivePageHTML("", "", testSource)
+						if liveHTML != "" {
+							slog.Info("propose-fix: URL found in test source file",
+								"incident_id", id, "html_bytes", len(liveHTML))
+						}
+					}
+				}
+
+				if liveHTML != "" {
+					domSnapshot = liveHTML
+					domUsed = true
+					slog.Info("propose-fix: using live-fetched page HTML",
+						"incident_id", id, "html_bytes", len(liveHTML))
+				} else {
+					slog.Warn("propose-fix: no DOM and live fetch failed — AI will guess from error message only",
+						"incident_id", id, "original_locator", originalLocator)
+				}
+			}
+
+			f := core.LocatorError{
+				TestName:        testName,
+				Framework:       framework,
+				OriginalLocator: originalLocator,
+				ErrorMessage:    combinedErr,
+				IncidentID:      id,
+			}
+			var healed string
+			var confidence float64
+			var explanation string
+			if core.AIService != nil {
+				healed, confidence, explanation = aiLocatorHeal(f, framework)
+			} else if domSnapshot != "" && originalLocator != "" {
+				var ok bool
+				healed, confidence, explanation, ok = core.HealLocatorFromHTML(originalLocator, domSnapshot)
+				if !ok {
+					healed, confidence, explanation = core.SuggestHealedLocator(originalLocator, framework)
+				}
+			} else {
+				healed, confidence, explanation = core.SuggestHealedLocator(originalLocator, framework)
+			}
+
+			codeSnippet := buildHealedLocatorSnippet(originalLocator, healed, framework)
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"code":              codeSnippet,
+				"explanation":       explanation,
+				"confidence":        confidence,
+				"healed_locator":    healed,
+				"original_locator":  originalLocator,
+				"dom_used":          domUsed,
+			})
+			return
+		}
+
+		// For non-locator failures (script errors, assertion failures, etc.),
+		// auto-read the test file and ask the AI for a code-level fix.
 		if fileContent == "" {
 			fileContent = autoReadTestFile(id)
 		}
-
-		// Use the AI service when available — it calls Groq/Gemini directly.
 		if core.AIService != nil {
 			ctx := r.Context()
 			code, explanation, err := core.AIService.ProposeFixFromIncidentID(ctx, id, fileContent)
@@ -112,20 +214,67 @@ func handleIncidentHealingAction(w http.ResponseWriter, r *http.Request, idStr, 
 }
 
 // aiLocatorHeal uses Groq/Gemini to find the real locator from the page DOM.
-// Falls back to rule-based heuristics when AI is not available or DOM is absent.
+// It first checks console_logs for a captured DOM snapshot, then falls back to
+// a live HTTP fetch.  Rule-based heuristics are used when AI is not available.
 func aiLocatorHeal(f core.LocatorError, framework string) (healed string, confidence float64, explanation string) {
-	if core.AIService == nil || f.OriginalLocator == "" {
+	if core.AIService == nil {
 		return core.SuggestHealedLocator(f.OriginalLocator, framework)
 	}
 
-	// Read console_logs for this incident to get the DOM snapshot.
-	var consoleLogs string
+	// 1. Try the DOM snapshot captured by the test listener.
+	var consoleLogs, errorLogs string
 	if core.DB != nil {
 		core.DB.QueryRow(
-			`SELECT COALESCE(console_logs,'') FROM incidents WHERE id = ?`, f.IncidentID,
-		).Scan(&consoleLogs)
+			`SELECT COALESCE(console_logs,''), COALESCE(error_logs,'') FROM incidents WHERE id = ?`,
+			f.IncidentID,
+		).Scan(&consoleLogs, &errorLogs)
 	}
-	pageHTML := core.ExtractDOMSnapshot(consoleLogs)
+
+	// Resolve broken locator from logs + test source (Robot timeouts often omit selector).
+	if f.OriginalLocator == "" {
+		testSource := autoReadTestFile(f.IncidentID)
+		f.OriginalLocator = core.ResolveOriginalLocator(f.ErrorMessage+"\n"+errorLogs, testSource, framework)
+		slog.Info("aiLocatorHeal: resolved locator from test source",
+			"incident_id", f.IncidentID, "locator", f.OriginalLocator)
+	}
+
+	pageHTML := core.ExtractDOMSnapshotFromLogs(consoleLogs, errorLogs)
+
+	// 2. No snapshot? Fetch the page live so the AI always has real HTML.
+	if pageHTML == "" {
+		pageHTML = fetchLivePageHTML(f.ErrorMessage, errorLogs, consoleLogs)
+		if pageHTML != "" {
+			slog.Info("aiLocatorHeal: used live-fetched page HTML (from logs)", "incident_id", f.IncidentID, "bytes", len(pageHTML))
+		}
+	}
+	// 3. Still no HTML? Try extracting the URL from the test source file.
+	if pageHTML == "" {
+		testSource := autoReadTestFile(f.IncidentID)
+		if testSource != "" {
+			pageHTML = fetchLivePageHTML("", "", testSource)
+			if pageHTML != "" {
+				slog.Info("aiLocatorHeal: used live-fetched page HTML (from test file)", "incident_id", f.IncidentID, "bytes", len(pageHTML))
+			}
+		}
+	}
+
+	// 3. HTML scan (fast, deterministic) before calling the LLM.
+	if pageHTML != "" && f.OriginalLocator != "" {
+		if healed, conf, expl, ok := core.HealLocatorFromHTML(f.OriginalLocator, pageHTML); ok {
+			slog.Info("aiLocatorHeal: healed from HTML scan",
+				"incident_id", f.IncidentID,
+				"original", f.OriginalLocator,
+				"healed", healed,
+				"confidence", conf,
+			)
+			return healed, conf, expl
+		}
+	}
+
+	// 4. No HTML at all and no locator extracted → nothing useful to offer.
+	if f.OriginalLocator == "" && pageHTML == "" {
+		return core.SuggestHealedLocator(f.OriginalLocator, framework)
+	}
 
 	// Build a locator-healing prompt and call the AI.
 	cfg, err := core.AIService.GetConfig(context.Background())
@@ -134,46 +283,82 @@ func aiLocatorHeal(f core.LocatorError, framework string) (healed string, confid
 	}
 
 	prompt := buildLocatorPrompt(f.OriginalLocator, framework, pageHTML, f.ErrorMessage)
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 
-	res, callErr := aiPkg.HTTPAnalyzer{}.Analyze(ctx, cfg, aiPkg.AnalysisInput{
-		ProjectName:  "locator-healing",
-		TestName:     f.TestName,
-		Status:       "FAILED",
-		ErrorMessage: prompt,
-	})
+	// AnalyzeRaw sends the prompt verbatim — no internal re-wrapping or
+	// truncation — so the full page HTML always reaches the LLM.
+	rawText, callErr := aiPkg.AnalyzeRaw(ctx, cfg, prompt)
 	if callErr != nil {
+		slog.Warn("aiLocatorHeal: LLM call failed", "incident_id", f.IncidentID, "err", callErr)
 		return core.SuggestHealedLocator(f.OriginalLocator, framework)
 	}
 
+	slog.Info("aiLocatorHeal: LLM responded",
+		"incident_id", f.IncidentID,
+		"dom_bytes_sent", len(pageHTML),
+		"response_preview", truncateStr(rawText, 200),
+	)
+
 	// Parse JSON response: {"healed_locator":"...","confidence":0.9,"explanation":"..."}
-	parsed := parseLocatorResponse(res.RawJSON)
+	parsed := parseLocatorResponse(rawText)
 	if parsed.healed != "" {
-		return parsed.healed, parsed.confidence, parsed.explanation
+		// Reject LLM answers that repeat the broken selector or xpath variants of it.
+		if parsed.healed == f.OriginalLocator || core.IsEquivalentBrokenLocator(f.OriginalLocator, parsed.healed) {
+			slog.Warn("aiLocatorHeal: LLM returned equivalent broken selector",
+				"incident_id", f.IncidentID, "healed", parsed.healed)
+		} else if pageHTML != "" && !core.LocatorExistsInHTML(pageHTML, parsed.healed) {
+			slog.Warn("aiLocatorHeal: LLM selector not found in HTML, trying HTML scan",
+				"incident_id", f.IncidentID, "healed", parsed.healed)
+			if healed, conf, expl, ok := core.HealLocatorFromHTML(f.OriginalLocator, pageHTML); ok {
+				return healed, conf, expl
+			}
+		} else {
+			return parsed.healed, parsed.confidence, parsed.explanation
+		}
+	}
+	if pageHTML != "" && f.OriginalLocator != "" {
+		if healed, conf, expl, ok := core.HealLocatorFromHTML(f.OriginalLocator, pageHTML); ok {
+			return healed, conf, expl
+		}
 	}
 	return core.SuggestHealedLocator(f.OriginalLocator, framework)
 }
 
 func buildLocatorPrompt(original, framework, pageHTML, errorMsg string) string {
 	var b strings.Builder
-	b.WriteString("You are an expert test automation engineer specializing in self-healing tests.\n")
-	b.WriteString("A UI test failed because a locator/selector no longer exists on the page.\n")
-	b.WriteString("Your task: find the correct replacement locator from the page HTML.\n\n")
-	b.WriteString("Respond ONLY with a JSON object (no markdown fences):\n")
-	b.WriteString(`{"healed_locator":"<new selector>","confidence":0.95,"explanation":"<why>"}`)
+	b.WriteString("You are an expert test automation engineer specializing in self-healing locators.\n\n")
+	b.WriteString("A UI test failed because the selector no longer exists on the page.\n")
+	b.WriteString("Your ONLY task: look at the page HTML below and find the correct replacement selector.\n\n")
+	b.WriteString("Rules:\n")
+	b.WriteString("- Inspect the HTML carefully. Find the element that matches the intent of the broken selector.\n")
+	b.WriteString("- Prefer: id attributes (#id), then data-testid, then ARIA role, then stable class.\n")
+	b.WriteString("- NEVER return the same broken selector as the fix.\n")
+	b.WriteString("- NEVER return an xpath/css variant of the same missing attribute (e.g. do NOT change data-qa='X' to xpath with data-qa='X').\n")
+	b.WriteString("- The healed_locator MUST exist in the page HTML below.\n")
+	b.WriteString("- Return ONLY a raw JSON object — no markdown, no explanation outside the JSON.\n\n")
+	b.WriteString(`{"healed_locator":"<selector found in HTML>","confidence":0.95,"explanation":"<one sentence: what element you found and why>"}`)
 	b.WriteString("\n\n")
 	fmt.Fprintf(&b, "Framework: %s\n", framework)
 	fmt.Fprintf(&b, "Broken locator: %s\n", original)
-	fmt.Fprintf(&b, "Error: %s\n\n", errorMsg)
+	fmt.Fprintf(&b, "Error message: %s\n\n", errorMsg)
 	if pageHTML != "" {
-		b.WriteString("Page HTML at time of failure:\n")
-		if len(pageHTML) > 18000 {
-			pageHTML = pageHTML[:18000]
+		if len(pageHTML) > 20000 {
+			pageHTML = pageHTML[:20000]
 		}
+		if candidates := core.FormatInteractiveElements(pageHTML, 40); candidates != "" {
+			b.WriteString("=== INTERACTIVE ELEMENTS FOUND IN PAGE HTML ===\n")
+			b.WriteString("Pick the selector for the element that matches the broken locator's intent:\n")
+			b.WriteString(candidates)
+			b.WriteString("=== END INTERACTIVE ELEMENTS ===\n\n")
+		}
+		b.WriteString("=== PAGE HTML AT TIME OF FAILURE ===\n")
 		b.WriteString(pageHTML)
+		b.WriteString("\n=== END PAGE HTML ===\n")
+		b.WriteString("\nIMPORTANT: Your healed_locator MUST appear verbatim in the HTML or interactive elements list above.\n")
 	} else {
-		b.WriteString("No page HTML available — suggest the most likely replacement based on the broken selector name.\n")
+		b.WriteString("WARNING: No page HTML was captured. ")
+		b.WriteString("Suggest the most likely fix based on the broken selector name alone, with low confidence.\n")
 	}
 	return b.String()
 }
@@ -224,30 +409,16 @@ func autoReadTestFile(incidentID int64) string {
 
 	// Try to extract a file path from the stack trace (e.g. "login_broken_selector.robot:27").
 	filePath := extractFileFromStackTrace(stackTrace)
-	if filePath == "" {
-		return ""
-	}
-
-	// Resolve the path: repo_path / filePath (both absolute and relative attempts).
-	candidates := []string{filePath}
-	if repoPath != "" {
-		candidates = append(candidates, filepath.Join(repoPath, filePath))
-		candidates = append(candidates, filepath.Join(repoPath, filepath.Base(filePath)))
-	}
-	// Also search relative to the current working directory.
-	if cwd, err := os.Getwd(); err == nil {
-		candidates = append(candidates, filepath.Join(cwd, filePath))
-		if repoPath != "" {
-			candidates = append(candidates, filepath.Join(cwd, repoPath, filePath))
+	if filePath != "" {
+		if content := core.ReadTestFileAtPaths(filePath, repoPath); content != "" {
+			return content
 		}
 	}
 
-	for _, p := range candidates {
-		if data, err := os.ReadFile(p); err == nil {
-			return string(data)
-		}
-	}
-	return ""
+	// Fallback: locate test file by incident test name (JUnit often omits file paths).
+	var testName string
+	_ = core.DB.QueryRow(`SELECT COALESCE(name,'') FROM incidents WHERE id = ?`, incidentID).Scan(&testName)
+	return core.FindTestSourceInRepo(repoPath, testName)
 }
 
 // extractFileFromStackTrace parses lines like "at path/to/file.robot:27" or
@@ -260,6 +431,141 @@ func extractFileFromStackTrace(stack string) string {
 		return m[1]
 	}
 	return ""
+}
+
+// truncateStr returns the first n characters of s for safe log previews.
+func truncateStr(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "…"
+}
+
+// fetchLivePageHTML tries to retrieve the HTML of the page under test so the
+// AI has real DOM context even when the test listener did not capture a snapshot.
+// It extracts candidate URLs from the error message, error logs, and console
+// logs, then performs an HTTP GET for each until one succeeds.
+// Returns empty string when no URL is reachable or no URL is found.
+func fetchLivePageHTML(errorMsg, errorLogs, consoleLogs string) string {
+	urls := extractPageURLs(errorMsg + "\n" + errorLogs + "\n" + consoleLogs)
+	for _, u := range urls {
+		if html := doHTTPFetchPage(u); html != "" {
+			return html
+		}
+	}
+	return ""
+}
+
+// urlRe matches http/https URLs in free text.
+var urlRe = regexp.MustCompile(`https?://[^\s"'<>\)]+`)
+
+// extractPageURLs returns deduplicated, likely-page URLs found in text.
+// It skips JS, CSS, image, and API paths that are unlikely to be test targets.
+// It also resolves variable assignments like:
+//
+//	${BASE_URL}    https://example.com/path
+//	const BASE_URL = "https://example.com";
+//	BASE_URL       = "https://example.com/path"
+func extractPageURLs(text string) []string {
+	seen := map[string]bool{}
+	var out []string
+	add := func(raw string) {
+		raw = strings.TrimRight(raw, ".,;)/\"'")
+		if raw == "" || seen[raw] {
+			return
+		}
+		lower := strings.ToLower(raw)
+		for _, suffix := range []string{".js", ".css", ".png", ".jpg", ".svg", ".ico", ".woff", "/api/", "/static/"} {
+			if strings.Contains(lower, suffix) {
+				return
+			}
+		}
+		seen[raw] = true
+		out = append(out, raw)
+	}
+
+	// Direct URLs anywhere in the text.
+	for _, raw := range urlRe.FindAllString(text, -1) {
+		add(raw)
+	}
+
+	// Variable assignment patterns:
+	//   ${BASE_URL}    https://...        (Robot Framework)
+	//   BASE_URL     = "https://..."     (Python / .env)
+	//   const X      = 'https://...';    (JS)
+	//   baseURL:       "https://..."     (YAML / config)
+	varURLRe := regexp.MustCompile(`(?i)(?:base.?url|page.?url|site.?url|app.?url)[^h]+(https?://[^\s"'<>\)]+)`)
+	for _, m := range varURLRe.FindAllStringSubmatch(text, -1) {
+		if len(m) >= 2 {
+			add(m[1])
+		}
+	}
+	return out
+}
+
+// doHTTPFetchPage performs an HTTP GET and returns the response body as a
+// string (capped at 512 KB).  Returns empty string on any error.
+func doHTTPFetchPage(url string) string {
+	client := &http.Client{
+		Timeout: 12 * time.Second,
+		// Do not follow redirects to unrelated domains.
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) >= 3 {
+				return http.ErrUseLastResponse
+			}
+			return nil
+		},
+	}
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return ""
+	}
+	// Mimic a real browser so the server does not block the request.
+	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; QACapsule-Healer/1.0)")
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,*/*")
+
+	resp, err := client.Do(req)
+	if err != nil || resp.StatusCode >= 400 {
+		if resp != nil {
+			resp.Body.Close()
+		}
+		return ""
+	}
+	defer resp.Body.Close()
+
+	// Verify the response is HTML before reading the full body.
+	ct := resp.Header.Get("Content-Type")
+	if ct != "" && !strings.Contains(ct, "html") {
+		return ""
+	}
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 512*1024))
+	if err != nil {
+		return ""
+	}
+	slog.Info("fetchLivePageHTML: fetched page", "url", url, "bytes", len(body))
+	return string(body)
+}
+
+// buildHealedLocatorSnippet formats the healed locator as a ready-to-paste
+// code line using the framework's native selector syntax.
+func buildHealedLocatorSnippet(original, healed, framework string) string {
+	if healed == "" {
+		healed = original
+	}
+	fw := strings.ToLower(framework)
+	switch {
+	case strings.Contains(fw, "robot") || strings.Contains(fw, "robotframework"):
+		return fmt.Sprintf("# Replace the broken locator with:\nClick    %s\n\n# Original (broken):\n# Click    %s", healed, original)
+	case strings.Contains(fw, "playwright"):
+		return fmt.Sprintf("// Replace the broken locator with:\nawait page.locator('%s').click();\n\n// Original (broken):\n// await page.locator('%s').click();", healed, original)
+	case strings.Contains(fw, "cypress"):
+		return fmt.Sprintf("// Replace the broken locator with:\ncy.get('%s').click();\n\n// Original (broken):\n// cy.get('%s').click();", healed, original)
+	case strings.Contains(fw, "selenium"):
+		return fmt.Sprintf("# Replace the broken locator with:\ndriver.find_element(By.CSS_SELECTOR, '%s')\n\n# Original (broken):\n# driver.find_element(By.CSS_SELECTOR, '%s')", healed, original)
+	default:
+		return fmt.Sprintf("Healed locator: %s\n\nOriginal (broken): %s", healed, original)
+	}
 }
 
 // ── /api/healing/gate — CI-triggered, framework-agnostic healing analysis ─────

@@ -153,8 +153,11 @@ Rules:
 	b.WriteString("\nStackTrace:\n")
 	b.WriteString(truncate(incident.StackTrace, 8000))
 	if incident.ConsoleLogs != "" {
-		b.WriteString("\nConsoleLogs:\n")
-		b.WriteString(truncate(incident.ConsoleLogs, 3000))
+		// ConsoleLogs may contain the full page DOM snapshot (up to ~24 KB).
+		// Passing it to the LLM lets the AI read the real page structure
+		// instead of guessing from the error message alone.
+		b.WriteString("\nConsoleLogs (may contain page DOM snapshot):\n")
+		b.WriteString(truncate(incident.ConsoleLogs, 20000))
 	}
 	if strings.TrimSpace(fileContent) != "" {
 		b.WriteString("\n--- Source file (raw) ---\n")
@@ -396,6 +399,34 @@ func extractSelectorHint(err string) string {
 		}
 	}
 	return ""
+}
+
+// AnalyzeRaw sends a pre-built prompt directly to the configured LLM without
+// any re-wrapping or truncation.  Use this when the caller has already
+// constructed the full prompt (e.g. locator healing with embedded page HTML).
+// Returns the raw text response from the LLM.
+func AnalyzeRaw(ctx context.Context, cfg ProviderConfig, prompt string) (string, error) {
+	var res AnalysisResult
+	var err error
+	switch cfg.Provider {
+	case ProviderOpenAI, ProviderMistral, ProviderGroq, ProviderOpenRouter, ProviderAzure:
+		res, err = callOpenAI(ctx, cfg, prompt)
+	case ProviderGemini:
+		res, err = callGemini(ctx, cfg, prompt)
+	case ProviderAnthropic:
+		res, err = callAnthropic(ctx, cfg, prompt)
+	case ProviderOllama:
+		res, err = callOllama(ctx, cfg, prompt)
+	default:
+		return "", fmt.Errorf("no AI provider configured")
+	}
+	if err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(res.RawJSON) != "" {
+		return res.RawJSON, nil
+	}
+	return res.Summary, nil
 }
 
 func truncate(s string, n int) string {

@@ -240,3 +240,93 @@ func TestExtractDOMSnapshot_EmptyInput_ReturnsEmpty(t *testing.T) {
 		t.Errorf("expected empty for empty input, got: %q", got)
 	}
 }
+
+func TestExtractDOMSnapshotFromLogs_PrefersConsoleLogs(t *testing.T) {
+	console := "[QA_CAPSULE_DOM_SNAPSHOT_START]<html>console</html>[QA_CAPSULE_DOM_SNAPSHOT_END]"
+	errorLogs := "[QA_CAPSULE_DOM_SNAPSHOT_START]<html>stderr</html>[QA_CAPSULE_DOM_SNAPSHOT_END]"
+	got := ExtractDOMSnapshotFromLogs(console, errorLogs)
+	if got != "<html>console</html>" {
+		t.Errorf("expected console snapshot, got: %q", got)
+	}
+}
+
+func TestExtractDOMSnapshotFromLogs_FallsBackToErrorLogs(t *testing.T) {
+	errorLogs := "[QA_CAPSULE_DOM_SNAPSHOT_START]<html>playwright</html>[QA_CAPSULE_DOM_SNAPSHOT_END]"
+	got := ExtractDOMSnapshotFromLogs("", errorLogs)
+	if got != "<html>playwright</html>" {
+		t.Errorf("expected error_logs snapshot, got: %q", got)
+	}
+}
+
+func TestHealLocatorFromHTML_BrokenDataQA_FindsSubmitID(t *testing.T) {
+	html := `<html><body><button id="submit" type="submit">Submit</button></body></html>`
+	healed, conf, _, ok := HealLocatorFromHTML(`button[data-qa="submit-v1"]`, html)
+	if !ok {
+		t.Fatal("expected HTML heal to succeed")
+	}
+	if healed != "#submit" {
+		t.Errorf("expected #submit, got: %q", healed)
+	}
+	if conf < 0.7 {
+		t.Errorf("expected high confidence, got: %v", conf)
+	}
+}
+
+func TestLocatorExistsInHTML_IDSelector(t *testing.T) {
+	html := `<button id="submit" type="submit">Go</button>`
+	if !LocatorExistsInHTML(html, "#submit") {
+		t.Error("expected #submit to exist in HTML")
+	}
+	if LocatorExistsInHTML(html, "#missing") {
+		t.Error("expected #missing to be absent")
+	}
+}
+
+func TestExtractLocatorFromTestSource_SeleniumPython(t *testing.T) {
+	source := `def test_login(driver):
+    driver.find_element(By.CSS_SELECTOR, 'button[data-qa="submit-v1"]').click()
+`
+	got := ExtractLocatorFromTestSource(source, "Selenium")
+	if got != `button[data-qa="submit-v1"]` {
+		t.Errorf("expected selenium selector, got: %q", got)
+	}
+}
+
+func TestExtractLocatorFromTestSource_PlaywrightJS(t *testing.T) {
+	source := `test('broken', async ({ page }) => {
+  await page.locator('button[data-qa="checkout-v2"]').click();
+});`
+	got := ExtractLocatorFromTestSource(source, "Playwright")
+	if got != `button[data-qa="checkout-v2"]` {
+		t.Errorf("expected playwright selector, got: %q", got)
+	}
+}
+
+func TestExtractLocatorFromTestSource_RobotBrokenVariable(t *testing.T) {
+	source := `*** Variables ***
+${BROKEN_SUBMIT}    button[data-qa="submit-v1"]
+*** Test Cases ***
+Demo
+    Click    ${BROKEN_SUBMIT}
+`
+	got := ExtractLocatorFromTestSource(source, "RobotFramework")
+	if got != `button[data-qa="submit-v1"]` {
+		t.Errorf("expected broken selector from robot file, got: %q", got)
+	}
+}
+
+func TestIsLocatorFailure_RobotTimeoutWithTestSource(t *testing.T) {
+	source := `${BROKEN_SUBMIT}    button[data-qa="submit-v1"]`
+	errMsg := "TimeoutError: timeout 10000ms exceeded"
+	if !IsLocatorFailure(errMsg, "", source, "TC-04 Broken Locator") {
+		t.Error("expected timeout + broken selector in test source to be locator failure")
+	}
+}
+
+func TestIsEquivalentBrokenLocator_XPathVariant(t *testing.T) {
+	orig := `button[data-qa="submit-v1"]`
+	healed := `xpath=(//button[@data-qa='submit-v1'])[1]`
+	if !IsEquivalentBrokenLocator(orig, healed) {
+		t.Error("expected xpath variant of same data-qa to be rejected")
+	}
+}
