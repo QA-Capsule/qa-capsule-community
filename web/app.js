@@ -16,7 +16,7 @@ import { applyRoleVisibility, canAccessFinOps, canAccessPlugins, canResolveIncid
 import * as executionHub from './js/execution-hub.js';
 import * as reportViewer from './js/report-viewer.js';
 import * as workflowEditor from './js/workflow-editor.js';
-import * as healing from './js/healing.js';
+import * as healing from './js/healing.js?v=1.0.21-beta';
 import * as dora from './js/dora.js';
 import { setupAutocomplete } from './js/autocomplete.js';
 import { initTheme, applyTheme } from './js/ui.js';

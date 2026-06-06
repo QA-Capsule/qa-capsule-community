@@ -14,7 +14,7 @@ func staticWebHandler() http.Handler {
 		if path == "/" || path == "/index.html" || strings.HasSuffix(path, ".html") {
 			w.Header().Set("Cache-Control", "no-cache, must-revalidate")
 		} else if strings.HasSuffix(path, ".js") || strings.HasSuffix(path, ".css") {
-			w.Header().Set("Cache-Control", "public, max-age=300")
+			w.Header().Set("Cache-Control", "no-cache, must-revalidate")
 		}
 		w.Header().Set("X-QA-Capsule-Edition", core.EditionID())
 		fs.ServeHTTP(w, r)

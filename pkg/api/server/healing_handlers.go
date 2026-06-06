@@ -147,15 +147,23 @@ func handleIncidentHealingAction(w http.ResponseWriter, r *http.Request, idStr, 
 				healed, confidence, explanation = core.SuggestHealedLocator(originalLocator, framework)
 			}
 
-			codeSnippet := buildHealedLocatorSnippet(originalLocator, healed, framework)
+			fixedCode := applyLocatorFixToSource(testSource, originalLocator, healed)
+			if fixedCode == "" {
+				fixedCode = buildHealedLocatorSnippet(originalLocator, healed, framework)
+			}
+			changeLines := buildLocatorChangeLines(testSource, fixedCode, originalLocator, healed)
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(map[string]interface{}{
-				"code":              codeSnippet,
+				"code":              fixedCode,
+				"source_code":       testSource,
 				"explanation":       explanation,
 				"confidence":        confidence,
 				"healed_locator":    healed,
 				"original_locator":  originalLocator,
 				"dom_used":          domUsed,
+				"heal_method":       healMethodFromExplanation(explanation, domUsed),
+				"change_lines":      changeLines,
+				"fix_highlights":    buildFixHighlights(testSource, fixedCode, healed),
 			})
 			return
 		}
@@ -169,12 +177,41 @@ func handleIncidentHealingAction(w http.ResponseWriter, r *http.Request, idStr, 
 			ctx := r.Context()
 			code, explanation, err := core.AIService.ProposeFixFromIncidentID(ctx, id, fileContent)
 			if err == nil {
-				w.Header().Set("Content-Type", "application/json")
-				json.NewEncoder(w).Encode(map[string]interface{}{
+				origLoc := core.ResolveOriginalLocator(combinedErr, testSource, framework)
+				if origLoc == "" {
+					origLoc = extractOriginalLocatorFromExplanation(explanation)
+				}
+				healedLoc := extractHealedLocatorFromExplanation(explanation)
+				if healedLoc == "" && code != "" && origLoc != "" {
+					healedLoc = inferHealedLocatorFromCode(code, origLoc)
+				}
+				resp := map[string]interface{}{
 					"code":        code,
+					"source_code": testSource,
 					"explanation": explanation,
 					"confidence":  0.8,
-				})
+					"dom_used":    domSnapshot != "",
+					"heal_method": healMethodFromExplanation(explanation, domSnapshot != ""),
+				}
+				if origLoc != "" {
+					resp["original_locator"] = origLoc
+				}
+				if healedLoc != "" {
+					resp["healed_locator"] = healedLoc
+				}
+				if origLoc != "" && healedLoc != "" {
+					resp["change_lines"] = buildLocatorChangeLines(testSource, code, origLoc, healedLoc)
+				}
+				if testSource != "" && origLoc != "" && healedLoc != "" {
+					if merged := applyLocatorFixToSource(testSource, origLoc, healedLoc); merged != "" {
+						code = merged
+						resp["code"] = code
+						resp["change_lines"] = buildLocatorChangeLines(testSource, code, origLoc, healedLoc)
+					}
+				}
+				resp["fix_highlights"] = buildFixHighlights(testSource, code, healedLoc)
+				w.Header().Set("Content-Type", "application/json")
+				json.NewEncoder(w).Encode(resp)
 				return
 			}
 		}
@@ -545,6 +582,389 @@ func doHTTPFetchPage(url string) string {
 	}
 	slog.Info("fetchLivePageHTML: fetched page", "url", url, "bytes", len(body))
 	return string(body)
+}
+
+// extractHealedLocatorFromExplanation pulls the replacement selector from AI prose.
+func extractHealedLocatorFromExplanation(explanation string) string {
+	explanation = strings.TrimSpace(explanation)
+	if explanation == "" {
+		return ""
+	}
+	patterns := []*regexp.Regexp{
+		regexp.MustCompile(`(?i)replaced with(?: the correct(?: one| locator| selector)?)?\s+` + "`" + `([^` + "`" + `]+)` + "`"),
+		regexp.MustCompile(`(?i)replaced with(?: the correct(?: one| locator| selector)?)?\s+'([^']+)'`),
+		regexp.MustCompile(`(?i)replaced with(?: the correct(?: one| locator| selector)?)?\s+"([^"]+)"`),
+		regexp.MustCompile(`(?i)replaced with(?: the correct(?: one| locator| selector)?)?\s+(#[\w-]+|css=[^\s,.]+|id=[^\s,.]+)`),
+		regexp.MustCompile(`(?i)changed to(?: the correct(?: one| locator| selector)?)?\s+` + "`" + `([^` + "`" + `]+)` + "`"),
+		regexp.MustCompile(`(?i)changed to(?: the correct(?: one| locator| selector)?)?\s+'([^']+)'`),
+		regexp.MustCompile(`(?i)changed to(?: the correct(?: one| locator| selector)?)?\s+"([^"]+)"`),
+		regexp.MustCompile(`(?i)changed to(?: the correct(?: one| locator| selector)?)?\s+(#[\w-]+|css=[^\s,.]+|id=[^\s,.]+)`),
+		regexp.MustCompile(`(?i)correct selector\s+` + "`" + `([^` + "`" + `]+)` + "`"),
+		regexp.MustCompile(`(?i)(?:fixed|healed)\s+selector:?\s*['"` + "`" + `]([^'"` + "`" + `]+)['"` + "`" + `]`),
+	}
+	for _, re := range patterns {
+		if m := re.FindStringSubmatch(explanation); len(m) > 1 {
+			if s := strings.TrimSpace(m[1]); looksLikeLocatorToken(s) {
+				return s
+			}
+		}
+	}
+	backtick := regexp.MustCompile("`([^`]+)`")
+	for _, m := range backtick.FindAllStringSubmatch(explanation, -1) {
+		if len(m) < 2 {
+			continue
+		}
+		s := strings.TrimSpace(m[1])
+		if s == "" || strings.HasPrefix(s, "${") {
+			continue
+		}
+		if looksLikeLocatorToken(s) {
+			return s
+		}
+	}
+	return ""
+}
+
+// extractOriginalLocatorFromExplanation pulls the broken selector from AI prose.
+func extractOriginalLocatorFromExplanation(explanation string) string {
+	explanation = strings.TrimSpace(explanation)
+	if explanation == "" {
+		return ""
+	}
+	patterns := []*regexp.Regexp{
+		regexp.MustCompile(`(?i)which was\s+(\$\{?\w+\}?|\$[A-Z_]+|#[\w-]+|css=[^\s,.]+|id=[^\s,.]+)`),
+		regexp.MustCompile(`(?i)incorrect locator(?: for[^,.]+)?,?\s*which was\s+(\$\{?\w+\}?|\$[A-Z_]+|#[\w-]+|css=[^\s,.]+|id=[^\s,.]+)`),
+		regexp.MustCompile(`(?i)broken locator[^.]*?\bwas\s+(\$\{?\w+\}?|\$[A-Z_]+|#[\w-]+|css=[^\s,.]+|id=[^\s,.]+)`),
+	}
+	for _, re := range patterns {
+		if m := re.FindStringSubmatch(explanation); len(m) > 1 {
+			if s := strings.TrimSpace(m[1]); looksLikeLocatorToken(s) {
+				return s
+			}
+		}
+	}
+	return ""
+}
+
+func looksLikeLocatorToken(s string) bool {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return false
+	}
+	patterns := []*regexp.Regexp{
+		regexp.MustCompile(`^#[\w-]+$`),
+		regexp.MustCompile(`^css=[^\s,]+$`),
+		regexp.MustCompile(`^id=[^\s,]+$`),
+		regexp.MustCompile(`^xpath=[^\s,]+$`),
+		regexp.MustCompile(`^\$\{?\w+\}?$`),
+		regexp.MustCompile(`^\$[A-Z_]+$`),
+		regexp.MustCompile(`^[\w-]+=[^\s,]+$`),
+	}
+	for _, re := range patterns {
+		if re.MatchString(s) {
+			return true
+		}
+	}
+	return false
+}
+
+// inferHealedLocatorFromCode picks the replacement locator on Click/Get Element lines only.
+func inferHealedLocatorFromCode(code, original string) string {
+	if strings.TrimSpace(code) == "" || strings.TrimSpace(original) == "" {
+		return ""
+	}
+	origTerms := originalLocatorVariants(original)
+	for _, t := range origTerms {
+		if strings.Contains(code, t) {
+			return ""
+		}
+	}
+	actionRe := regexp.MustCompile(`(?im)^\s*(?:Click|Get Element|Tap|Wait For Elements State)\s+(\S+)`)
+	counts := map[string]int{}
+	for _, m := range actionRe.FindAllStringSubmatch(code, -1) {
+		if len(m) < 2 {
+			continue
+		}
+		tok := strings.TrimSpace(m[1])
+		if !looksLikeLocatorToken(tok) {
+			continue
+		}
+		if locatorTermMatchesAny(tok, origTerms) {
+			continue
+		}
+		if strings.HasPrefix(tok, "$") && !strings.HasPrefix(tok, "#") {
+			continue
+		}
+		if isFormFieldLocator(tok) {
+			continue
+		}
+		counts[tok]++
+	}
+	best := ""
+	bestScore := -1
+	for tok, n := range counts {
+		score := n * 10
+		if strings.HasPrefix(tok, "#") {
+			score += 5
+		}
+		if strings.HasPrefix(tok, "css=") {
+			score += 4
+		}
+		if score > bestScore || (score == bestScore && len(tok) > len(best)) {
+			best = tok
+			bestScore = score
+		}
+	}
+	return best
+}
+
+func isFormFieldLocator(tok string) bool {
+	tok = strings.TrimSpace(tok)
+	return regexp.MustCompile(`(?i)^id=(username|password|email|user|pass|login)$`).MatchString(tok)
+}
+
+func originalLocatorVariants(original string) []string {
+	original = strings.TrimSpace(original)
+	if original == "" {
+		return nil
+	}
+	out := []string{original}
+	if m := regexp.MustCompile(`^\$[\{]?([A-Za-z_]\w*)\}?$`).FindStringSubmatch(original); len(m) > 1 {
+		name := m[1]
+		out = append(out, "${"+name+"}", "$"+name, "$I"+name)
+	} else if strings.HasPrefix(original, "$I") {
+		name := original[2:]
+		out = append(out, "${"+name+"}", "$"+name)
+	}
+	return out
+}
+
+func locatorTermMatchesAny(tok string, terms []string) bool {
+	for _, t := range terms {
+		if t != "" && (tok == t || strings.Contains(tok, t)) {
+			return true
+		}
+	}
+	return false
+}
+
+// healMethodFromExplanation classifies how the locator was resolved for the UI.
+func healMethodFromExplanation(explanation string, domAvailable bool) string {
+	e := strings.ToLower(explanation)
+	switch {
+	case strings.Contains(e, "scanned page html"):
+		return "html_scan"
+	case strings.Contains(e, "from live dom"), domAvailable && strings.Contains(e, "html"):
+		return "ai_dom"
+	case domAvailable:
+		return "ai_dom"
+	case strings.Contains(e, "estimated"), strings.Contains(e, "guess"), strings.Contains(e, "suggest"):
+		return "rules"
+	default:
+		return "ai"
+	}
+}
+
+// buildFixHighlights lists 1-based line numbers and tokens to highlight in the UI.
+func buildFixHighlights(before, after, healed string) []map[string]interface{} {
+	if strings.TrimSpace(after) == "" || strings.TrimSpace(healed) == "" {
+		return nil
+	}
+	var out []map[string]interface{}
+	bLines := strings.Split(before, "\n")
+	aLines := strings.Split(after, "\n")
+	actionRe := regexp.MustCompile(`(?im)^\s*(?:Click|Get Element|Tap|Wait For Elements State)\s+\S+`)
+	seen := map[int]bool{}
+	add := func(lineNo int) {
+		if lineNo <= 0 || seen[lineNo] {
+			return
+		}
+		seen[lineNo] = true
+		out = append(out, map[string]interface{}{"line": lineNo, "token": healed})
+	}
+	max := len(aLines)
+	if len(bLines) > max {
+		max = len(bLines)
+	}
+	for i := 0; i < max; i++ {
+		var b, a string
+		if i < len(bLines) {
+			b = bLines[i]
+		}
+		if i < len(aLines) {
+			a = aLines[i]
+		}
+		if a == "" || !actionRe.MatchString(a) || !strings.Contains(a, healed) {
+			continue
+		}
+		if b != a {
+			add(i + 1)
+		}
+	}
+	if len(out) == 0 {
+		for i, a := range aLines {
+			if actionRe.MatchString(a) && strings.Contains(a, healed) {
+				add(i + 1)
+			}
+		}
+	}
+	return out
+}
+
+var (
+	robotVarAssignFixRe = regexp.MustCompile(`(?m)^\$\{(\w+)\}\s+(.+)$`)
+	robotActionFixRe    = regexp.MustCompile(`(?im)^(\s*(?:Click|Get Element|Tap|Wait For Elements State)\s+)(\S+)(.*)$`)
+)
+
+func parseRobotVarMap(source string) map[string]string {
+	vars := map[string]string{}
+	for _, m := range robotVarAssignFixRe.FindAllStringSubmatch(source, -1) {
+		if len(m) >= 3 {
+			vars[m[1]] = strings.TrimSpace(m[2])
+		}
+	}
+	return vars
+}
+
+func resolveRobotActionTarget(target string, vars map[string]string) string {
+	target = strings.TrimSpace(target)
+	if strings.HasPrefix(target, "${") && strings.HasSuffix(target, "}") {
+		if v, ok := vars[target[2:len(target)-1]]; ok {
+			return v
+		}
+	}
+	return target
+}
+
+func actionTargetMatchesOriginal(target, resolved, original string, origTerms []string) bool {
+	for _, t := range origTerms {
+		if t == "" {
+			continue
+		}
+		if target == t || resolved == t {
+			return true
+		}
+	}
+	return original != "" && (target == original || resolved == original)
+}
+
+// applyLocatorFixToSource rewrites broken locator usages inside the test source file.
+func applyLocatorFixToSource(source, original, healed string) string {
+	source = strings.TrimSpace(source)
+	original = strings.TrimSpace(original)
+	healed = strings.TrimSpace(healed)
+	if source == "" || healed == "" {
+		return source
+	}
+	vars := parseRobotVarMap(source)
+	origTerms := originalLocatorVariants(original)
+	lines := strings.Split(source, "\n")
+	changed := false
+	for i, line := range lines {
+		m := robotActionFixRe.FindStringSubmatch(line)
+		if m == nil {
+			continue
+		}
+		prefix, target, suffix := m[1], strings.TrimSpace(m[2]), m[3]
+		if target == healed {
+			continue
+		}
+		resolved := resolveRobotActionTarget(target, vars)
+		shouldFix := actionTargetMatchesOriginal(target, resolved, original, origTerms)
+		if !shouldFix && strings.HasPrefix(target, "${") {
+			name := target[2 : len(target)-1]
+			if strings.Contains(strings.ToUpper(name), "BROKEN") {
+				shouldFix = true
+			}
+		}
+		if shouldFix {
+			lines[i] = prefix + healed + suffix
+			changed = true
+		}
+	}
+	if !changed {
+		return source
+	}
+	return strings.Join(lines, "\n")
+}
+
+// buildLocatorChangeLines lists before/after code lines for the locator swap.
+func buildLocatorChangeLines(source, proposedCode, original, healed string) []map[string]interface{} {
+	if original == "" || healed == "" || original == healed {
+		return nil
+	}
+	var out []map[string]interface{}
+	seen := map[string]bool{}
+	add := func(before, after string, lineNo int) {
+		before = strings.TrimSpace(before)
+		after = strings.TrimSpace(after)
+		if before == "" || after == "" || before == after {
+			return
+		}
+		key := before + "\x00" + after
+		if seen[key] {
+			return
+		}
+		seen[key] = true
+		row := map[string]interface{}{"before": before, "after": after}
+		if lineNo > 0 {
+			row["line"] = lineNo
+		}
+		out = append(out, row)
+	}
+
+	if source != "" {
+		for i, line := range strings.Split(source, "\n") {
+			if strings.Contains(line, original) {
+				add(line, strings.ReplaceAll(line, original, healed), i+1)
+			}
+		}
+		for i, line := range strings.Split(source, "\n") {
+			for _, v := range originalLocatorVariants(original) {
+				if v != original && strings.Contains(line, v) {
+					add(line, strings.ReplaceAll(line, v, healed), i+1)
+				}
+			}
+		}
+	}
+	if source != "" && proposedCode != "" {
+		srcLines := strings.Split(source, "\n")
+		codeLines := strings.Split(proposedCode, "\n")
+		max := len(srcLines)
+		if len(codeLines) > max {
+			max = len(codeLines)
+		}
+		actionRe := regexp.MustCompile(`(?im)^\s*(?:Click|Get Element|Tap|Wait For Elements State)\s+\S+`)
+		for i := 0; i < max; i++ {
+			before := ""
+			after := ""
+			if i < len(srcLines) {
+				before = srcLines[i]
+			}
+			if i < len(codeLines) {
+				after = codeLines[i]
+			}
+			if before != after && actionRe.MatchString(before) && actionRe.MatchString(after) {
+				add(before, after, i+1)
+			}
+		}
+	}
+	for i, line := range strings.Split(proposedCode, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		if strings.Contains(line, healed) {
+			before := strings.ReplaceAll(line, healed, original)
+			if before != line {
+				add(before, line, i+1)
+			}
+		}
+	}
+	if len(out) == 0 {
+		add(original, healed, 0)
+	}
+	return out
 }
 
 // buildHealedLocatorSnippet formats the healed locator as a ready-to-paste
