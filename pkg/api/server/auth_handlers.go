@@ -67,59 +67,10 @@ func registerAuthRoutes(config *core.Config) {
 		}
 	})
 
-	// Standard Login
-	http.HandleFunc("/api/login", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		var creds struct{ Username, Password string }
-		if err := json.NewDecoder(r.Body).Decode(&creds); err != nil {
-			writeJSONError(w, "Invalid request body", http.StatusBadRequest)
-			return
-		}
-		creds.Username = strings.TrimSpace(creds.Username)
-		if creds.Username == "" || creds.Password == "" {
-			writeJSONError(w, "Username and password are required", http.StatusBadRequest)
-			return
-		}
-
-		var hash, role string
-		var requireChange, isActive int
-		err := core.DB.QueryRow(
-			"SELECT password_hash, role, require_password_change, is_active FROM users WHERE username = ? COLLATE NOCASE",
-			creds.Username,
-		).Scan(&hash, &role, &requireChange, &isActive)
-		if err != nil || bcrypt.CompareHashAndPassword([]byte(hash), []byte(creds.Password)) != nil {
-			writeJSONError(w, "Invalid username or password", http.StatusUnauthorized)
-			return
-		}
-		if isActive == 0 {
-			writeJSONError(w, "Account is disabled. Contact your Platform Admin.", http.StatusForbidden)
-			return
-		}
-
-		if nr := core.NormalizeRole(role); nr != role {
-			role = nr
-			_, _ = core.DB.Exec("UPDATE users SET role = ? WHERE username = ?", role, creds.Username)
-		}
-
-		expirationTime := time.Now().Add(24 * time.Hour)
-		claims := &Claims{
-			Username:              creds.Username,
-			Role:                  role,
-			RequirePasswordChange: requireChange == 1,
-			RegisteredClaims:      jwt.RegisteredClaims{ExpiresAt: jwt.NewNumericDate(expirationTime)},
-		}
-		token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-		tokenString, _ := token.SignedString(jwtKey)
-
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"token":                   tokenString,
-			"require_password_change": requireChange == 1,
-		})
-	})
+	// Standard Login (rate-limited: 10 attempts/minute per client IP)
+	http.HandleFunc("/api/login", rateLimitMiddleware("login", 10, time.Minute, func(w http.ResponseWriter, r *http.Request) {
+		handleLogin(w, r)
+	}))
 
 	// Force password change handler
 	http.HandleFunc("/api/users/change-password", jwtAuthMiddleware(config, "", func(w http.ResponseWriter, r *http.Request) {
@@ -132,6 +83,11 @@ func registerAuthRoutes(config *core.Config) {
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 		claims := &Claims{}
 		jwt.ParseWithClaims(tokenString, claims, func(t *jwt.Token) (interface{}, error) { return jwtKey, nil })
+
+		if len(strings.TrimSpace(payload.NewPassword)) < 8 {
+			writeJSONError(w, "Password must be at least 8 characters", http.StatusBadRequest)
+			return
+		}
 
 		hashed, _ := bcrypt.GenerateFromPassword([]byte(payload.NewPassword), 14)
 		core.DB.Exec("UPDATE users SET password_hash = ?, require_password_change = 0 WHERE username = ?", string(hashed), claims.Username)
@@ -266,4 +222,57 @@ func registerAuthRoutes(config *core.Config) {
 		core.DB.Exec("DELETE FROM users WHERE username = ?", r.URL.Query().Get("username"))
 		w.WriteHeader(http.StatusOK)
 	}))
+}
+
+func handleLogin(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	var creds struct{ Username, Password string }
+	if err := json.NewDecoder(r.Body).Decode(&creds); err != nil {
+		writeJSONError(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	creds.Username = strings.TrimSpace(creds.Username)
+	if creds.Username == "" || creds.Password == "" {
+		writeJSONError(w, "Username and password are required", http.StatusBadRequest)
+		return
+	}
+
+	var hash, role string
+	var requireChange, isActive int
+	err := core.DB.QueryRow(
+		"SELECT password_hash, role, require_password_change, is_active FROM users WHERE username = ? COLLATE NOCASE",
+		creds.Username,
+	).Scan(&hash, &role, &requireChange, &isActive)
+	if err != nil || bcrypt.CompareHashAndPassword([]byte(hash), []byte(creds.Password)) != nil {
+		writeJSONError(w, "Invalid username or password", http.StatusUnauthorized)
+		return
+	}
+	if isActive == 0 {
+		writeJSONError(w, "Account is disabled. Contact your Platform Admin.", http.StatusForbidden)
+		return
+	}
+
+	if nr := core.NormalizeRole(role); nr != role {
+		role = nr
+		_, _ = core.DB.Exec("UPDATE users SET role = ? WHERE username = ?", role, creds.Username)
+	}
+
+	expirationTime := time.Now().Add(24 * time.Hour)
+	claims := &Claims{
+		Username:              creds.Username,
+		Role:                  role,
+		RequirePasswordChange: requireChange == 1,
+		RegisteredClaims:      jwt.RegisteredClaims{ExpiresAt: jwt.NewNumericDate(expirationTime)},
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, _ := token.SignedString(jwtKey)
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"token":                   tokenString,
+		"require_password_change": requireChange == 1,
+	})
 }

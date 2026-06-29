@@ -41,7 +41,7 @@ func registerArtifactRoutes(config *core.Config) {
 			return
 		}
 		if len(parts) >= 2 && parts[0] == "check-flaky" {
-			handleCheckFlaky(w, r, parts[1])
+			handleCheckFlaky(config, w, r, parts[1])
 			return
 		}
 		if len(parts) >= 3 && parts[1] == "healing" {
@@ -60,10 +60,23 @@ func registerArtifactRoutes(config *core.Config) {
 	})
 }
 
-func handleCheckFlaky(w http.ResponseWriter, r *http.Request, hash string) {
+func handleCheckFlaky(config *core.Config, w http.ResponseWriter, r *http.Request, hash string) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
+	}
+	if config.Security.Enabled {
+		if apiKey := r.Header.Get("X-API-Key"); apiKey != "" {
+			var n int
+			core.DB.QueryRow(`SELECT COUNT(*) FROM projects WHERE api_key = ?`, apiKey).Scan(&n)
+			if n == 0 {
+				writeJSONError(w, "Unauthorized", http.StatusUnauthorized)
+				return
+			}
+		} else if _, err := parseBearerClaims(r); err != nil {
+			writeJSONError(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
 	}
 	hash = strings.TrimSpace(hash)
 	if len(hash) != 64 {
@@ -184,6 +197,6 @@ func authorizeArtifactUpload(config *core.Config, r *http.Request) bool {
 	if !config.Security.Enabled {
 		return true
 	}
-	auth := r.Header.Get("Authorization")
-	return strings.HasPrefix(auth, "Bearer ")
+	_, err := parseBearerClaims(r)
+	return err == nil
 }

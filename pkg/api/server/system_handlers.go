@@ -230,6 +230,16 @@ func registerSystemRoutes(config *core.Config) {
 
 	// Real-time raw telemetry stream for the dashboard
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+		if config.Security.Enabled {
+			token := strings.TrimSpace(r.URL.Query().Get("token"))
+			if token == "" {
+				token = strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+			}
+			if _, err := validateTokenString(token); err != nil {
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				return
+			}
+		}
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			return

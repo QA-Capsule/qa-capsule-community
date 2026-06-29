@@ -1103,7 +1103,7 @@ window.renderIncidentsList = function () {
         const subAlertsHTML = group.incidents.map(inc => {
             const isFlaky = inc.name.includes("[FLAKY]");
             const flakyBadge = isFlaky ? `<span class="kpi-warn" style="margin-right:8px;">${iconWarning} FLAKY</span>` : '';
-            const cleanName = inc.name.replace("[FLAKY] ", "");
+            const cleanName = escapeHtml(inc.name.replace("[FLAKY] ", ""));
             const rawLog = inc.error_logs || inc.error_message || "No logs available.";
             const displayLog = String(rawLog)
                 .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -1115,7 +1115,7 @@ window.renderIncidentsList = function () {
             const rowClass = isResolved ? 'is-resolved' : 'is-active';
 
             const subAlertFlag = isResolved
-                ? `<span class="incident-test-badge exec-status-badge exec-status-badge--resolved">${iconCheck} RESOLVED BY ${inc.resolved_by || 'SYSTEM'}</span>`
+                ? `<span class="incident-test-badge exec-status-badge exec-status-badge--resolved">${iconCheck} RESOLVED BY ${escapeHtml(inc.resolved_by || 'SYSTEM')}</span>`
                 : `<span class="incident-test-badge exec-status-badge exec-status-badge--active">${iconAlert} ACTIVE TEST</span>`;
 
             const isLogOpen = openLogs.has(String(inc.id));

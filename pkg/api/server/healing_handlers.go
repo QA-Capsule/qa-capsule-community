@@ -486,6 +486,10 @@ func truncateStr(s string, n int) string {
 func fetchLivePageHTML(errorMsg, errorLogs, consoleLogs string) string {
 	urls := extractPageURLs(errorMsg + "\n" + errorLogs + "\n" + consoleLogs)
 	for _, u := range urls {
+		if !isSSRFSafeURL(u) {
+			slog.Warn("fetchLivePageHTML: blocked unsafe URL", "url", u)
+			continue
+		}
 		if html := doHTTPFetchPage(u); html != "" {
 			return html
 		}
@@ -543,6 +547,9 @@ func extractPageURLs(text string) []string {
 // doHTTPFetchPage performs an HTTP GET and returns the response body as a
 // string (capped at 512 KB).  Returns empty string on any error.
 func doHTTPFetchPage(url string) string {
+	if !isSSRFSafeURL(url) {
+		return ""
+	}
 	client := &http.Client{
 		Timeout: 12 * time.Second,
 		// Do not follow redirects to unrelated domains.

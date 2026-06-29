@@ -21,23 +21,30 @@ func registerMCPRoutes(config *core.Config) {
 }
 
 func mcpAuthMiddleware(config *core.Config, next http.HandlerFunc) http.HandlerFunc {
+	limited := rateLimitMiddleware("mcp", 120, time.Minute, next)
 	return func(w http.ResponseWriter, r *http.Request) {
 		expected := strings.TrimSpace(os.Getenv("QACAPSULE_MCP_TOKEN"))
 		if expected == "" && config != nil {
 			expected = strings.TrimSpace(config.Telemetry.WebhookToken)
 		}
-		if expected != "" {
-			got := strings.TrimSpace(r.Header.Get("Authorization"))
-			got = strings.TrimPrefix(got, "Bearer ")
-			if got == "" {
-				got = r.Header.Get("X-MCP-Token")
-			}
-			if got != expected {
-				writeJSONRPCError(w, nil, -32001, "Unauthorized MCP request")
+		if expected == "" {
+			if isDevelopmentEnv() {
+				limited(w, r)
 				return
 			}
+			writeJSONRPCError(w, nil, -32001, "MCP token not configured")
+			return
 		}
-		next(w, r)
+		got := strings.TrimSpace(r.Header.Get("Authorization"))
+		got = strings.TrimPrefix(got, "Bearer ")
+		if got == "" {
+			got = r.Header.Get("X-MCP-Token")
+		}
+		if got != expected {
+			writeJSONRPCError(w, nil, -32001, "Unauthorized MCP request")
+			return
+		}
+		limited(w, r)
 	}
 }
 

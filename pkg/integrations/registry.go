@@ -138,6 +138,26 @@ func (r *Registry) GetByPath(path string) (*Manifest, bool) {
 	return m, ok
 }
 
+func (r *Registry) resolveManifestPath(filePath string) (string, error) {
+	clean := filepath.ToSlash(filepath.Clean(strings.TrimSpace(filePath)))
+	if clean == "" || clean == "." || clean == ".." || strings.HasPrefix(clean, "../") || strings.Contains(clean, "/../") {
+		return "", fmt.Errorf("invalid integration path")
+	}
+	full := filepath.Join(r.dir, filepath.FromSlash(clean))
+	absBase, err := filepath.Abs(r.dir)
+	if err != nil {
+		return "", err
+	}
+	absFull, err := filepath.Abs(full)
+	if err != nil {
+		return "", err
+	}
+	if absFull != absBase && !strings.HasPrefix(absFull, absBase+string(filepath.Separator)) {
+		return "", fmt.Errorf("integration path escapes plugins directory")
+	}
+	return absFull, nil
+}
+
 func (r *Registry) UpdateConfig(filePath string, cfg map[string]string, enableRouting bool) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -151,7 +171,10 @@ func (r *Registry) UpdateConfig(filePath string, cfg map[string]string, enableRo
 	if enableRouting {
 		m.RoutingEnabled = true
 	}
-	full := filepath.Join(r.dir, filePath)
+	full, err := r.resolveManifestPath(filePath)
+	if err != nil {
+		return err
+	}
 	return writeManifestFile(full, m)
 }
 
@@ -163,7 +186,10 @@ func (r *Registry) UpdateRoutingEnabled(filePath string, enabled bool) error {
 		return fmt.Errorf("integration not found: %s", filePath)
 	}
 	m.RoutingEnabled = enabled
-	full := filepath.Join(r.dir, filePath)
+	full, err := r.resolveManifestPath(filePath)
+	if err != nil {
+		return err
+	}
 	return writeManifestFile(full, m)
 }
 
@@ -181,7 +207,10 @@ func (r *Registry) UpdateAutoRun(filePath string, autoRun bool) error {
 			m.Status = "Active"
 		}
 	}
-	full := filepath.Join(r.dir, filePath)
+	full, err := r.resolveManifestPath(filePath)
+	if err != nil {
+		return err
+	}
 	return writeManifestFile(full, m)
 }
 

@@ -27,8 +27,8 @@ type Claims struct {
 	jwt.RegisteredClaims
 }
 
-// upgrader configures WebSocket connection upgrades
-var upgrader = websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
+// upgrader configures WebSocket connection upgrades (origin checked against Host).
+var upgrader = websocket.Upgrader{CheckOrigin: wsCheckOrigin}
 
 // generateRandomPassword creates a secure temporary password
 func generateRandomPassword() string {
@@ -127,6 +127,7 @@ func Start(initialConfig core.Config) {
 	config := &initialConfig
 	processStartedAt = time.Now()
 	InitJWT(config)
+	EnforceProductionSecurity(config)
 	core.StartIngestWorkers()
 	ensureEnterpriseConfigTable()
 
@@ -159,7 +160,7 @@ func Start(initialConfig core.Config) {
 	http.Handle("/", staticWebHandler())
 
 	log.Printf("[SERVER] Started on port %s", config.Server.Port)
-	log.Fatal(http.ListenAndServe(":"+config.Server.Port, nil))
+	log.Fatal(http.ListenAndServe(":"+config.Server.Port, securityHeadersMiddleware(http.DefaultServeMux)))
 }
 
 func ensureEnterpriseConfigTable() {

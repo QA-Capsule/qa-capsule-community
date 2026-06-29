@@ -20,6 +20,14 @@ function escapeAttr(s) {
     return String(s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
+function escapeHtml(s) {
+    return String(s ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
 function teamRolePillClass(role) {
     if (role === 'team_admin') return 'role-pill role-pill--admin';
     if (role === 'team_operator') return 'role-pill role-pill--operator';
@@ -483,14 +491,14 @@ export function renderUserTable(users) {
         return `
             <tr>
                 <td class="${statusClass}">${u.is_active ? '● ACTIVE' : '○ DISABLED'}</td>
-                <td><strong>${u.fullname || 'N/A'}</strong> ${isMe ? '<small>(YOU)</small>' : ''}<br><small class="text-subtle-sm">${u.username}</small></td>
-                <td><small>${roleLabel(u.role)}</small><br><small class="text-subtle-sm"><code>${u.role}</code></small></td>
+                <td><strong>${escapeHtml(u.fullname || 'N/A')}</strong> ${isMe ? '<small>(YOU)</small>' : ''}<br><small class="text-subtle-sm">${escapeHtml(u.username)}</small></td>
+                <td><small>${roleLabel(u.role)}</small><br><small class="text-subtle-sm"><code>${escapeHtml(u.role)}</code></small></td>
                 <td class="data-table__actions">
                     <div class="btn-action-group">
-                    <button type="button" class="btn btn-secondary btn-sm btn-info" onclick="window.openUserTeamsModal('${u.username}')">TEAMS</button>
-                    <button type="button" class="btn btn-secondary btn-sm" onclick="window.adminResetPassword('${u.username}')" ${disabledState}>RESET PWD</button>
-                    <button type="button" class="btn btn-secondary btn-sm ${u.is_active ? 'btn-danger' : 'btn-success'}" onclick="window.toggleUserStatus('${u.username}', ${u.is_active})" ${disabledState}>${u.is_active ? 'Disable' : 'Enable'}</button>
-                    <button type="button" class="btn btn-primary btn-danger btn-sm" onclick="window.deleteUser('${u.username}')" ${disabledState}>DEL</button>
+                    <button type="button" class="btn btn-secondary btn-sm btn-info" onclick="window.openUserTeamsModal('${escapeAttr(u.username)}')">TEAMS</button>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="window.adminResetPassword('${escapeAttr(u.username)}')" ${disabledState}>RESET PWD</button>
+                    <button type="button" class="btn btn-secondary btn-sm ${u.is_active ? 'btn-danger' : 'btn-success'}" onclick="window.toggleUserStatus('${escapeAttr(u.username)}', ${u.is_active})" ${disabledState}>${u.is_active ? 'Disable' : 'Enable'}</button>
+                    <button type="button" class="btn btn-primary btn-danger btn-sm" onclick="window.deleteUser('${escapeAttr(u.username)}')" ${disabledState}>DEL</button>
                     </div>
                 </td></tr>`;
     }).join('');

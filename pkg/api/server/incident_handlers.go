@@ -134,6 +134,11 @@ func registerIncidentRoutes(config *core.Config) {
 			}
 
 			if len(idsToResolve) > 0 {
+				if !core.UserCanAccessAllIncidents(claims.Username, claims.Role, idsToResolve) {
+					http.Error(w, "Access denied: incident outside your teams", http.StatusForbidden)
+					return
+				}
+
 				placeholders := make([]string, len(idsToResolve))
 				args := make([]interface{}, len(idsToResolve)+1)
 
@@ -202,6 +207,17 @@ func registerIncidentRoutes(config *core.Config) {
 			}
 
 			if len(args) > 0 {
+				deleteIDs := make([]int, 0, len(args))
+				for _, a := range args {
+					if id, ok := a.(int); ok {
+						deleteIDs = append(deleteIDs, id)
+					}
+				}
+				if !core.UserCanAccessAllIncidents(claims.Username, claims.Role, deleteIDs) {
+					http.Error(w, "Access denied: incident outside your teams", http.StatusForbidden)
+					return
+				}
+
 				query := "DELETE FROM incidents WHERE id IN (" + strings.Join(placeholders, ",") + ")"
 
 				var dbErr error

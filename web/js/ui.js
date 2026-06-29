@@ -5,6 +5,14 @@
 
 const THEME_STORAGE_KEY = 'sre-theme';
 
+function escapeHtml(s) {
+    return String(s ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
 export function getStoredTheme() {
     const stored = localStorage.getItem(THEME_STORAGE_KEY);
     if (stored === 'dark' || stored === 'light') return stored;
@@ -48,7 +56,7 @@ export function notify(message, type = 'success') {
     const bgColor = type === 'error' ? 'var(--log-fatal, #b54a4a)' : 'var(--log-pass, #4a7c59)';
 
     toast.style.cssText = `background-color: ${bgColor}; color: #fff; padding: 12px 18px; border-radius: var(--radius-sm, 8px); box-shadow: var(--shadow-md, 0 8px 24px rgba(0,0,0,0.2)); font-weight: 600; font-size: 13px; transition: opacity 0.5s ease; margin-top: 10px; z-index: 100001; max-width: min(420px, 90vw); line-height: 1.4;`;
-    toast.innerHTML = `<span>${message}</span>`;
+    toast.innerHTML = `<span>${escapeHtml(message)}</span>`;
     container.appendChild(toast);
     setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 500); }, 4000);
 }

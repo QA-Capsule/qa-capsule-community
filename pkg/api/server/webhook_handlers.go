@@ -26,7 +26,7 @@ func executionFlagsFromRequest(r *http.Request, raw map[string]interface{}) core
 // registerWebhookRoutes binds the endpoints responsible for CI/CD telemetry ingestion
 func registerWebhookRoutes(config *core.Config) {
 
-	http.HandleFunc("/api/webhooks/", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/api/webhooks/", rateLimitMiddleware("webhook", 300, time.Minute, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
@@ -190,5 +190,5 @@ func registerWebhookRoutes(config *core.Config) {
 			"pipeline_run_id": runID,
 			"alerts_queued":   len(alerts),
 		})
-	})
+	}))
 }
