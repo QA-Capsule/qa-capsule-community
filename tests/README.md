@@ -1,6 +1,6 @@
 # Automated tests (multi-framework)
 
-Sample projects runnable locally or in CI/CD, with optional JUnit XML upload to **QA Capsule**.
+**QA Capsule Community v1.0.17-beta** — sample projects runnable locally or in CI/CD, with optional JUnit XML upload to **QA Capsule**.
 
 **Docs:** [Test frameworks catalog](https://qa-capsule.github.io/qa-capsule-community/integration/test-frameworks/) · [CI/CD providers](https://qa-capsule.github.io/qa-capsule-community/integration/cicd-providers/)
 
@@ -95,7 +95,20 @@ Without `QA_CAPSULE_*`, tests still run; upload is skipped.
 
 ### GitHub Actions
 
-Workflow: [`.github/workflows/e2e-tests-robot.yml`](../.github/workflows/e2e-tests-robot.yml).  
+All framework workflows are **manual** (`workflow_dispatch`) so they do not break CI on every push. They include intentional failures for self-healing demos.
+
+| Workflow | Framework |
+|----------|-----------|
+| `e2e-tests-robot.yml` | Robot Framework |
+| `e2e-tests-playwright.yml` | Playwright |
+| `e2e-tests-cypress.yml` | Cypress |
+| `e2e-tests-selenium-pytest.yml` | Selenium + Pytest |
+| `api-tests-pytest.yml` | Pytest API |
+| `api-tests-newman.yml` | Postman/Newman |
+| `api-tests-junit-java.yml` | JUnit Java |
+
+Shared upload scripts: [`.github/scripts/`](../.github/scripts/) (`upload-junit-to-qacapsule.sh`, `healing-gate.sh`).
+
 Quarantine gate: `scripts/quarantine-ci-gate.sh` (when URL + API key are set).
 
 Add secrets:

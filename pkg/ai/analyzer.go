@@ -392,11 +392,14 @@ func parseFreeform(text string) AnalysisResult {
 
 func extractSelectorHint(err string) string {
 	lower := strings.ToLower(err)
-	for _, kw := range []string{"locator", "selector", "getbyrole", "getbytext", "xpath", "css"} {
+	for _, kw := range []string{"locator", "selector", "element", "getbyrole", "getbytext", "xpath", "css"} {
 		if strings.Contains(lower, kw) {
 			idx := strings.Index(lower, kw)
 			return truncate(err[idx:], 120)
 		}
+	}
+	if idx := strings.Index(err, "#"); idx >= 0 {
+		return truncate(err[idx:], 120)
 	}
 	return ""
 }

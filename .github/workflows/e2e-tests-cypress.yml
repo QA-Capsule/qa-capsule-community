@@ -1,20 +1,12 @@
 name: E2E Tests | Cypress
 
-# Trigger on push / PR to main branches, or manually.
+# Manual workflow — sample tests include intentional failures for self-healing demos.
 on:
-  push:
-    branches: [main, develop]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 jobs:
   cypress:
     runs-on: ubuntu-latest
-
-    # Required secrets (GitHub → Settings → Secrets and variables → Actions):
-    #   QA_CAPSULE_URL             : Base URL of your QA Capsule instance
-    #   QA_CAPSULE_API_CYPRESS_KEY : API key of the Cypress gateway project
 
     steps:
       - name: Checkout repository
@@ -31,82 +23,39 @@ jobs:
         run: npm install
         working-directory: tests/cypress
 
-      # ── Run the full practice_login suite ──────────────────────────────────
-      # continue-on-error keeps the job alive so the upload step always runs.
-      # qa-capsule.js (support file) captures page HTML on each test failure
-      # and writes it to cy.log + process.stdout.  mocha-junit-reporter
-      # stores that content in <system-out> of the failing <testcase>.
       - name: Run Cypress tests
         id: cypress_run
         run: npm run test:ci
         working-directory: tests/cypress
         continue-on-error: true
 
-      # ── Step 1: Upload JUnit XML to QA Capsule ─────────────────────────────
       - name: Upload results to QA Capsule
         if: always()
         env:
           QA_CAPSULE_URL: ${{ secrets.QA_CAPSULE_URL }}
-          QA_CAPSULE_API_CYPRESS_KEY: ${{ secrets.QA_CAPSULE_API_CYPRESS_KEY }}
+          API_KEY: ${{ secrets.QA_CAPSULE_API_CYPRESS_KEY }}
         run: |
-          echo "Uploading JUnit XML to QA Capsule..."
-          HTTP_STATUS=$(curl -s -o /tmp/qac-ingest.json -w "%{http_code}" \
-            -X POST "${QA_CAPSULE_URL}/api/webhooks/upload?framework=Cypress" \
-            -H "X-API-Key: ${QA_CAPSULE_API_CYPRESS_KEY}" \
-            -H "X-Run-Id: ${{ github.run_id }}-${{ github.run_attempt }}" \
-            -H "X-Commit-Sha: ${{ github.sha }}" \
-            -H "X-Branch: ${{ github.ref_name }}" \
-            -H "X-Execution-Env: STAGING" \
-            -H "X-Execution-Type: TEST-RUN" \
-            -F "file=@tests/cypress/cypress-results.xml")
+          chmod +x .github/scripts/upload-junit-to-qacapsule.sh
+          .github/scripts/upload-junit-to-qacapsule.sh \
+            tests/cypress/cypress-results.xml \
+            Cypress \
+            "${{ github.run_id }}-${{ github.run_attempt }}"
 
-          echo "QA Capsule HTTP status: $HTTP_STATUS"
-          cat /tmp/qac-ingest.json
-
-          if [ "$HTTP_STATUS" -ge 400 ]; then
-            echo "WARNING: ingestion returned HTTP $HTTP_STATUS. Check your secrets."
-          else
-            echo "Results queued for processing."
-          fi
-
-      # ── Step 2: Self-Healing Gate ──────────────────────────────────────────
       - name: Self-Healing Gate
-        if: steps.cypress_run.outcome == 'failure'
+        if: always() && steps.cypress_run.outcome == 'failure'
         env:
           QA_CAPSULE_URL: ${{ secrets.QA_CAPSULE_URL }}
-          QA_CAPSULE_API_CYPRESS_KEY: ${{ secrets.QA_CAPSULE_API_CYPRESS_KEY }}
+          API_KEY: ${{ secrets.QA_CAPSULE_API_CYPRESS_KEY }}
         run: |
-          echo "Waiting for QA Capsule to process the results..."
-          sleep 10
+          chmod +x .github/scripts/healing-gate.sh
+          .github/scripts/healing-gate.sh "${{ github.run_id }}" Cypress
 
-          echo "Calling Self-Healing Gate..."
-          curl -s \
-            -X POST "${QA_CAPSULE_URL}/api/healing/gate" \
-            -H "X-API-Key: ${QA_CAPSULE_API_CYPRESS_KEY}" \
-            -H "X-Run-Id: ${{ github.run_id }}" \
-            -H "X-Framework: Cypress" \
-            | tee /tmp/healing-report.json || true
-
-          echo ""
-          echo "--- Self-Healing Report ---"
-          if command -v jq &>/dev/null; then
-            jq '.' /tmp/healing-report.json 2>/dev/null || cat /tmp/healing-report.json
-          else
-            cat /tmp/healing-report.json
-          fi
-          echo ""
-          echo "Open QA Capsule -> Self-Healing Hub to view the full AI fix proposal."
-          echo "In Cursor: run the heal_incident MCP tool with the incident ID shown above."
-
-      # ── Step 3: Fail the pipeline on test failures ─────────────────────────
       - name: Fail pipeline on test failures
         if: steps.cypress_run.outcome == 'failure'
         run: |
-          echo "FAILED: One or more Cypress tests failed."
-          echo "Check QA Capsule -> Self-Healing Hub for AI fix proposals."
+          echo "FAILED: One or more Cypress tests failed (expected for self-healing demo suites)."
           exit 1
 
-      # ── Artifacts ──────────────────────────────────────────────────────────
       - name: Upload Cypress artifacts
         if: always()
         uses: actions/upload-artifact@v4

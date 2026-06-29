@@ -13,7 +13,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20
 
       - name: Install Newman
         run: npm install -g newman newman-reporter-junitfull
@@ -28,29 +28,20 @@ jobs:
       - name: Send Alert to QA Capsule
         if: always()
         env:
-          WEBHOOK_URL: ${{ secrets.QA_CAPSULE_URL }}
+          QA_CAPSULE_URL: ${{ secrets.QA_CAPSULE_URL }}
           API_KEY: ${{ secrets.QA_CAPSULE_API_NEWMAN_KEY }}
         run: |
-          curl -X POST "$WEBHOOK_URL/api/webhooks/upload?framework=Postman" \
-            -H "X-API-Key: $API_KEY" \
-            -H "X-Run-Id: ${{ github.run_id }}" \
-            -H "X-Execution-Env: STAGING" \
-            -H "X-Execution-Type: TEST-RUN" \
-            -F "file=@newman-results.xml"
+          chmod +x .github/scripts/upload-junit-to-qacapsule.sh
+          .github/scripts/upload-junit-to-qacapsule.sh newman-results.xml Postman "${{ github.run_id }}"
 
       - name: MCP Healing Gate
         if: always()
         env:
-          WEBHOOK_URL: ${{ secrets.QA_CAPSULE_URL }}
+          QA_CAPSULE_URL: ${{ secrets.QA_CAPSULE_URL }}
           API_KEY: ${{ secrets.QA_CAPSULE_API_NEWMAN_KEY }}
         run: |
-          curl -s -X POST "$WEBHOOK_URL/api/healing/gate" \
-            -H "X-API-Key: $API_KEY" \
-            -H "X-Run-Id: ${{ github.run_id }}" \
-            -H "X-Framework: Postman" \
-            | tee healing-report.json || true
-          echo "--- MCP Healing Report ---"
-          cat healing-report.json 2>/dev/null || true
+          chmod +x .github/scripts/healing-gate.sh
+          .github/scripts/healing-gate.sh "${{ github.run_id }}" Postman
 
       - name: Upload artifacts
         if: always()

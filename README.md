@@ -1,6 +1,6 @@
 # QA Flight Recorder (QA Capsule) — Community
 
-[![Version](https://img.shields.io/badge/version-v1.0.12--beta-blue.svg)](https://qa-capsule.github.io/qa-capsule-community/)
+[![Version](https://img.shields.io/badge/version-v1.0.17--beta-blue.svg)](https://qa-capsule.github.io/qa-capsule-community/)
 ![Go](https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go)
 ![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker)
 [![Documentation](https://img.shields.io/badge/docs-MkDocs-brightgreen.svg)](https://qa-capsule.github.io/qa-capsule-community/)
@@ -45,7 +45,7 @@ When a shared dependency fails, hundreds of tests can fail at once. QA Capsule *
 | **Intelligence** | `[FLAKY]`, `[PERF]` tagging, AI root-cause analysis (RCA), self-healing |
 | **Integrations** | Go HTTP engine + visual workflow DAG (Slack, Jira, PagerDuty, GitHub …) |
 | **Operations** | Dashboard, Execution Hub, runbooks, FinOps, DORA metrics |
-| **Security** | JWT sessions, RBAC (admin/manager/lead/observer), per-project API keys |
+| **Security** | JWT sessions, RBAC, per-project API keys, rate limiting, SSRF guards, MCP token enforcement |
 | **Developer tools** | `qacapsule run` CLI, Playwright reporter, JUnit agent, MCP endpoint |
 
 **Full list:** [docs/reference/feature-catalog.md](docs/reference/feature-catalog.md)
@@ -76,6 +76,7 @@ docker compose up -d --build --force-recreate
 |----------|-----------------|--------|
 | `QACAPSULE_DATA_DIR` | `/app/data` | SQLite + artifacts (volume `qacapsule_data`) |
 | `QACAPSULE_JWT_SECRET` | `dev-compose-change-me` | JWT signing — change in `.env` for real deployments |
+| `QACAPSULE_MCP_TOKEN` | *(unset in dev)* | Required in production (`APP_ENV` ≠ development) |
 | `APP_ENV` | `development` | Dev JWT fallback when `jwt_secret` is empty |
 
 Host bind mount for DB inspection:
@@ -182,10 +183,41 @@ Set `SLACK_WEBHOOK_URL` on the server host.
 
 - Shell-based plugin execution was **removed** (no RCE via `.sh` plugins).
 - Use HTTPS and strong `QACAPSULE_JWT_SECRET` in production.
+- Set `QACAPSULE_MCP_TOKEN` in production — MCP endpoints reject unauthenticated calls.
 - Restrict `/metrics` and `/mcp` at the network edge.
-- Report vulnerabilities privately — do not open public issues for security flaws.
+- Integration secrets (Jira, Slack, …) belong in **environment variables**, never in committed JSON manifests.
+- Report vulnerabilities privately — see [SECURITY.md](SECURITY.md).
 
 See [Security & authentication](docs/setup/security-authentication.md) for the full checklist.
+
+---
+
+## CI/CD (GitHub Actions)
+
+| Workflow | Trigger | Purpose |
+|----------|---------|---------|
+| **Go CI** | Push / PR to `main` | `go test`, coverage, `govulncheck`, build verify |
+| **SonarQube** | Push / PR (when enabled) | Code quality & coverage upload |
+| **Docs** | Push to `main` (docs paths) | MkDocs → GitHub Pages |
+| **E2E / API samples** | Manual (`workflow_dispatch`) | Framework demos + optional QA Capsule upload |
+
+### Required secrets (framework pipelines)
+
+| Secret | Used by |
+|--------|---------|
+| `QA_CAPSULE_URL` | All sample test workflows |
+| `QA_CAPSULE_API_*_KEY` | Per-framework project API keys |
+
+Upload steps **skip gracefully** when secrets are missing — tests still run and artifacts are saved.
+
+### SonarQube (optional)
+
+1. Create a SonarQube project and generate a token.
+2. Add repository secrets: `SONAR_TOKEN`, `SONAR_HOST_URL`.
+3. Set repository variable: `SONAR_ENABLED=true`.
+4. Push to `main` — the **SonarQube analysis** job runs after Go CI.
+
+Config: [`sonar-project.properties`](sonar-project.properties)
 
 ---
 

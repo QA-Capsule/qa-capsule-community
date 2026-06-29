@@ -17,6 +17,7 @@ func staticWebHandler() http.Handler {
 			w.Header().Set("Cache-Control", "no-cache, must-revalidate")
 		}
 		w.Header().Set("X-QA-Capsule-Edition", core.EditionID())
+		w.Header().Set("X-QA-Capsule-Version", core.Version)
 		fs.ServeHTTP(w, r)
 	})
 }

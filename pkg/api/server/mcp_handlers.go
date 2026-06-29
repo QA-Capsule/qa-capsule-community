@@ -72,7 +72,7 @@ func handleMCP(w http.ResponseWriter, r *http.Request) {
 			},
 			"serverInfo": map[string]string{
 				"name":    "qa-capsule",
-				"version": "1.0.0",
+				"version": core.Version,
 			},
 		})
 	case "notifications/initialized":

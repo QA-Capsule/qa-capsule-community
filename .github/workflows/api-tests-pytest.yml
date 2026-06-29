@@ -13,7 +13,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: '3.12'
 
       - name: Install Dependencies
         run: pip install -r tests/pytest/requirements.txt
@@ -25,29 +25,20 @@ jobs:
       - name: Send Alert to QA Capsule
         if: always()
         env:
-          WEBHOOK_URL: ${{ secrets.QA_CAPSULE_URL }}
+          QA_CAPSULE_URL: ${{ secrets.QA_CAPSULE_URL }}
           API_KEY: ${{ secrets.QA_CAPSULE_API_PYTEST_KEY }}
         run: |
-          curl -X POST "$WEBHOOK_URL/api/webhooks/upload?framework=Pytest" \
-            -H "X-API-Key: $API_KEY" \
-            -H "X-Run-Id: ${{ github.run_id }}" \
-            -H "X-Execution-Env: STAGING" \
-            -H "X-Execution-Type: TEST-RUN" \
-            -F "file=@pytest-results.xml"
+          chmod +x .github/scripts/upload-junit-to-qacapsule.sh
+          .github/scripts/upload-junit-to-qacapsule.sh pytest-results.xml Pytest "${{ github.run_id }}"
 
       - name: MCP Healing Gate
         if: always()
         env:
-          WEBHOOK_URL: ${{ secrets.QA_CAPSULE_URL }}
+          QA_CAPSULE_URL: ${{ secrets.QA_CAPSULE_URL }}
           API_KEY: ${{ secrets.QA_CAPSULE_API_PYTEST_KEY }}
         run: |
-          curl -s -X POST "$WEBHOOK_URL/api/healing/gate" \
-            -H "X-API-Key: $API_KEY" \
-            -H "X-Run-Id: ${{ github.run_id }}" \
-            -H "X-Framework: Pytest" \
-            | tee healing-report.json || true
-          echo "--- MCP Healing Report ---"
-          cat healing-report.json 2>/dev/null || true
+          chmod +x .github/scripts/healing-gate.sh
+          .github/scripts/healing-gate.sh "${{ github.run_id }}" Pytest
 
       - name: Upload artifacts
         if: always()

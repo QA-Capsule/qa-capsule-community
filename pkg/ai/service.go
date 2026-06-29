@@ -61,7 +61,11 @@ func (s *Service) GenerateFixProposal(ctx context.Context, incident Incident, fi
 	if err != nil {
 		return "", "", err
 	}
-	return GenerateFixProposal(ctx, cfg, incident, fileContent)
+	prop, err := s.analyzer.GenerateFixProposal(ctx, cfg, incident, fileContent)
+	if err != nil {
+		return "", "", err
+	}
+	return prop.Code, prop.Explanation, nil
 }
 
 // ProposeFixFromIncidentID loads incident telemetry then generates a fix proposal.
