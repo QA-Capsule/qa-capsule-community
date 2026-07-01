@@ -3,14 +3,18 @@
  * Personal account settings and persisted user preferences
  */
 import { fetchWithAuth, parseJwt, parseApiJson } from './api.js';
-import { notify, applyTheme as applyDocumentTheme } from './ui.js';
+import { notify, applyThemeAppearance, previewThemeFromForm } from './ui.js';
 import { roleLabel, normalizeRole, canAccessView } from './roles.js';
 import { setSelectedCurrency, currencySymbols } from './settings.js';
+import { renderConfigurationPresets, renderThemePickers, initConfigurationPresetsUI } from './config-presets.js';
+import { setLocale, applyI18n, t, getLocale, PREF_LANGUAGE_KEY } from './i18n.js';
 
 export const PREF_DEFAULT_RANGE_KEY = 'sre-pref-default-range';
 export const PREF_CURRENCY_KEY = 'sre-pref-currency';
 export const PREF_ALERT_SOUNDS_KEY = 'sre-alert-sounds';
 export const PREF_PROFILE_TAB_KEY = 'sre-profile-active-tab';
+
+let preferencesLoadSeq = 0;
 
 const VALID_DEFAULT_RANGE_PRESETS = [
     '5m', '15m', '30m', '1h', '6h', '24h', '7d', '30d', 'today', 'yesterday', 'all'
@@ -18,6 +22,8 @@ const VALID_DEFAULT_RANGE_PRESETS = [
 
 const DEFAULT_PREFS = {
     theme: 'dark',
+    theme_mode: 'dark',
+    theme_palette: 'default',
     default_status_filter: 'all',
     analytics_expanded: false,
     default_time_range: '15m',
@@ -32,7 +38,12 @@ const DEFAULT_PREFS = {
     high_contrast: false,
     browser_notifications: false,
     expand_incident_cards: false,
-    dense_tables: false
+    dense_tables: false,
+    currency: 'USD',
+    alert_sounds: false,
+    language: 'en',
+    active_preset_id: 'sre-default',
+    configuration_presets: []
 };
 
 export let userPreferences = { ...DEFAULT_PREFS };
@@ -87,6 +98,9 @@ export function bootstrapDashboardRangeFromPreferences() {
 }
 
 export function isAlertSoundsEnabled() {
+    if (typeof userPreferences.alert_sounds === 'boolean') {
+        return userPreferences.alert_sounds;
+    }
     return localStorage.getItem(PREF_ALERT_SOUNDS_KEY) === '1';
 }
 
@@ -225,20 +239,52 @@ function renderProfileHeader({ fullname, username, role }) {
 }
 
 export function applyTheme(theme) {
-    applyDocumentTheme(theme);
+    applyThemeAppearance({
+        theme_mode: theme === 'light' ? 'light' : 'dark',
+        theme_palette: userPreferences.theme_palette || 'default',
+        theme
+    });
     const analyticsView = document.getElementById('analytics-view');
     if (analyticsView && analyticsView.style.display !== 'none' && typeof window.loadAnalytics === 'function') {
         window.loadAnalytics(false);
     }
 }
 
+export function previewThemeAppearance() {
+    previewThemeFromForm();
+}
+
+function syncLocaleFromPreferences(prefs) {
+    const stored = (() => {
+        try { return localStorage.getItem(PREF_LANGUAGE_KEY); } catch (_) { return null; }
+    })();
+    const lang = prefs?.language || stored || 'en';
+    setLocale(lang, { persist: true });
+}
+
 export function applyPreferences(prefs) {
     if (!prefs) return;
     userPreferences = { ...DEFAULT_PREFS, ...userPreferences, ...prefs };
-    applyTheme(userPreferences.theme || 'dark');
+    if (!userPreferences.language) {
+        userPreferences.language = getLocale() || 'en';
+    }
+    window.__userPreferences = userPreferences;
+    applyThemeAppearance({
+        theme_mode: userPreferences.theme_mode || userPreferences.theme || 'dark',
+        theme_palette: userPreferences.theme_palette || 'default',
+        theme: userPreferences.theme
+    });
     applyVisualPreferenceClasses(userPreferences);
     applySidebarCollapsedPref(!!userPreferences.sidebar_collapsed_default);
     syncDashboardRefreshGlobals(userPreferences);
+
+    if (userPreferences.currency) {
+        syncApplicationCurrency(userPreferences.currency);
+    }
+
+    try {
+        localStorage.setItem(PREF_ALERT_SOUNDS_KEY, userPreferences.alert_sounds ? '1' : '0');
+    } catch (_) { /* quota */ }
 
     if (userPreferences.default_time_range) {
         applyPreferredDefaultRange(userPreferences.default_time_range);
@@ -260,17 +306,22 @@ export function applyPreferences(prefs) {
     }
 
     window.userExpandIncidentCards = !!userPreferences.expand_incident_cards;
+
+    syncLocaleFromPreferences(userPreferences);
 }
 
 export async function loadUserPreferences() {
+    const seq = ++preferencesLoadSeq;
     try {
         const savedCur = localStorage.getItem(PREF_CURRENCY_KEY) || localStorage.getItem('selected-currency');
         if (savedCur) syncApplicationCurrency(savedCur);
 
         const res = await fetchWithAuth('/api/me');
+        if (seq !== preferencesLoadSeq) return;
         const { ok, data } = await parseApiJson(res);
         if (!ok || !data) return;
         if (data.preferences) applyPreferences(data.preferences);
+        if (seq !== preferencesLoadSeq) return;
         const payload = parseJwt(localStorage.getItem('sre-jwt'));
         if (payload?.role) applyDefaultLandingView(userPreferences, payload.role);
         return data;
@@ -280,8 +331,17 @@ export async function loadUserPreferences() {
 }
 
 function readProfileFormPreferences() {
+    const mode = document.getElementById('pref-theme-mode')?.value
+        || document.querySelector('.theme-mode-chip.active')?.dataset.themeMode
+        || document.getElementById('pref-theme')?.value
+        || 'dark';
+    const palette = document.getElementById('pref-theme-palette')?.value
+        || document.querySelector('.theme-palette-chip.active')?.dataset.themePalette
+        || 'default';
     return {
-        theme: document.getElementById('pref-theme')?.value || 'dark',
+        theme: mode === 'system' ? 'dark' : (mode === 'light' ? 'light' : 'dark'),
+        theme_mode: mode,
+        theme_palette: palette,
         default_status_filter: document.getElementById('pref-status-filter')?.value || 'all',
         analytics_expanded: !!document.getElementById('pref-analytics-expanded')?.checked,
         default_time_range: document.getElementById('pref-default-range')?.value || '15m',
@@ -296,11 +356,21 @@ function readProfileFormPreferences() {
         high_contrast: !!document.getElementById('pref-high-contrast')?.checked,
         browser_notifications: !!document.getElementById('pref-browser-notifications')?.checked,
         expand_incident_cards: !!document.getElementById('pref-expand-incidents')?.checked,
-        dense_tables: !!document.getElementById('pref-dense-tables')?.checked
+        dense_tables: !!document.getElementById('pref-dense-tables')?.checked,
+        currency: document.getElementById('pref-currency')?.value || 'USD',
+        alert_sounds: !!document.getElementById('pref-alert-sounds')?.checked,
+        language: document.getElementById('pref-language')?.value || 'en',
+        active_preset_id: userPreferences.active_preset_id || 'sre-default'
     };
 }
 
+export { readProfileFormPreferences };
+
 function hydrateProfileFormFields(prefs) {
+    hydrateProfileFormFromPrefs(prefs);
+}
+
+export function hydrateProfileFormFromPrefs(prefs) {
     const p = { ...DEFAULT_PREFS, ...prefs };
     const setVal = (id, val) => {
         const el = document.getElementById(id);
@@ -311,7 +381,10 @@ function hydrateProfileFormFields(prefs) {
         if (el) el.checked = !!val;
     };
 
-    setVal('pref-theme', p.theme);
+    const mode = p.theme_mode || p.theme || 'dark';
+    setVal('pref-theme-mode', mode);
+    setVal('pref-theme', mode === 'system' ? 'dark' : mode);
+    setVal('pref-theme-palette', p.theme_palette || 'default');
     setVal('pref-status-filter', p.default_status_filter);
     setChk('pref-analytics-expanded', p.analytics_expanded);
     setVal('pref-default-range', isValidDefaultRangePreset(p.default_time_range) ? p.default_time_range : '15m');
@@ -328,10 +401,14 @@ function hydrateProfileFormFields(prefs) {
     setChk('pref-dense-tables', p.dense_tables);
     setChk('pref-browser-notifications', p.browser_notifications);
 
-    const storedCurrency = localStorage.getItem(PREF_CURRENCY_KEY) || window.selectedCurrency || 'USD';
-    setVal('pref-currency', storedCurrency);
-    syncApplicationCurrency(storedCurrency);
-    setChk('pref-alert-sounds', isAlertSoundsEnabled());
+    const currency = p.currency || localStorage.getItem(PREF_CURRENCY_KEY) || window.selectedCurrency || 'USD';
+    setVal('pref-currency', currency);
+    syncApplicationCurrency(currency);
+    setChk('pref-alert-sounds', p.alert_sounds || isAlertSoundsEnabled());
+    setVal('pref-language', p.language || 'en');
+
+    renderThemePickers(p);
+    syncLocaleFromPreferences(p);
 }
 
 export function switchProfileTab(tabId, btn) {
@@ -359,16 +436,21 @@ function initProfileTabs() {
 }
 
 export function loadProfileView() {
+    const loadSeq = preferencesLoadSeq;
     initProfileTabs();
+    initConfigurationPresetsUI();
     const payload = parseJwt(localStorage.getItem('sre-jwt'));
     const usernameEl = document.getElementById('profile-username');
     if (usernameEl && payload.username) usernameEl.textContent = payload.username;
     renderProfileHeader({ fullname: '', username: payload.username, role: payload.role });
-    hydrateProfileFormFields(userPreferences);
+    hydrateProfileFormFromPrefs(userPreferences);
+    renderConfigurationPresets(userPreferences);
+    renderThemePickers(userPreferences);
 
     fetchWithAuth('/api/me')
         .then((res) => parseApiJson(res))
         .then(({ ok, data }) => {
+            if (loadSeq !== preferencesLoadSeq) return;
             if (!ok || !data) throw new Error('Failed to load profile');
             const nameInput = document.getElementById('profile-fullname');
             if (nameInput) nameInput.value = data.fullname || '';
@@ -377,14 +459,21 @@ export function loadProfileView() {
                 username: data.username ?? payload.username,
                 role: data.role ?? payload.role
             });
-            hydrateProfileFormFields(data.preferences || userPreferences);
+            if (data.preferences) {
+                applyPreferences(data.preferences);
+                hydrateProfileFormFromPrefs(data.preferences);
+                renderConfigurationPresets(data.preferences);
+                renderThemePickers(data.preferences);
+            }
         })
-        .catch(() => notify('Could not load profile', 'error'));
+        .catch(() => notify(t('notify.profileLoadError'), 'error'));
 }
 
 export function resetProfileFormDefaults() {
-    hydrateProfileFormFields(DEFAULT_PREFS);
-    notify('Form reset to defaults — click Save to apply', 'success');
+    hydrateProfileFormFromPrefs(DEFAULT_PREFS);
+    renderConfigurationPresets({ ...DEFAULT_PREFS, configuration_presets: userPreferences.configuration_presets || [] });
+    renderThemePickers(DEFAULT_PREFS);
+    notify(t('notify.profileReset'), 'success');
 }
 
 export function onProfileCurrencyChange() {
@@ -410,9 +499,10 @@ export function requestBrowserNotificationPermission() {
 export function exportProfilePreferences() {
     const bundle = {
         server: readProfileFormPreferences(),
+        presets: userPreferences.configuration_presets || [],
+        active_preset_id: userPreferences.active_preset_id || 'sre-default',
         local: {
-            currency: localStorage.getItem(PREF_CURRENCY_KEY),
-            alert_sounds: localStorage.getItem(PREF_ALERT_SOUNDS_KEY),
+            sidebar: localStorage.getItem('sre-sidebar-collapsed'),
             default_range: localStorage.getItem(PREF_DEFAULT_RANGE_KEY)
         },
         exported_at: new Date().toISOString()
@@ -439,6 +529,8 @@ export function saveProfile() {
     if (!fullname) return notify('Display name is required', 'error');
 
     const preferences = readProfileFormPreferences();
+    preferencesLoadSeq++;
+    syncLocaleFromPreferences(preferences);
     applyPreferredDefaultRange(preferences.default_time_range);
     syncApplicationCurrency(document.getElementById('pref-currency')?.value || 'USD');
 
@@ -455,7 +547,9 @@ export function saveProfile() {
             return prefsRes.json();
         })
         .then((prefs) => {
+            preferencesLoadSeq++;
             applyPreferences(prefs);
+            applyI18n();
             renderProfileHeader({
                 fullname,
                 username: parseJwt(localStorage.getItem('sre-jwt')).username,
@@ -496,11 +590,18 @@ export function changeOwnPassword() {
 export function persistThemeFromToggle(theme) {
     const preferences = {
         ...userPreferences,
-        theme: theme === 'dark' ? 'dark' : 'light'
+        theme: theme === 'dark' ? 'dark' : 'light',
+        theme_mode: theme === 'dark' ? 'dark' : 'light'
     };
     fetchWithAuth('/api/me/preferences', { method: 'PUT', body: JSON.stringify(preferences) })
         .then((res) => (res.ok ? res.json() : null))
-        .then((prefs) => { if (prefs) userPreferences = { ...userPreferences, ...prefs }; })
+        .then((prefs) => {
+            if (prefs) {
+                userPreferences = { ...userPreferences, ...prefs };
+                window.__userPreferences = userPreferences;
+                syncLocaleFromPreferences(userPreferences);
+            }
+        })
         .catch(() => {});
 }
 
@@ -512,6 +613,10 @@ if (typeof window !== 'undefined') {
     window.exportProfilePreferences = exportProfilePreferences;
     window.clearLocalProfileData = clearLocalProfileData;
     window.formatUserDateTime = formatUserDateTime;
+    window.readProfileFormPreferences = readProfileFormPreferences;
+    window.hydrateProfileFormFromPrefs = hydrateProfileFormFromPrefs;
+    window.previewThemeAppearance = previewThemeAppearance;
+    window.applyPreferences = applyPreferences;
 }
 
 export { currencySymbols };

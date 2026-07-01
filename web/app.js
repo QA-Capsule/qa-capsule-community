@@ -20,9 +20,10 @@ import * as healing from './js/healing.js?v=1.0.21-beta';
 import * as dora from './js/dora.js';
 import { setupAutocomplete } from './js/autocomplete.js';
 import { initTheme, applyTheme } from './js/ui.js';
+import { initI18n, t, setLocale, applyI18n } from './js/i18n.js';
 
 // EXPORT GLOBALLY FOR HTML INLINE HANDLERS
-Object.assign(window, { notify, showConfirmModal, showPromptModal, closeModal, toggleTheme, initSidebar, toggleSidebar, parseJwt, performLogout, fetchWithAuth, applyTheme });
+Object.assign(window, { notify, showConfirmModal, showPromptModal, closeModal, toggleTheme, initSidebar, toggleSidebar, parseJwt, performLogout, fetchWithAuth, applyTheme, t, setLocale, applyI18n });
 
 // Bind all module functions to the window so HTML 'onclick' can find them
 for (const [key, value] of Object.entries(iam)) {
@@ -1456,6 +1457,8 @@ window.switchView = function (id, el) {
         if (window.loadAboutView) window.loadAboutView();
     }
     if (id === 'profile' && window.loadProfileView) window.loadProfileView();
+
+    if (typeof window.applyI18n === 'function') window.applyI18n();
 }
 
 window.applyPermissions = function () {
@@ -1518,6 +1521,7 @@ window.addEventListener('unhandledrejection', (e) => {
 });
 
 window.onload = function () {
+    initI18n();
     initTheme();
     initSidebar();
     pingApiServer();

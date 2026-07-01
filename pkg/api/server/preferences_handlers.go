@@ -3,6 +3,7 @@ package server
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -16,28 +17,37 @@ import (
 
 // UserPreferences holds per-user UI and dashboard defaults.
 type UserPreferences struct {
-	Theme                       string          `json:"theme"`
-	DefaultStatusFilter         string          `json:"default_status_filter"`
-	AnalyticsExpanded           bool            `json:"analytics_expanded"`
-	AnalyticsLayout             json.RawMessage `json:"analytics_layout,omitempty"`
-	DefaultTimeRange            string          `json:"default_time_range"`
-	CompactUI                   bool            `json:"compact_ui"`
-	SidebarCollapsedDefault     bool            `json:"sidebar_collapsed_default"`
-	DashboardAutoRefresh        bool            `json:"dashboard_auto_refresh"`
-	DashboardRefreshIntervalSec int             `json:"dashboard_refresh_interval_sec"`
-	DateFormat                  string          `json:"date_format"`
-	Timezone                    string          `json:"timezone"`
-	DefaultLandingView          string          `json:"default_landing_view"`
-	ReducedMotion               bool            `json:"reduced_motion"`
-	HighContrast                bool            `json:"high_contrast"`
-	BrowserNotifications        bool            `json:"browser_notifications"`
-	ExpandIncidentCards         bool            `json:"expand_incident_cards"`
-	DenseTables                 bool            `json:"dense_tables"`
+	Theme                       string                `json:"theme"`
+	ThemeMode                   string                `json:"theme_mode"`
+	ThemePalette                string                `json:"theme_palette"`
+	DefaultStatusFilter         string                `json:"default_status_filter"`
+	AnalyticsExpanded           bool                  `json:"analytics_expanded"`
+	AnalyticsLayout             json.RawMessage       `json:"analytics_layout,omitempty"`
+	DefaultTimeRange            string                `json:"default_time_range"`
+	CompactUI                   bool                  `json:"compact_ui"`
+	SidebarCollapsedDefault     bool                  `json:"sidebar_collapsed_default"`
+	DashboardAutoRefresh        bool                  `json:"dashboard_auto_refresh"`
+	DashboardRefreshIntervalSec int                   `json:"dashboard_refresh_interval_sec"`
+	DateFormat                  string                `json:"date_format"`
+	Timezone                    string                `json:"timezone"`
+	DefaultLandingView          string                `json:"default_landing_view"`
+	ReducedMotion               bool                  `json:"reduced_motion"`
+	HighContrast                bool                  `json:"high_contrast"`
+	BrowserNotifications        bool                  `json:"browser_notifications"`
+	ExpandIncidentCards         bool                  `json:"expand_incident_cards"`
+	DenseTables                 bool                  `json:"dense_tables"`
+	Currency                    string                `json:"currency"`
+	AlertSounds                 bool                  `json:"alert_sounds"`
+	Language                    string                `json:"language"`
+	ActivePresetID              string                `json:"active_preset_id"`
+	ConfigurationPresets        []ConfigurationPreset `json:"configuration_presets"`
 }
 
 func defaultUserPreferences() UserPreferences {
-	return UserPreferences{
+	prefs := UserPreferences{
 		Theme:                       "dark",
+		ThemeMode:                   "dark",
+		ThemePalette:                "default",
 		DefaultStatusFilter:         "all",
 		AnalyticsExpanded:           false,
 		DefaultTimeRange:            "15m",
@@ -53,7 +63,13 @@ func defaultUserPreferences() UserPreferences {
 		BrowserNotifications:        false,
 		ExpandIncidentCards:         false,
 		DenseTables:                 false,
+		Currency:                    "USD",
+		AlertSounds:                 false,
+		Language:                    "en",
+		ActivePresetID:              "sre-default",
 	}
+	prefs.ConfigurationPresets = builtInConfigurationPresets()
+	return prefs
 }
 
 func userIDByUsername(username string) (int, error) {
@@ -72,6 +88,12 @@ func loadUserPreferences(userID int) UserPreferences {
 	if json.Unmarshal([]byte(raw.String), &prefs) != nil {
 		return defaultUserPreferences()
 	}
+	normalizeUserPreferences(&prefs)
+	return prefs
+}
+
+func normalizeUserPreferences(prefs *UserPreferences) {
+	migrateLegacyThemeFields(prefs)
 	if prefs.Theme != "dark" && prefs.Theme != "light" {
 		prefs.Theme = "dark"
 	}
@@ -83,7 +105,9 @@ func loadUserPreferences(userID int) UserPreferences {
 	prefs.Timezone = normalizeTimezonePref(prefs.Timezone)
 	prefs.DefaultLandingView = normalizeLandingView(prefs.DefaultLandingView)
 	prefs.DashboardRefreshIntervalSec = normalizeRefreshIntervalSec(prefs.DashboardRefreshIntervalSec)
-	return prefs
+	prefs.Currency = normalizeCurrency(prefs.Currency)
+	prefs.Language = normalizeLanguage(prefs.Language)
+	ensureConfigurationPresets(prefs)
 }
 
 func normalizeTimeRangePreset(v string) string {
@@ -112,9 +136,18 @@ func normalizeTimezonePref(v string) string {
 	return v
 }
 
+func normalizeLanguage(v string) string {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "en", "fr", "es", "zh", "de":
+		return strings.ToLower(strings.TrimSpace(v))
+	default:
+		return "en"
+	}
+}
+
 func normalizeLandingView(v string) string {
 	switch v {
-	case "dashboard", "ingestion", "finops", "dora", "plugins", "rca", "quarantine", "runbooks", "about":
+	case "dashboard", "ingestion", "finops", "dora", "plugins", "rca", "healing", "quarantine", "runbooks", "about", "ai-config", "execution-hub":
 		return v
 	default:
 		return "dashboard"
@@ -136,6 +169,7 @@ func normalizeRefreshIntervalSec(sec int) int {
 }
 
 func saveUserPreferences(userID int, prefs UserPreferences) error {
+	normalizeUserPreferences(&prefs)
 	b, err := json.Marshal(prefs)
 	if err != nil {
 		return err
@@ -151,6 +185,18 @@ func saveUserPreferences(userID int, prefs UserPreferences) error {
 func mergePreferences(current UserPreferences, patch map[string]interface{}) UserPreferences {
 	if v, ok := patch["theme"].(string); ok && (v == "dark" || v == "light") {
 		current.Theme = v
+		if current.ThemeMode == "" || current.ThemeMode == "dark" || current.ThemeMode == "light" {
+			current.ThemeMode = v
+		}
+	}
+	if v, ok := patch["theme_mode"].(string); ok {
+		current.ThemeMode = normalizeThemeMode(v)
+		if current.ThemeMode != "system" {
+			current.Theme = current.ThemeMode
+		}
+	}
+	if v, ok := patch["theme_palette"].(string); ok {
+		current.ThemePalette = normalizeThemePalette(v)
 	}
 	if v, ok := patch["default_status_filter"].(string); ok {
 		switch v {
@@ -205,6 +251,27 @@ func mergePreferences(current UserPreferences, patch map[string]interface{}) Use
 	if v, ok := patch["dense_tables"].(bool); ok {
 		current.DenseTables = v
 	}
+	if v, ok := patch["currency"].(string); ok {
+		current.Currency = normalizeCurrency(v)
+	}
+	if v, ok := patch["alert_sounds"].(bool); ok {
+		current.AlertSounds = v
+	}
+	if v, ok := patch["language"].(string); ok {
+		current.Language = normalizeLanguage(v)
+	}
+	if v, ok := patch["active_preset_id"].(string); ok {
+		current.ActivePresetID = strings.TrimSpace(v)
+	}
+	if v, ok := patch["configuration_presets"]; ok {
+		if b, err := json.Marshal(v); err == nil {
+			var presets []ConfigurationPreset
+			if json.Unmarshal(b, &presets) == nil {
+				current.ConfigurationPresets = presets
+			}
+		}
+	}
+	normalizeUserPreferences(&current)
 	return current
 }
 
@@ -293,6 +360,131 @@ func registerPreferencesRoutes(config *core.Config) {
 				return
 			}
 			json.NewEncoder(w).Encode(merged)
+
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	}))
+
+	http.HandleFunc("/api/me/preferences/presets/activate", jwtAuthMiddleware(config, "", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		claims := claimsFromRequest(r)
+		if claims == nil {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+		userID, err := userIDByUsername(claims.Username)
+		if err != nil {
+			http.Error(w, "User not found", http.StatusNotFound)
+			return
+		}
+		var body struct {
+			PresetID string `json:"preset_id"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || strings.TrimSpace(body.PresetID) == "" {
+			http.Error(w, "preset_id required", http.StatusBadRequest)
+			return
+		}
+		prefs := loadUserPreferences(userID)
+		if err := activateConfigurationPreset(&prefs, body.PresetID); err != nil {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		if err := saveUserPreferences(userID, prefs); err != nil {
+			http.Error(w, "Database error", http.StatusInternalServerError)
+			return
+		}
+		json.NewEncoder(w).Encode(prefs)
+	}))
+
+	http.HandleFunc("/api/me/preferences/presets", jwtAuthMiddleware(config, "", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		claims := claimsFromRequest(r)
+		if claims == nil {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+		userID, err := userIDByUsername(claims.Username)
+		if err != nil {
+			http.Error(w, "User not found", http.StatusNotFound)
+			return
+		}
+
+		switch r.Method {
+		case http.MethodPost:
+			var body struct {
+				Name        string         `json:"name"`
+				Description string         `json:"description"`
+				Settings    PresetSettings `json:"settings"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				http.Error(w, "Invalid JSON", http.StatusBadRequest)
+				return
+			}
+			name := strings.TrimSpace(body.Name)
+			if name == "" {
+				http.Error(w, "name required", http.StatusBadRequest)
+				return
+			}
+			prefs := loadUserPreferences(userID)
+			id := fmt.Sprintf("custom-%d", time.Now().UnixNano())
+			if body.Settings.ThemeMode == "" && body.Settings.Theme != "" {
+				body.Settings.ThemeMode = body.Settings.Theme
+			}
+			if body.Settings.ThemeMode == "" {
+				body.Settings = settingsFromPreferences(prefs)
+			}
+			preset := ConfigurationPreset{
+				ID:          id,
+				Name:        name,
+				Description: strings.TrimSpace(body.Description),
+				BuiltIn:     false,
+				Settings:    body.Settings,
+			}
+			prefs.ConfigurationPresets = append(prefs.ConfigurationPresets, preset)
+			if err := saveUserPreferences(userID, prefs); err != nil {
+				http.Error(w, "Database error", http.StatusInternalServerError)
+				return
+			}
+			json.NewEncoder(w).Encode(preset)
+
+		case http.MethodDelete:
+			id := strings.TrimSpace(r.URL.Query().Get("id"))
+			if id == "" {
+				http.Error(w, "id required", http.StatusBadRequest)
+				return
+			}
+			prefs := loadUserPreferences(userID)
+			next := make([]ConfigurationPreset, 0, len(prefs.ConfigurationPresets))
+			found := false
+			for _, preset := range prefs.ConfigurationPresets {
+				if preset.ID == id {
+					if preset.BuiltIn {
+						http.Error(w, "cannot delete built-in preset", http.StatusForbidden)
+						return
+					}
+					found = true
+					continue
+				}
+				next = append(next, preset)
+			}
+			if !found {
+				http.Error(w, "preset not found", http.StatusNotFound)
+				return
+			}
+			prefs.ConfigurationPresets = next
+			if prefs.ActivePresetID == id {
+				prefs.ActivePresetID = "sre-default"
+			}
+			if err := saveUserPreferences(userID, prefs); err != nil {
+				http.Error(w, "Database error", http.StatusInternalServerError)
+				return
+			}
+			json.NewEncoder(w).Encode(prefs)
 
 		default:
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)

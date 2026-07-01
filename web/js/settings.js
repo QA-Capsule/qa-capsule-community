@@ -278,7 +278,7 @@ export function revealApiKey() {
     if (!token) return;
     const currentUser = parseJwt(token).username;
 
-    showPromptModal("Security Verification", "Please enter your password to reveal this secret API Key.", "Password...", function (password) {
+    showPromptModal("Security Verification", "Please enter your password to reveal this secret API Key.", "", function (password) {
         fetch('/api/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

@@ -7,7 +7,7 @@
     <link rel="icon" href="/assets/logo.png" type="image/png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700&display=swap">
-    <link rel="stylesheet" href="/style.css?v=1.0.21-beta">
+    <link rel="stylesheet" href="/style.css?v=1.0.19-beta">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/drawflow@0.0.59/dist/drawflow.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -98,8 +98,8 @@
             <p id="custom-modal-message" style="color:var(--text-main); opacity:0.8; line-height:1.5; font-size:14px; margin-bottom:20px;"></p>
             <input type="text" id="custom-modal-input" class="login-input u-hidden" style="margin-bottom:20px;" autocomplete="off">
             <div style="display:flex; justify-content:flex-end; gap:10px;">
-                <button class="btn-secondary" onclick="closeModal()">Cancel</button>
-                <button class="btn-primary" id="custom-modal-confirm">Confirm</button>
+                <button class="btn-secondary" onclick="closeModal()" data-i18n="common.cancel">Cancel</button>
+                <button class="btn-primary" id="custom-modal-confirm" data-i18n="common.confirm">Confirm</button>
             </div>
         </div>
     </div>
@@ -110,18 +110,18 @@
                 <img src="assets/logo.png" alt="Logo" style="width: 200px; height: auto;">
                 <br />
             </div>
-            <p class="login-tagline">SRE CONTROL PLANE</p>
-            <p id="login-edition-badge" class="login-edition-badge">Community Edition</p>
+            <p class="login-tagline" data-i18n="login.tagline">SRE CONTROL PLANE</p>
+            <p id="login-edition-badge" class="login-edition-badge" data-i18n="login.edition">Community Edition</p>
             <div id="login-error" class="sre-notification error u-hidden" style="margin-bottom: 15px; font-size: 12px; padding: 10px;"></div>
             <p id="login-server-hint" class="login-hint-warn u-hidden" style="font-size: 11px; margin-bottom: 12px; line-height: 1.4;"></p>
             
-            <input type="text" id="login-username" class="login-input" placeholder="Username" autocomplete="username">
+            <input type="text" id="login-username" class="login-input" data-i18n-placeholder="login.username" placeholder="Username" autocomplete="username">
             <br /><br>
-            <input type="password" id="login-password" class="login-input" placeholder="Password" autocomplete="current-password">
+            <input type="password" id="login-password" class="login-input" data-i18n-placeholder="login.password" placeholder="Password" autocomplete="current-password">
             <br /><br>
-            <button class="btn-primary login-btn-full" onclick="performLogin()">Sign in</button>
+            <button class="btn-primary login-btn-full" onclick="performLogin()" data-i18n="login.signIn">Sign in</button>
 
-            <p id="login-community-hint" class="login-hint login-hint--credentials">First login: <strong>admin</strong> / <strong>admin</strong> — you will be prompted to set a new password.</p>
+            <p id="login-community-hint" class="login-hint login-hint--credentials" data-i18n-html="login.hint">First login: <strong>admin</strong> / <strong>admin</strong> — you will be prompted to set a new password.</p>
 
             <div id="login-sso-section" class="login-divider u-hidden">
                 <div id="sso-container" class="u-hidden">
@@ -178,7 +178,7 @@
 
     <div id="app-container" style="display: none; width: 100%; height: 100%; flex-direction: column;">
 
-        <div id="api-offline-banner" style="display: none; background: #3d1f1f; color: #ff7b72; padding: 10px 20px; text-align: center; font-size: 13px; border-bottom: 1px solid #ff7b72; flex-shrink: 0;">
+        <div id="api-offline-banner" style="display: none; background: #3d1f1f; color: #ff7b72; padding: 10px 20px; text-align: center; font-size: 13px; border-bottom: 1px solid #ff7b72; flex-shrink: 0;" data-i18n="login.offline">
             Cannot reach the QA Capsule server. Start the application backend, then refresh this page.
         </div>
 
@@ -197,44 +197,44 @@
                 </div>
             </div>
 
-            <div class="nav-section-label role-workspace">WORKSPACES</div>
+            <div class="nav-section-label role-workspace" data-i18n="nav.section.workspaces">WORKSPACES</div>
             <div class="nav-item role-workspace" onclick="switchView('organizations', this)" data-tooltip="Workspaces">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
                     <circle cx="9" cy="7" r="4"></circle>
                     <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
                     <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-                </svg><span class="nav-text">Workspaces</span>
+                </svg><span class="nav-text" data-i18n="nav.workspaces">Workspaces</span>
             </div>
-            <div class="nav-section-label role-non-admin" style="margin-top: 10px;">OPERATIONS</div>
+            <div class="nav-section-label role-non-admin" style="margin-top: 10px;" data-i18n="nav.section.operations">OPERATIONS</div>
             <div class="nav-item role-non-admin active" onclick="switchView('dashboard', this)" data-tooltip="Dashboard">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
                     <line x1="3" y1="9" x2="21" y2="9"></line>
                     <line x1="9" y1="21" x2="9" y2="9"></line>
-                </svg><span class="nav-text">Dashboard</span>
+                </svg><span class="nav-text" data-i18n="nav.dashboard">Dashboard</span>
             </div>
-            <div class="nav-section-label role-manager-only" style="margin-top: 10px;">EXECUTIVE</div>
+            <div class="nav-section-label role-manager-only" style="margin-top: 10px;" data-i18n="nav.section.executive">EXECUTIVE</div>
             <div class="nav-item role-manager-only" onclick="switchView('dora', this)" data-tooltip="DORA Dashboard">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="18" y1="20" x2="18" y2="10"></line>
                     <line x1="12" y1="20" x2="12" y2="4"></line>
                     <line x1="6" y1="20" x2="6" y2="14"></line>
-                </svg><span class="nav-text">DORA Dashboard</span>
+                </svg><span class="nav-text" data-i18n="nav.dora">DORA Dashboard</span>
             </div>
-            <div class="nav-section-label role-manager-only" style="margin-top: 10px;">FINOPS</div>
+            <div class="nav-section-label role-manager-only" style="margin-top: 10px;" data-i18n="nav.section.finops">FINOPS</div>
             <div class="nav-item role-manager-only" onclick="switchView('finops', this)" data-tooltip="FinOps Intelligence">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="12" y1="1" x2="12" y2="23"></line>
                     <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
-                </svg><span class="nav-text">FinOps Intelligence</span>
+                </svg><span class="nav-text" data-i18n="nav.finops">FinOps Intelligence</span>
             </div>
-            <div class="nav-section-label role-non-admin" style="margin-top: 10px;">INTELLIGENCE</div>
+            <div class="nav-section-label role-non-admin" style="margin-top: 10px;" data-i18n="nav.section.intelligence">INTELLIGENCE</div>
             <div class="nav-item role-non-admin" onclick="switchView('healing', this)" data-tooltip="Self-Healing Hub">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M12 2a7 7 0 0 1 7 7c0 3-2 5-2 5H7s-2-2-2-5a7 7 0 0 1 7-7z"></path>
                     <path d="M9 18h6"></path><path d="M10 22h4"></path>
-                </svg><span class="nav-text">Self-Healing Hub</span>
+                </svg><span class="nav-text" data-i18n="nav.healing">Self-Healing Hub</span>
             </div>
             <div class="nav-item role-lead" onclick="switchView('ai-config', this)" data-tooltip="AI & MCP Configuration">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -243,52 +243,52 @@
                     <path d="M4.93 4.93a10 10 0 0 0 0 14.14"></path>
                     <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
                     <path d="M8.46 8.46a5 5 0 0 0 0 7.07"></path>
-                </svg><span class="nav-text">AI &amp; MCP Config</span>
+                </svg><span class="nav-text" data-i18n="nav.aiConfig">AI &amp; MCP Config</span>
             </div>
-            <div class="nav-section-label role-non-admin" style="margin-top: 10px;">HELP CENTER</div>
+            <div class="nav-section-label role-non-admin" style="margin-top: 10px;" data-i18n="nav.section.help">HELP CENTER</div>
             <div class="nav-item role-non-admin" onclick="switchView('about', this)" data-tooltip="Help Center">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <circle cx="12" cy="12" r="10"></circle>
                     <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
                     <line x1="12" y1="17" x2="12.01" y2="17"></line>
-                </svg><span class="nav-text">Help Center</span>
+                </svg><span class="nav-text" data-i18n="nav.help">Help Center</span>
             </div>
 
-            <div class="nav-section-label role-lead" style="margin-top: 10px;">INFRASTRUCTURE</div>
+            <div class="nav-section-label role-lead" style="margin-top: 10px;" data-i18n="nav.section.infrastructure">INFRASTRUCTURE</div>
             <div class="nav-item role-lead" onclick="switchView('ingestion', this)" data-tooltip="CI/CD Gateways">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
-                </svg><span class="nav-text">CI/CD Gateways</span>
+                </svg><span class="nav-text" data-i18n="nav.gateways">CI/CD Gateways</span>
             </div>
             <div class="nav-item role-lead" onclick="switchView('plugins', this)" data-tooltip="Plugin Engine">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
-                </svg><span class="nav-text">Plugin Engine</span>
+                </svg><span class="nav-text" data-i18n="nav.plugins">Plugin Engine</span>
             </div>
 
-            <div class="nav-section-label admin-only" style="margin-top: 10px;">SECURITY</div>
+            <div class="nav-section-label admin-only" style="margin-top: 10px;" data-i18n="nav.section.security">SECURITY</div>
             <div class="nav-item admin-only" onclick="switchView('management', this)" data-tooltip="IAM Access">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
                     <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                </svg><span class="nav-text">IAM Access</span>
+                </svg><span class="nav-text" data-i18n="nav.iam">IAM Access</span>
             </div>
             <div class="nav-item" onclick="switchView('profile', this)" data-tooltip="My Account">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
                     <circle cx="12" cy="7" r="4"></circle>
-                </svg><span class="nav-text">My Account</span>
+                </svg><span class="nav-text" data-i18n="nav.myAccount">My Account</span>
             </div>
             <div class="nav-item admin-only" onclick="switchView('settings', this)" data-tooltip="Settings">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <circle cx="12" cy="12" r="3"></circle>
                     <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1 0-2.83 2 2 0 0 1 0-2.83l.06.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-                </svg><span class="nav-text">Settings</span>
+                </svg><span class="nav-text" data-i18n="nav.settings">Settings</span>
             </div>
 
             <div class="spacer"></div>
             <div class="nav-item nav-theme" style="opacity: 1;" data-tooltip="Dark mode">
-                <span class="nav-text" style="font-size: 11px; opacity: 0.6; font-weight: bold; margin-right: 10px;">DARK MODE</span>
+                <span class="nav-text" style="font-size: 11px; opacity: 0.6; font-weight: bold; margin-right: 10px;" data-i18n="common.darkMode">DARK MODE</span>
                 <div class="toggle-switch" onclick="toggleTheme(event)">
                     <div class="toggle-circle"></div>
                 </div>
@@ -298,7 +298,7 @@
                     <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
                     <polyline points="16 17 21 12 16 7"></polyline>
                     <line x1="21" y1="12" x2="9" y2="12"></line>
-                </svg><span class="nav-text">Sign Out</span>
+                </svg><span class="nav-text" data-i18n="common.signOut">Sign Out</span>
             </div>
         </div>
 
@@ -1252,179 +1252,327 @@
                 </div>
             </section>
 
-            <section id="view-settings" class="view-section">
-                <div class="header-bar">
-                    <div>
-                        <h1 style="margin: 0; font-size: 24px;">Global Architecture</h1>
-                        <p style="margin: 5px 0 0 0; opacity: 0.6; font-size: 14px;">Core system configuration and external integrations.</p>
+            <section id="view-settings" class="view-section settings-view">
+                <div class="aipage-header">
+                    <div class="aipage-header__text">
+                        <h1 class="intelligence-view__title" data-i18n="settings.title">Platform Settings</h1>
+                        <p class="intelligence-view__subtitle" data-i18n="settings.subtitle">Core system configuration and external integrations.</p>
                     </div>
                 </div>
 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
-                    <div>
-                        <div class="data-card">
-                            <h3 style="margin-top: 0; font-size: 14px; text-transform: uppercase;">Security Policy (Domain Lock)</h3>
-                            <p style="font-size: 12px; opacity: 0.7; margin-bottom: 15px;">Restrict identity provisioning to a specific corporate domain.</p>
-                            <input type="text" id="policy-domain" class="login-input" placeholder="e.g. @company.com">
-                            <button class="btn-primary" style="margin-top: 10px;" onclick="saveSecurityPolicy()">Enforce Policy</button>
+                <div class="settings-grid">
+                    <div class="settings-grid__col">
+                        <div class="data-card settings-card">
+                            <h3 class="settings-card__title">Security Policy (Domain Lock)</h3>
+                            <p class="settings-card__desc">Restrict identity provisioning to a specific corporate domain.</p>
+                            <input type="text" id="policy-domain" class="login-input" placeholder="e.g. @company.com" style="max-width:none;">
+                            <button class="btn-primary settings-card__action" onclick="saveSecurityPolicy()">Enforce Policy</button>
                         </div>
 
-                        <div class="data-card">
-                            <h3 style="margin-top: 0; font-size: 14px; text-transform: uppercase;">SMTP Gateway</h3>
-                            <p style="font-size: 12px; opacity: 0.7; margin-bottom: 15px;">Configure outbound email server for IAM provisioning.</p>
-                            <input type="text" id="smtp-host" class="login-input" placeholder="SMTP Host (e.g. smtp.mailtrap.io)">
-                            <input type="number" id="smtp-port" class="login-input" placeholder="Port (e.g. 2525)">
-                            <input type="text" id="smtp-user" class="login-input" placeholder="Username">
-                            <input type="password" id="smtp-pass" class="login-input" placeholder="Password">
-                            <input type="text" id="smtp-from" class="login-input" placeholder="Sender Email (e.g. no-reply@company.com)">
-                            <button class="btn-primary" style="margin-top: 10px;" onclick="saveSMTPConfig()">Save Configuration</button>
+                        <div class="data-card settings-card">
+                            <h3 class="settings-card__title">SMTP Gateway</h3>
+                            <p class="settings-card__desc">Configure outbound email server for IAM provisioning.</p>
+                            <input type="text" id="smtp-host" class="login-input" placeholder="SMTP Host (e.g. smtp.mailtrap.io)" style="max-width:none;">
+                            <input type="number" id="smtp-port" class="login-input" placeholder="Port (e.g. 2525)" style="max-width:none;">
+                            <input type="text" id="smtp-user" class="login-input" placeholder="Username" style="max-width:none;">
+                            <input type="password" id="smtp-pass" class="login-input" placeholder="Password" style="max-width:none;">
+                            <input type="text" id="smtp-from" class="login-input" placeholder="Sender Email (e.g. no-reply@company.com)" style="max-width:none;">
+                            <button class="btn-primary settings-card__action" onclick="saveSMTPConfig()">Save Configuration</button>
                         </div>
                     </div>
 
-                    <div class="data-card config-state-panel">
-                        <h3>Running Configuration State</h3>
+                    <div class="data-card config-state-panel settings-card">
+                        <h3 class="settings-card__title">Running Configuration State</h3>
                         <div id="config-container"></div>
                     </div>
                 </div>
-
-
             </section>
 
             <section id="view-profile" class="view-section profile-view">
-                <div class="profile-page-head">
-                    <div>
-                        <h1 class="profile-page-title">My Account</h1>
-                        <p class="profile-subtitle">Identity, appearance, dashboard behavior, notifications, and security.</p>
+                <div class="aipage-header account-header">
+                    <div class="aipage-header__text">
+                        <h1 class="intelligence-view__title" data-i18n="account.title">My Account</h1>
+                        <p class="intelligence-view__subtitle" data-i18n="account.subtitle">Identity, workspace profiles, appearance, dashboard behavior, notifications, and security.</p>
+                    </div>
+                    <div class="account-header__actions">
+                        <button type="button" class="btn-secondary" onclick="resetProfileFormDefaults()" data-i18n="common.reset">Reset section</button>
+                        <button type="button" class="btn-primary" onclick="saveProfile()" data-i18n="common.save">Save changes</button>
                     </div>
                 </div>
 
-                <div class="profile-header data-card">
-                    <div class="profile-avatar" aria-hidden="true">
+                <div class="aipage-status-strip account-status-strip">
+                    <div class="account-avatar" aria-hidden="true">
                         <span id="profile-avatar-initials">?</span>
                     </div>
-                    <div class="profile-header-meta">
-                        <h2 id="profile-display-name" class="profile-display-name">—</h2>
-                        <p class="profile-email-line"><span id="profile-username">—</span></p>
-                        <span id="profile-role-badge" class="profile-role-badge role-observer">—</span>
-                        <span id="profile-role" class="sr-only">—</span>
+                    <div class="aipage-status-sep"></div>
+                    <div class="aipage-status-item">
+                        <span class="aipage-status-label" data-i18n="account.signedInAs">Signed in as</span>
+                        <span class="aipage-status-value" id="profile-display-name">—</span>
                     </div>
-                    <div class="profile-header-actions">
-                        <button type="button" class="btn-primary" onclick="saveProfile()">Save changes</button>
-                        <button type="button" class="btn-secondary" onclick="resetProfileFormDefaults()">Reset section</button>
+                    <div class="aipage-status-sep"></div>
+                    <div class="aipage-status-item">
+                        <span class="aipage-status-label" data-i18n="account.username">Username</span>
+                        <span class="aipage-status-value" id="profile-username">—</span>
+                    </div>
+                    <div class="aipage-status-sep"></div>
+                    <div class="aipage-status-item">
+                        <span class="aipage-status-label" data-i18n="account.role">Role</span>
+                        <span class="aipage-status-value"><span id="profile-role-badge" class="profile-role-badge role-observer">—</span></span>
+                    </div>
+                    <span id="profile-role" class="sr-only">—</span>
+                    <div class="aipage-status-sep"></div>
+                    <div class="aipage-status-item">
+                        <span class="aipage-status-label" data-i18n="account.activeProfile">Active profile</span>
+                        <span class="aipage-status-value" id="config-preset-active-label">SRE Default</span>
                     </div>
                 </div>
 
                 <div class="profile-layout">
                     <nav class="profile-nav data-card" aria-label="Account settings sections">
-                        <button type="button" class="profile-nav-btn active" data-profile-tab="identity" onclick="switchProfileTab('identity', this)">Profile</button>
-                        <button type="button" class="profile-nav-btn" data-profile-tab="appearance" onclick="switchProfileTab('appearance', this)">Appearance</button>
-                        <button type="button" class="profile-nav-btn" data-profile-tab="dashboard" onclick="switchProfileTab('dashboard', this)">Dashboard</button>
-                        <button type="button" class="profile-nav-btn" data-profile-tab="operations" onclick="switchProfileTab('operations', this)">Operations</button>
-                        <button type="button" class="profile-nav-btn" data-profile-tab="notifications" onclick="switchProfileTab('notifications', this)">Notifications</button>
-                        <button type="button" class="profile-nav-btn" data-profile-tab="security" onclick="switchProfileTab('security', this)">Security</button>
-                        <button type="button" class="profile-nav-btn" data-profile-tab="data" onclick="switchProfileTab('data', this)">Data &amp; privacy</button>
+                        <button type="button" class="profile-nav-btn active" data-profile-tab="identity" onclick="switchProfileTab('identity', this)" data-i18n="account.tab.profile">Profile</button>
+                        <button type="button" class="profile-nav-btn" data-profile-tab="configurations" onclick="switchProfileTab('configurations', this)" data-i18n="account.tab.profiles">Profiles</button>
+                        <button type="button" class="profile-nav-btn" data-profile-tab="appearance" onclick="switchProfileTab('appearance', this)" data-i18n="account.tab.appearance">Appearance</button>
+                        <button type="button" class="profile-nav-btn" data-profile-tab="dashboard" onclick="switchProfileTab('dashboard', this)" data-i18n="account.tab.dashboard">Dashboard</button>
+                        <button type="button" class="profile-nav-btn" data-profile-tab="operations" onclick="switchProfileTab('operations', this)" data-i18n="account.tab.operations">Operations</button>
+                        <button type="button" class="profile-nav-btn" data-profile-tab="notifications" onclick="switchProfileTab('notifications', this)" data-i18n="account.tab.notifications">Notifications</button>
+                        <button type="button" class="profile-nav-btn" data-profile-tab="security" onclick="switchProfileTab('security', this)" data-i18n="account.tab.security">Security</button>
+                        <button type="button" class="profile-nav-btn" data-profile-tab="data" onclick="switchProfileTab('data', this)" data-i18n="account.tab.data">Data &amp; privacy</button>
                     </nav>
 
                     <div class="profile-panels">
                         <div class="profile-panel active" id="profile-panel-identity" data-profile-panel="identity">
-                            <div class="data-card form-panel">
-                                <h3 class="form-panel-title">Identity</h3>
-                                <p class="form-panel-desc">How your name appears in the control plane and audit context.</p>
-                                <div class="form-field">
-                                    <label for="profile-fullname">Display name</label>
-                                    <input type="text" id="profile-fullname" class="login-input" placeholder="Your full name">
+                            <div class="data-card account-panel-card">
+                                <div class="aipage-row">
+                                    <div class="aipage-row__meta">
+                                        <h3 class="aipage-row__title">Identity</h3>
+                                        <p class="aipage-row__desc">How your name appears in the control plane and audit context.</p>
+                                    </div>
+                                    <div class="aipage-row__body">
+                                        <div class="form-field" style="margin:0 0 14px;">
+                                            <label for="profile-fullname">Display name</label>
+                                            <input type="text" id="profile-fullname" class="login-input" placeholder="Your full name" style="max-width:none;">
+                                        </div>
+                                        <div class="form-field" style="margin:0;">
+                                            <label for="pref-landing-view">Default home screen</label>
+                                            <select id="pref-landing-view" class="login-input" style="max-width:none;">
+                                                <option value="dashboard">Telemetry Stream (Dashboard)</option>
+                                                <option value="ingestion">CI/CD Gateways</option>
+                                                <option value="finops">FinOps Intelligence</option>
+                                                <option value="dora">DORA Metrics</option>
+                                                <option value="plugins">Plugin Engine</option>
+                                                <option value="healing">Self-Healing Hub</option>
+                                                <option value="ai-config">AI &amp; MCP Configuration</option>
+                                                <option value="about">Help Center</option>
+                                            </select>
+                                            <p class="form-field-hint">Opened after sign-in when your role allows access.</p>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div class="form-field">
-                                    <label for="pref-landing-view">Default home screen</label>
-                                    <select id="pref-landing-view" class="login-input">
-                                        <option value="dashboard">Telemetry Stream (Dashboard)</option>
-                                        <option value="ingestion">CI/CD Gateways</option>
-                                        <option value="finops">FinOps Intelligence</option>
-                                        <option value="dora">DORA Metrics</option>
-                                        <option value="plugins">Plugin Engine</option>
-                                        <option value="healing">Self-Healing Hub</option>
-                                        <option value="ai-config">AI &amp; MCP Configuration</option>
-                                        <option value="about">Help Center</option>
-                                    </select>
-                                    <p class="form-field-hint">Opened after sign-in when your role allows access.</p>
+                            </div>
+                        </div>
+
+                        <div class="profile-panel" id="profile-panel-configurations" data-profile-panel="configurations" hidden>
+                            <div class="data-card account-panel-card">
+                                <div class="account-panel-head">
+                                    <div>
+                                        <h3 class="account-panel-head__title">Workspace profiles</h3>
+                                        <p class="account-panel-head__desc">Switch theme, refresh cadence, and ops density in one click.</p>
+                                    </div>
+                                </div>
+                                <div id="config-preset-list" class="config-preset-list"></div>
+                                <div class="aipage-divider"></div>
+                                <div class="config-preset-create">
+                                    <h4 class="config-preset-create-title">Save current settings as profile</h4>
+                                    <div class="profile-form-grid">
+                                        <div class="form-field">
+                                            <label for="config-preset-new-name">Name</label>
+                                            <input type="text" id="config-preset-new-name" class="login-input" placeholder="e.g. Platform On-Call EU" style="max-width:none;">
+                                        </div>
+                                        <div class="form-field">
+                                            <label for="config-preset-new-desc">Description</label>
+                                            <input type="text" id="config-preset-new-desc" class="login-input" placeholder="Optional context for your team" style="max-width:none;">
+                                        </div>
+                                    </div>
+                                    <button type="button" class="btn-secondary" id="config-preset-create-btn">Save profile</button>
                                 </div>
                             </div>
                         </div>
 
                         <div class="profile-panel" id="profile-panel-appearance" data-profile-panel="appearance" hidden>
-                            <div class="data-card form-panel">
-                                <h3 class="form-panel-title">Appearance</h3>
-                                <p class="form-panel-desc">Theme, density, and accessibility for the whole workspace.</p>
-                                <div class="profile-form-grid">
-                                    <div class="form-field">
-                                        <label for="pref-theme">Color theme</label>
-                                        <select id="pref-theme" class="login-input">
-                                            <option value="dark">Dark</option>
-                                            <option value="light">Light</option>
-                                        </select>
+                            <div class="data-card account-panel-card">
+                                <div class="aipage-row">
+                                    <div class="aipage-row__meta">
+                                        <h3 class="aipage-row__title" data-i18n="account.appearance.colorMode">Color mode</h3>
+                                        <p class="aipage-row__desc" data-i18n="account.appearance.colorModeDesc">Dark, light, or follow your operating system preference.</p>
                                     </div>
-                                    <div class="form-field">
-                                        <label for="pref-date-format">Date &amp; time format</label>
-                                        <select id="pref-date-format" class="login-input">
-                                            <option value="locale">Browser locale</option>
-                                            <option value="short">Short (24 Mar 2026, 14:30)</option>
-                                            <option value="iso">ISO (2026-03-24 14:30)</option>
-                                        </select>
-                                    </div>
-                                    <div class="form-field">
-                                        <label for="pref-timezone">Timezone</label>
-                                        <select id="pref-timezone" class="login-input">
-                                            <option value="auto">Automatic (browser)</option>
-                                            <option value="UTC">UTC</option>
-                                            <option value="Europe/Paris">Europe/Paris</option>
-                                            <option value="Europe/London">Europe/London</option>
-                                            <option value="America/New_York">America/New_York</option>
-                                            <option value="America/Chicago">America/Chicago</option>
-                                            <option value="America/Los_Angeles">America/Los_Angeles</option>
-                                            <option value="Asia/Tokyo">Asia/Tokyo</option>
-                                            <option value="Asia/Singapore">Asia/Singapore</option>
-                                        </select>
+                                    <div class="aipage-row__body">
+                                        <div class="theme-mode-grid" role="group" aria-label="Color mode">
+                                        <button type="button" class="theme-mode-chip" data-theme-mode="dark" data-i18n="account.theme.dark">Dark</button>
+                                        <button type="button" class="theme-mode-chip" data-theme-mode="light" data-i18n="account.theme.light">Light</button>
+                                        <button type="button" class="theme-mode-chip" data-theme-mode="system" data-i18n="account.theme.system">System</button>
+                                        </div>
+                                        <div class="pref-sync-fields" aria-hidden="true">
+                                            <select id="pref-theme-mode">
+                                                <option value="dark">Dark</option>
+                                                <option value="light">Light</option>
+                                                <option value="system">System</option>
+                                            </select>
+                                            <select id="pref-theme">
+                                                <option value="dark">Dark</option>
+                                                <option value="light">Light</option>
+                                            </select>
+                                        </div>
                                     </div>
                                 </div>
-                                <label class="pref-toggle-card" for="pref-compact-ui">
-                                    <input type="checkbox" id="pref-compact-ui">
-                                    <span class="pref-toggle-text">
-                                        <strong>Compact UI density</strong>
-                                        <small>Tighter spacing on cards, tables, and forms.</small>
-                                    </span>
-                                </label>
-                                <label class="pref-toggle-card" for="pref-sidebar-collapsed">
-                                    <input type="checkbox" id="pref-sidebar-collapsed">
-                                    <span class="pref-toggle-text">
-                                        <strong>Start with sidebar collapsed</strong>
-                                        <small>More horizontal space for telemetry and reports.</small>
-                                    </span>
-                                </label>
-                                <label class="pref-toggle-card" for="pref-reduced-motion">
-                                    <input type="checkbox" id="pref-reduced-motion">
-                                    <span class="pref-toggle-text">
-                                        <strong>Reduce motion</strong>
-                                        <small>Minimize transitions and animations.</small>
-                                    </span>
-                                </label>
-                                <label class="pref-toggle-card" for="pref-high-contrast">
-                                    <input type="checkbox" id="pref-high-contrast">
-                                    <span class="pref-toggle-text">
-                                        <strong>High contrast</strong>
-                                        <small>Stronger borders and text contrast for readability.</small>
-                                    </span>
-                                </label>
+                                <div class="aipage-divider"></div>
+                                <div class="aipage-row">
+                                    <div class="aipage-row__meta">
+                                        <h3 class="aipage-row__title" data-i18n="account.appearance.palette">Color palette</h3>
+                                        <p class="aipage-row__desc" data-i18n="account.appearance.paletteDesc">Enterprise-grade palettes tuned for long on-call sessions.</p>
+                                    </div>
+                                    <div class="aipage-row__body">
+                                        <div class="theme-palette-grid" role="group" aria-label="Color palette">
+                                            <button type="button" class="theme-palette-chip" data-theme-palette="default" title="Enterprise Navy">
+                                                <span class="theme-palette-preview" style="--swatch-a:#1e3a5f;--swatch-b:#f4f5f7"></span>
+                                                <span class="theme-palette-label" data-i18n="account.palette.enterprise">Enterprise</span>
+                                            </button>
+                                            <button type="button" class="theme-palette-chip" data-theme-palette="ocean" title="Ocean SRE">
+                                                <span class="theme-palette-preview" style="--swatch-a:#0d9488;--swatch-b:#0f172a"></span>
+                                                <span class="theme-palette-label" data-i18n="account.palette.ocean">Ocean</span>
+                                            </button>
+                                            <button type="button" class="theme-palette-chip" data-theme-palette="graphite" title="Graphite Ops">
+                                                <span class="theme-palette-preview" style="--swatch-a:#52525b;--swatch-b:#18181b"></span>
+                                                <span class="theme-palette-label" data-i18n="account.palette.graphite">Graphite</span>
+                                            </button>
+                                            <button type="button" class="theme-palette-chip" data-theme-palette="ops" title="Incident Command">
+                                                <span class="theme-palette-preview" style="--swatch-a:#f59e0b;--swatch-b:#0c1222"></span>
+                                                <span class="theme-palette-label" data-i18n="account.palette.incident">Incident</span>
+                                            </button>
+                                            <button type="button" class="theme-palette-chip" data-theme-palette="terminal" title="Terminal">
+                                                <span class="theme-palette-preview" style="--swatch-a:#22c55e;--swatch-b:#0a0f0a"></span>
+                                                <span class="theme-palette-label" data-i18n="account.palette.terminal">Terminal</span>
+                                            </button>
+                                            <button type="button" class="theme-palette-chip" data-theme-palette="solarized" title="Solarized">
+                                                <span class="theme-palette-preview" style="--swatch-a:#268bd2;--swatch-b:#002b36"></span>
+                                                <span class="theme-palette-label" data-i18n="account.palette.solarized">Solarized</span>
+                                            </button>
+                                        </div>
+                                        <div class="pref-sync-fields" aria-hidden="true">
+                                            <select id="pref-theme-palette">
+                                                <option value="default">Enterprise Navy</option>
+                                                <option value="ocean">Ocean SRE</option>
+                                                <option value="graphite">Graphite Ops</option>
+                                                <option value="ops">Incident Command</option>
+                                                <option value="terminal">Terminal</option>
+                                                <option value="solarized">Solarized</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="aipage-divider"></div>
+                                <div class="aipage-row">
+                                    <div class="aipage-row__meta">
+                                        <h3 class="aipage-row__title" data-i18n="account.appearance.languageTitle">Language</h3>
+                                        <p class="aipage-row__desc" data-i18n="account.appearance.languageDesc">Interface language for the entire application.</p>
+                                    </div>
+                                    <div class="aipage-row__body">
+                                        <div class="form-field" style="margin:0;">
+                                            <label for="pref-language" data-i18n="account.appearance.languageLabel">Display language</label>
+                                            <select id="pref-language" class="login-input" style="max-width:none;" onchange="onProfileLanguageChange()">
+                                                <option value="en">English</option>
+                                                <option value="fr">Français</option>
+                                                <option value="es">Español</option>
+                                                <option value="zh">中文</option>
+                                                <option value="de">Deutsch</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="aipage-divider"></div>
+                                <div class="aipage-row">
+                                    <div class="aipage-row__meta">
+                                        <h3 class="aipage-row__title" data-i18n="account.appearance.localeTitle">Locale &amp; density</h3>
+                                        <p class="aipage-row__desc" data-i18n="account.appearance.localeDesc">Date formats, timezone, and interface spacing.</p>
+                                    </div>
+                                    <div class="aipage-row__body">
+                                        <div class="aipage-fields-grid">
+                                            <div class="form-field" style="margin:0;">
+                                                <label for="pref-date-format">Date &amp; time format</label>
+                                                <select id="pref-date-format" class="login-input" style="max-width:none;">
+                                                    <option value="locale">Browser locale</option>
+                                                    <option value="short">Short (24 Mar 2026, 14:30)</option>
+                                                    <option value="iso">ISO (2026-03-24 14:30)</option>
+                                                </select>
+                                            </div>
+                                            <div class="form-field" style="margin:0;">
+                                                <label for="pref-timezone">Timezone</label>
+                                                <select id="pref-timezone" class="login-input" style="max-width:none;">
+                                                    <option value="auto">Automatic (browser)</option>
+                                                    <option value="UTC">UTC</option>
+                                                    <option value="Europe/Paris">Europe/Paris</option>
+                                                    <option value="Europe/London">Europe/London</option>
+                                                    <option value="America/New_York">America/New_York</option>
+                                                    <option value="America/Chicago">America/Chicago</option>
+                                                    <option value="America/Los_Angeles">America/Los_Angeles</option>
+                                                    <option value="Asia/Tokyo">Asia/Tokyo</option>
+                                                    <option value="Asia/Singapore">Asia/Singapore</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="aipage-divider"></div>
+                                <div class="aipage-row">
+                                    <div class="aipage-row__meta">
+                                        <h3 class="aipage-row__title">Accessibility</h3>
+                                        <p class="aipage-row__desc">Layout and motion preferences for extended use.</p>
+                                    </div>
+                                    <div class="aipage-row__body account-toggle-stack">
+                                        <label class="pref-toggle-card" for="pref-compact-ui">
+                                            <input type="checkbox" id="pref-compact-ui">
+                                            <span class="pref-toggle-text">
+                                                <strong>Compact UI density</strong>
+                                                <small>Tighter spacing on cards, tables, and forms.</small>
+                                            </span>
+                                        </label>
+                                        <label class="pref-toggle-card" for="pref-sidebar-collapsed">
+                                            <input type="checkbox" id="pref-sidebar-collapsed">
+                                            <span class="pref-toggle-text">
+                                                <strong>Start with sidebar collapsed</strong>
+                                                <small>More horizontal space for telemetry and reports.</small>
+                                            </span>
+                                        </label>
+                                        <label class="pref-toggle-card" for="pref-reduced-motion">
+                                            <input type="checkbox" id="pref-reduced-motion">
+                                            <span class="pref-toggle-text">
+                                                <strong>Reduce motion</strong>
+                                                <small>Minimize transitions and animations.</small>
+                                            </span>
+                                        </label>
+                                        <label class="pref-toggle-card" for="pref-high-contrast">
+                                            <input type="checkbox" id="pref-high-contrast">
+                                            <span class="pref-toggle-text">
+                                                <strong>High contrast</strong>
+                                                <small>Stronger borders and text contrast for readability.</small>
+                                            </span>
+                                        </label>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
                         <div class="profile-panel" id="profile-panel-dashboard" data-profile-panel="dashboard" hidden>
-                            <div class="data-card form-panel">
-                                <h3 class="form-panel-title">Dashboard &amp; telemetry</h3>
-                                <p class="form-panel-desc">Defaults for the Telemetry Stream and incident list.</p>
-                                <div class="profile-form-grid">
-                                    <div class="form-field">
-                                        <label for="pref-default-range">Preferred time window</label>
-                                        <select id="pref-default-range" class="login-input">
+                            <div class="data-card account-panel-card">
+                                <div class="aipage-row">
+                                    <div class="aipage-row__meta">
+                                        <h3 class="aipage-row__title">Dashboard &amp; telemetry</h3>
+                                        <p class="aipage-row__desc">Defaults for the Telemetry Stream and incident list.</p>
+                                    </div>
+                                    <div class="aipage-row__body">
+                                        <div class="aipage-fields-grid">
+                                            <div class="form-field" style="margin:0;">
+                                                <label for="pref-default-range">Preferred time window</label>
+                                                <select id="pref-default-range" class="login-input" style="max-width:none;">
                                             <option value="5m">Last 5 minutes</option>
                                             <option value="15m">Last 15 minutes</option>
                                             <option value="30m">Last 30 minutes</option>
@@ -1439,17 +1587,17 @@
                                         </select>
                                         <p class="form-field-hint">Applied when no session range is stored yet.</p>
                                     </div>
-                                    <div class="form-field">
+                                    <div class="form-field" style="margin:0;">
                                         <label for="pref-status-filter">Default incident filter</label>
-                                        <select id="pref-status-filter" class="login-input">
+                                        <select id="pref-status-filter" class="login-input" style="max-width:none;">
                                             <option value="all">All</option>
                                             <option value="active">Active only</option>
                                             <option value="resolved">Resolved only</option>
                                         </select>
                                     </div>
-                                    <div class="form-field">
+                                    <div class="form-field" style="margin:0;">
                                         <label for="pref-refresh-interval">Auto-refresh interval</label>
-                                        <select id="pref-refresh-interval" class="login-input">
+                                        <select id="pref-refresh-interval" class="login-input" style="max-width:none;">
                                             <option value="15">Every 15 seconds</option>
                                             <option value="30">Every 30 seconds</option>
                                             <option value="60">Every 60 seconds</option>
@@ -1458,6 +1606,15 @@
                                         </select>
                                     </div>
                                 </div>
+                                    </div>
+                                </div>
+                                <div class="aipage-divider"></div>
+                                <div class="aipage-row">
+                                    <div class="aipage-row__meta">
+                                        <h3 class="aipage-row__title">Behavior</h3>
+                                        <p class="aipage-row__desc">Automatic refresh and panel defaults.</p>
+                                    </div>
+                                    <div class="aipage-row__body account-toggle-stack">
                                 <label class="pref-toggle-card" for="pref-dashboard-auto-refresh">
                                     <input type="checkbox" id="pref-dashboard-auto-refresh" checked>
                                     <span class="pref-toggle-text">
@@ -1479,17 +1636,22 @@
                                         <small>Show full error context on first paint when possible.</small>
                                     </span>
                                 </label>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
                         <div class="profile-panel" id="profile-panel-operations" data-profile-panel="operations" hidden>
-                            <div class="data-card form-panel">
-                                <h3 class="form-panel-title">Operations &amp; FinOps</h3>
-                                <p class="form-panel-desc">Regional and display preferences for cost and pipeline views.</p>
-                                <div class="profile-form-grid">
-                                    <div class="form-field">
-                                        <label for="pref-currency">Application currency</label>
-                                        <select id="pref-currency" class="login-input" onchange="onProfileCurrencyChange()">
+                            <div class="data-card account-panel-card">
+                                <div class="aipage-row">
+                                    <div class="aipage-row__meta">
+                                        <h3 class="aipage-row__title">Operations &amp; FinOps</h3>
+                                        <p class="aipage-row__desc">Regional and display preferences for cost and pipeline views.</p>
+                                    </div>
+                                    <div class="aipage-row__body">
+                                        <div class="form-field" style="margin:0 0 14px;">
+                                            <label for="pref-currency">Application currency</label>
+                                            <select id="pref-currency" class="login-input" style="max-width:none;" onchange="onProfileCurrencyChange()">
                                             <option value="USD">USD ($)</option>
                                             <option value="EUR">EUR (€)</option>
                                             <option value="GBP">GBP (£)</option>
@@ -1504,21 +1666,26 @@
                                             <option value="NZD">NZD (NZ$)</option>
                                         </select>
                                     </div>
-                                </div>
-                                <label class="pref-toggle-card" for="pref-dense-tables">
+                                        <label class="pref-toggle-card" for="pref-dense-tables">
                                     <input type="checkbox" id="pref-dense-tables">
                                     <span class="pref-toggle-text">
                                         <strong>Dense tables</strong>
                                         <small>Compact rows in gateways, FinOps, and IAM lists.</small>
                                     </span>
                                 </label>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
                         <div class="profile-panel" id="profile-panel-notifications" data-profile-panel="notifications" hidden>
-                            <div class="data-card form-panel">
-                                <h3 class="form-panel-title">Notifications</h3>
-                                <p class="form-panel-desc">In-browser alerts when new failures arrive (Slack/Jira remain in Plugin Engine).</p>
+                            <div class="data-card account-panel-card">
+                                <div class="aipage-row">
+                                    <div class="aipage-row__meta">
+                                        <h3 class="aipage-row__title">Notifications</h3>
+                                        <p class="aipage-row__desc">In-browser alerts when new failures arrive (Slack/Jira remain in Plugin Engine).</p>
+                                    </div>
+                                    <div class="aipage-row__body account-toggle-stack">
                                 <label class="pref-toggle-card" for="pref-alert-sounds">
                                     <input type="checkbox" id="pref-alert-sounds">
                                     <span class="pref-toggle-text">
@@ -1534,14 +1701,20 @@
                                     </span>
                                 </label>
                                 <button type="button" class="btn-secondary profile-inline-btn" onclick="requestBrowserNotificationPermission()">Request notification permission</button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
                         <div class="profile-panel" id="profile-panel-security" data-profile-panel="security" hidden>
-                            <div class="data-card form-panel profile-password-card">
-                                <h3 class="form-panel-title">Security</h3>
-                                <p class="form-panel-desc">Update your sign-in password. Minimum 8 characters.</p>
-                                <div class="password-fields-stack">
+                            <div class="data-card account-panel-card">
+                                <div class="aipage-row">
+                                    <div class="aipage-row__meta">
+                                        <h3 class="aipage-row__title">Security</h3>
+                                        <p class="aipage-row__desc">Update your sign-in password. Minimum 8 characters.</p>
+                                    </div>
+                                    <div class="aipage-row__body">
+                                <div class="password-fields-stack" style="max-width:none;">
                                     <div class="form-field">
                                         <label for="profile-current-password">Current password</label>
                                         <input type="password" id="profile-current-password" class="login-input" placeholder="Current password" autocomplete="current-password">
@@ -1556,21 +1729,29 @@
                                     </div>
                                 </div>
                                 <button type="button" class="btn-secondary profile-password-btn" onclick="changeOwnPassword()">Update password</button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
                         <div class="profile-panel" id="profile-panel-data" data-profile-panel="data" hidden>
-                            <div class="data-card form-panel">
-                                <h3 class="form-panel-title">Data &amp; privacy</h3>
-                                <p class="form-panel-desc">Local preferences stored in this browser. Server-side prefs sync when you save.</p>
+                            <div class="data-card account-panel-card">
+                                <div class="aipage-row">
+                                    <div class="aipage-row__meta">
+                                        <h3 class="aipage-row__title">Data &amp; privacy</h3>
+                                        <p class="aipage-row__desc">Local preferences stored in this browser. Server-side prefs sync when you save.</p>
+                                    </div>
+                                    <div class="aipage-row__body">
                                 <ul class="profile-data-list">
-                                    <li>Theme, filters, and layout → account record on QA Capsule</li>
-                                    <li>Currency &amp; alert sounds → this browser (localStorage)</li>
-                                    <li>Sidebar collapse → this browser until synced via appearance prefs</li>
+                                    <li>Theme, filters, layouts &amp; configurations → account record on QA Capsule</li>
+                                    <li>Currency &amp; alert sounds → synced with account when you save</li>
+                                    <li>Sidebar collapse → browser cache until appearance prefs sync</li>
                                 </ul>
                                 <div class="profile-data-actions">
                                     <button type="button" class="btn-secondary" onclick="exportProfilePreferences()">Export preferences (JSON)</button>
                                     <button type="button" class="btn-secondary profile-danger-btn" onclick="clearLocalProfileData()">Clear local browser data</button>
+                                </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>

@@ -1,9 +1,25 @@
 /**
  * web/js/ui.js
- * UI utilities: Notifications, Modals, and Theme management
+ * UI utilities: Notifications, Modals, Sidebar, and Theme (via theme-engine)
  */
+export {
+    applyTheme,
+    applyThemeAppearance,
+    getStoredTheme,
+    getStoredThemeAppearance,
+    initThemeFromStorage,
+    THEME_MODES,
+    THEME_PALETTES,
+    resolveThemeMode,
+    normalizeThemePalette
+} from './theme-engine.js';
 
-const THEME_STORAGE_KEY = 'sre-theme';
+import {
+    applyThemeAppearance,
+    getStoredThemeAppearance,
+    initThemeFromStorage,
+    toggleTheme as engineToggleTheme
+} from './theme-engine.js';
 
 function escapeHtml(s) {
     return String(s ?? '')
@@ -11,41 +27,6 @@ function escapeHtml(s) {
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;');
-}
-
-export function getStoredTheme() {
-    const stored = localStorage.getItem(THEME_STORAGE_KEY);
-    if (stored === 'dark' || stored === 'light') return stored;
-    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-        return 'dark';
-    }
-    return 'light';
-}
-
-/** Apply light/dark theme to document (html + body) and persist. */
-export function applyTheme(theme) {
-    const next = theme === 'dark' ? 'dark' : 'light';
-    document.documentElement.setAttribute('data-theme', next);
-    if (next === 'dark') {
-        document.body.setAttribute('data-theme', 'dark');
-    } else {
-        document.body.setAttribute('data-theme', 'light');
-    }
-    document.documentElement.style.colorScheme = next;
-    localStorage.setItem(THEME_STORAGE_KEY, next);
-    if (typeof window.reloadDashboardAnalytics === 'function') {
-        const view = document.getElementById('analytics-view');
-        if (view && view.style.display !== 'none') window.reloadDashboardAnalytics();
-    }
-    if (typeof window.loadFinOpsWeeklyEvolution === 'function') {
-        const finops = document.getElementById('view-finops');
-        if (finops?.classList.contains('active')) window.loadFinOpsWeeklyEvolution();
-    }
-    if (typeof window.refreshDORAMetrics === 'function') {
-        const dora = document.getElementById('view-dora');
-        if (dora?.classList.contains('active')) window.refreshDORAMetrics();
-    }
-    return next;
 }
 
 export function notify(message, type = 'success') {
@@ -62,7 +43,7 @@ export function notify(message, type = 'success') {
 }
 
 export function initTheme() {
-    applyTheme(getStoredTheme());
+    initThemeFromStorage();
 }
 
 const SIDEBAR_COLLAPSED_KEY = 'sre-sidebar-collapsed';
@@ -93,17 +74,7 @@ export function toggleSidebar() {
 }
 
 export function toggleTheme(e) {
-    if (e?.stopPropagation) e.stopPropagation();
-    const isDark = document.body.getAttribute('data-theme') === 'dark';
-    const next = isDark ? 'light' : 'dark';
-    applyTheme(next);
-    if (typeof window.persistThemeFromToggle === 'function') {
-        window.persistThemeFromToggle(next);
-    }
-    const analyticsView = document.getElementById('analytics-view');
-    if (analyticsView && analyticsView.style.display !== 'none' && typeof window.loadAnalytics === 'function') {
-        window.loadAnalytics(false);
-    }
+    return engineToggleTheme(e);
 }
 
 export function showConfirmModal(title, message, type, confirmCallback) {
@@ -131,7 +102,7 @@ export function showConfirmModal(title, message, type, confirmCallback) {
     };
 }
 
-export function showPromptModal(title, message, defaultValue, confirmCallback) {
+export function showPromptModal(title, message, defaultValue, confirmCallback, passwordField = false) {
     const modal = document.getElementById('custom-modal');
     const box = document.getElementById('custom-modal-box');
     const titleEl = document.getElementById('custom-modal-title');
@@ -142,9 +113,13 @@ export function showPromptModal(title, message, defaultValue, confirmCallback) {
     box.style.borderColor = 'var(--border-main)';
     document.getElementById('custom-modal-message').innerText = message;
     inputEl.style.display = 'block';
+    inputEl.type = passwordField ? 'password' : 'text';
+    inputEl.placeholder = '';
     inputEl.value = defaultValue || '';
+    inputEl.autocomplete = passwordField ? 'current-password' : 'off';
 
     modal.style.display = 'flex';
+    inputEl.focus();
     const confirmBtn = document.getElementById('custom-modal-confirm');
     confirmBtn.onclick = () => {
         const val = inputEl.value;
@@ -155,5 +130,23 @@ export function showPromptModal(title, message, defaultValue, confirmCallback) {
 
 export function closeModal() {
     const modal = document.getElementById('custom-modal');
+    const inputEl = document.getElementById('custom-modal-input');
+    if (inputEl) {
+        inputEl.type = 'text';
+        inputEl.placeholder = '';
+        inputEl.autocomplete = 'off';
+    }
     if (modal) modal.style.display = 'none';
+}
+
+export function previewThemeFromForm() {
+    const mode = document.getElementById('pref-theme-mode')?.value
+        || document.querySelector('.theme-mode-chip.active')?.dataset.themeMode
+        || 'dark';
+    const palette = document.getElementById('pref-theme-palette')?.value
+        || document.querySelector('.theme-palette-chip.active')?.dataset.themePalette
+        || 'default';
+    window.__qaActiveThemeMode = mode;
+    window.__qaActiveThemePalette = palette;
+    applyThemeAppearance({ theme_mode: mode, theme_palette: palette });
 }

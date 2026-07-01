@@ -97,6 +97,27 @@ To use a custom domain (e.g. `docs.yourcompany.com`):
 
 ## Troubleshooting Failed Deployments
 
+### Deploy job fails with HTTP 404 (most common)
+
+If the **build** job succeeds but **deploy** fails with:
+
+```text
+Failed to create deployment (status: 404)
+Ensure GitHub Pages has been enabled
+```
+
+GitHub Pages is **not enabled** on the repository (or the source is not **GitHub Actions**). The MkDocs build is fine; only the Pages API rejects the deployment.
+
+**Fix (repository admin):**
+
+1. Open **Settings → Pages** on GitHub.
+2. Under **Build and deployment → Source**, choose **GitHub Actions** (not *Deploy from a branch*).
+3. Save, then re-run **Deploy Documentation** from the Actions tab.
+
+For organization repos, an org owner may also need **Organization settings → Member privileges → Pages** set to allow Pages for member repositories.
+
+### Other errors
+
 | Error | Cause | Fix |
 |---|---|---|
 | `Resource not accessible by integration` | Pages permissions missing | Workflow must have `pages: write` and `id-token: write` |
