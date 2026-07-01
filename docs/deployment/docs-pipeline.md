@@ -21,22 +21,26 @@ This site is built with [MkDocs Material](https://squidfunk.github.io/mkdocs-mat
 
 ### Jobs
 
-1. **build** — Installs Python 3.12, runs `mkdocs build --strict`, uploads `site/` artifact.
-2. **deploy** — Deploys artifact to GitHub Pages via `actions/deploy-pages@v4`.
+1. **build-and-deploy** — Installs Python 3.12, runs `mkdocs build --strict`, pushes the generated `site/` folder to the **`gh-pages`** branch.
 
 ---
 
 ## One-Time Repository Setup
 
-For the workflow to succeed, enable GitHub Pages with the **GitHub Actions** source:
+Point GitHub Pages at the branch that contains the built MkDocs HTML (not `main`, which only has Markdown sources and the README).
 
 1. Open your repository on GitHub.
 2. Go to **Settings → Pages**.
-3. Under **Build and deployment → Source**, select **GitHub Actions**.
-4. Save.
+3. Under **Build and deployment → Source**, select **Deploy from a branch**.
+4. Set **Branch** to **`gh-pages`** and folder **`/ (root)`**.
+5. Save.
+6. Run **Actions → Deploy Documentation → Run workflow** once (or push a change under `docs/`).
 
-!!! warning "Do not use the gh-pages branch source"
-    The old `mkdocs gh-deploy` method pushes to a `gh-pages` branch. The current workflow uses the official Pages artifact API and requires the **GitHub Actions** source.
+!!! warning "Do not publish from `main`"
+    If Pages uses the **`main`** branch, visitors see the repository **README**, not the MkDocs site. The workflow builds HTML into `site/` locally in CI and publishes it only on **`gh-pages`**.
+
+!!! note "MkDocs, not pydoc"
+    This project uses **[MkDocs Material](https://squidfunk.github.io/mkdocs-material/)** (`mkdocs build`). Python's built-in **pydoc** is not used here.
 
 ---
 
@@ -97,24 +101,21 @@ To use a custom domain (e.g. `docs.yourcompany.com`):
 
 ## Troubleshooting Failed Deployments
 
-### Deploy job fails with HTTP 404 (most common)
+### Site shows the README instead of MkDocs
 
-If the **build** job succeeds but **deploy** fails with:
+**Symptom:** https://qa-capsule.github.io/qa-capsule-community/ looks like the GitHub README (no navigation tabs, no search bar).
 
-```text
-Failed to create deployment (status: 404)
-Ensure GitHub Pages has been enabled
-```
+**Cause:** Pages is publishing from **`main`**, which has no built `index.html` — GitHub falls back to rendering `README.md`.
 
-GitHub Pages is **not enabled** on the repository (or the source is not **GitHub Actions**). The MkDocs build is fine; only the Pages API rejects the deployment.
+**Fix:**
 
-**Fix (repository admin):**
+1. Ensure **Deploy Documentation** workflow completed successfully (creates/updates `gh-pages`).
+2. **Settings → Pages → Branch** → **`gh-pages`** / **`/ (root)`** (not `main`).
+3. Hard-refresh the browser (Ctrl+F5).
 
-1. Open **Settings → Pages** on GitHub.
-2. Under **Build and deployment → Source**, choose **GitHub Actions** (not *Deploy from a branch*).
-3. Save, then re-run **Deploy Documentation** from the Actions tab.
+### Deploy job fails with HTTP 404 (legacy Actions artifact mode)
 
-For organization repos, an org owner may also need **Organization settings → Member privileges → Pages** set to allow Pages for member repositories.
+If you still use the old two-job workflow with `actions/deploy-pages`, a 404 means Pages source was not **GitHub Actions**. The current workflow publishes to **`gh-pages`** instead — use branch **`gh-pages`** in Pages settings.
 
 ### Other errors
 
