@@ -1,5 +1,6 @@
 name: API Tests | Pytest
 
+# Manual workflow — live reqres.in API checks with intentional contract failures.
 on:
   workflow_dispatch:
 
@@ -7,7 +8,7 @@ jobs:
   run-pytest:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Setup Python
@@ -15,24 +16,25 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install Dependencies
+      - name: Install dependencies
         run: pip install -r tests/pytest/requirements.txt
 
-      - name: Run Pytest
+      - name: Run Pytest (reqres.in)
+        id: pytest_run
         run: pytest tests/pytest/ -v --junitxml=pytest-results.xml
         continue-on-error: true
 
-      - name: Send Alert to QA Capsule
+      - name: Upload results to QA Capsule
         if: always()
         env:
           QA_CAPSULE_URL: ${{ secrets.QA_CAPSULE_URL }}
           API_KEY: ${{ secrets.QA_CAPSULE_API_PYTEST_KEY }}
         run: |
           chmod +x .github/scripts/upload-junit-to-qacapsule.sh
-          .github/scripts/upload-junit-to-qacapsule.sh pytest-results.xml Pytest "${{ github.run_id }}"
+          .github/scripts/upload-junit-to-qacapsule.sh pytest-results.xml Pytest "${{ github.run_id }}-${{ github.run_attempt }}"
 
-      - name: MCP Healing Gate
-        if: always()
+      - name: Self-Healing Gate (MCP)
+        if: always() && steps.pytest_run.outcome == 'failure'
         env:
           QA_CAPSULE_URL: ${{ secrets.QA_CAPSULE_URL }}
           API_KEY: ${{ secrets.QA_CAPSULE_API_PYTEST_KEY }}
@@ -40,10 +42,16 @@ jobs:
           chmod +x .github/scripts/healing-gate.sh
           .github/scripts/healing-gate.sh "${{ github.run_id }}" Pytest
 
+      - name: Fail pipeline on test failures
+        if: steps.pytest_run.outcome == 'failure'
+        run: |
+          echo "FAILED: Pytest reported failures (expected for API contract drift demos)."
+          exit 1
+
       - name: Upload artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: pytest-results
+          name: pytest-results-${{ github.run_id }}
           path: pytest-results.xml
           if-no-files-found: ignore

@@ -1,5 +1,6 @@
 name: E2E Tests | Selenium + Pytest
 
+# Manual workflow — the-internet.herokuapp.com login with broken locator for MCP self-healing.
 on:
   workflow_dispatch:
 
@@ -7,7 +8,7 @@ jobs:
   run-selenium:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Setup Python
@@ -18,24 +19,25 @@ jobs:
       - name: Setup Chrome
         uses: browser-actions/setup-chrome@v1
 
-      - name: Install Dependencies
+      - name: Install dependencies
         run: pip install -r tests/selenium-pytest/requirements.txt
 
-      - name: Run Selenium Tests
+      - name: Run Selenium tests (the-internet.herokuapp.com)
+        id: selenium_run
         run: pytest tests/selenium-pytest/ -v --junitxml=selenium-results.xml
         continue-on-error: true
 
-      - name: Send Alert to QA Capsule
+      - name: Upload results to QA Capsule
         if: always()
         env:
           QA_CAPSULE_URL: ${{ secrets.QA_CAPSULE_URL }}
           API_KEY: ${{ secrets.QA_CAPSULE_API_SELENIUM_KEY }}
         run: |
           chmod +x .github/scripts/upload-junit-to-qacapsule.sh
-          .github/scripts/upload-junit-to-qacapsule.sh selenium-results.xml Pytest "${{ github.run_id }}"
+          .github/scripts/upload-junit-to-qacapsule.sh selenium-results.xml Selenium "${{ github.run_id }}-${{ github.run_attempt }}"
 
-      - name: MCP Healing Gate
-        if: always()
+      - name: Self-Healing Gate (MCP)
+        if: always() && steps.selenium_run.outcome == 'failure'
         env:
           QA_CAPSULE_URL: ${{ secrets.QA_CAPSULE_URL }}
           API_KEY: ${{ secrets.QA_CAPSULE_API_SELENIUM_KEY }}
@@ -43,10 +45,16 @@ jobs:
           chmod +x .github/scripts/healing-gate.sh
           .github/scripts/healing-gate.sh "${{ github.run_id }}" Selenium
 
+      - name: Fail pipeline on test failures
+        if: steps.selenium_run.outcome == 'failure'
+        run: |
+          echo "FAILED: Selenium reported failures (expected for MCP self-healing demo)."
+          exit 1
+
       - name: Upload artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: selenium-results
+          name: selenium-results-${{ github.run_id }}
           path: selenium-results.xml
           if-no-files-found: ignore

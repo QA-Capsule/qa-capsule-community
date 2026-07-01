@@ -12,7 +12,7 @@ import * as profile from './js/profile.js';
 import * as finops from './js/finops.js';
 import * as about from './js/about.js';
 import * as analyticsLayout from './js/analytics-layout.js';
-import { applyRoleVisibility, canAccessFinOps, canAccessPlugins, canResolveIncidents, canDeleteIncidents, hasMinRole, roleLabel, canManageTeams, canManageIAM, isAdmin, canAccessView, accessDeniedMessage, defaultViewForRole, canManagePluginAutoRun, canPatchExecutionFlags } from './js/roles.js';
+import { applyRoleVisibility, canAccessFinOps, canAccessPlugins, canResolveIncidents, canDeleteIncidents, hasMinRole, roleLabel, canManageTeams, canManageIAM, isAdmin, canAccessView, accessDeniedMessage, defaultViewForRole, canPatchExecutionFlags } from './js/roles.js';
 import * as executionHub from './js/execution-hub.js';
 import * as reportViewer from './js/report-viewer.js';
 import * as workflowEditor from './js/workflow-editor.js';
@@ -76,7 +76,6 @@ window.groupedIncidents = {};
 
 // FINOPS GLOBALS
 window.isEnterpriseActive = false;
-window.currencySymbols = { "USD": "$", "EUR": "€", "GBP": "£", "JPY": "¥", "AUD": "A$", "CAD": "C$", "CHF": "Fr", "INR": "₹", "CNY": "¥", "MXN": "$", "SGD": "S$", "NZD": "NZ$" };
 window.selectedCurrency = "USD"; 
 
 // ==========================================

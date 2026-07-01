@@ -1,62 +1,54 @@
+"""
+Live API tests against reqres.in (public REST demo).
+
+Most tests perform real HTTP calls. Failures in the last class are intentional
+so QA Capsule ingest + MCP healing gate receive realistic API incidents.
+"""
+
 import sys
-import time
+
+import pytest
+import requests
+
+BASE_URL = "https://reqres.in/api"
+TIMEOUT = 15
 
 
-class TestAuthenticationSuite:
-    def test_login_with_valid_credentials(self):
-        print("[STDOUT] POST /api/auth/login → {'email': 'user@example.com'}")
-        token = "eyJhbGciOiJIUzI1NiJ9.valid"
-        assert token.startswith("eyJ"), "Expected a valid JWT token"
-        print(f"[STDOUT] Auth token issued: {token[:20]}...")
+class TestReqresUsers:
+    def test_list_users_page_one(self):
+        response = requests.get(f"{BASE_URL}/users", params={"page": 1}, timeout=TIMEOUT)
+        print(f"[STDOUT] GET /users?page=1 → {response.status_code}")
+        assert response.status_code == 200
+        body = response.json()
+        assert "data" in body and len(body["data"]) > 0
 
-    def test_login_with_invalid_password(self):
-        print("[STDOUT] POST /api/auth/login → {'email': 'user@example.com', 'password': 'wrong'}")
-        sys.stderr.write("[STDERR] 401 Unauthorized — credentials rejected\n")
-        status_code = 401
-        assert status_code == 200, f"Expected 200 OK, got {status_code}"
+    def test_get_user_two_by_id(self):
+        response = requests.get(f"{BASE_URL}/users/2", timeout=TIMEOUT)
+        print(f"[STDOUT] GET /users/2 → {response.status_code}")
+        assert response.status_code == 200
+        assert response.json()["data"]["id"] == 2
+        assert "@" in response.json()["data"]["email"]
 
-    def test_token_expiry_raises_401(self):
-        print("[STDOUT] GET /api/profile with expired token")
-        sys.stderr.write("[STDERR] Token expired — server returned 401\n")
-        expired = True
-        assert not expired, "Token should still be valid but it expired prematurely"
-
-
-class TestAPIValidationSuite:
     def test_create_user_returns_201(self):
-        print("[STDOUT] POST /api/users → {'name': 'Alice', 'role': 'admin'}")
-        status_code = 201
-        assert status_code == 201
-        print("[STDOUT] User created successfully with ID: 42")
-
-    def test_payload_missing_required_field(self):
-        print("[STDOUT] POST /api/users → {} (empty payload)")
-        sys.stderr.write("[STDERR] HTTP 422 Unprocessable Entity: 'name' is required\n")
-        status_code = 422
-        assert status_code == 201, f"Expected 201 Created, got {status_code}"
-
-    def test_rate_limit_triggers_429(self):
-        print("[STDOUT] Sending 150 requests in 1 second to /api/search")
-        sys.stderr.write("[STDERR] HTTP 429 Too Many Requests — rate limit exceeded\n")
-        status_code = 429
-        assert status_code == 200, f"Rate limiter triggered unexpectedly: {status_code}"
+        payload = {"name": "QA Capsule", "job": "SRE Control Plane"}
+        response = requests.post(f"{BASE_URL}/users", json=payload, timeout=TIMEOUT)
+        print(f"[STDOUT] POST /users → {response.status_code}")
+        assert response.status_code == 201
+        assert response.json()["name"] == payload["name"]
 
 
-class TestPerformanceSuite:
-    def test_response_time_under_threshold(self):
-        print("[STDOUT] GET /api/products → measuring response time")
-        simulated_ms = 180
-        print(f"[STDOUT] Response received in {simulated_ms}ms")
-        assert simulated_ms < 500, f"Response too slow: {simulated_ms}ms"
+class TestReqresIntentionalFailures:
+    def test_missing_user_wrong_status_expectation(self):
+        response = requests.get(f"{BASE_URL}/users/23", timeout=TIMEOUT)
+        print(f"[STDOUT] GET /users/23 → {response.status_code} (expected 404)")
+        sys.stderr.write("[STDERR] Contract drift: client still expects HTTP 200\n")
+        assert response.status_code == 200
 
-    def test_database_query_timeout(self):
-        print("[STDOUT] Running complex JOIN query across 3 tables")
-        sys.stderr.write("[STDERR] Query timeout after 30s — no response from replica\n")
-        raise TimeoutError("Database query exceeded the 30s SLA threshold")
+    def test_wrong_user_id_in_response(self):
+        response = requests.get(f"{BASE_URL}/users/2", timeout=TIMEOUT)
+        assert response.status_code == 200
+        assert response.json()["data"]["id"] == 99, "Stale cache returned wrong user id"
 
-    def test_cache_hit_returns_instantly(self):
-        print("[STDOUT] GET /api/products/42 (cache expected)")
-        time.sleep(0.01)
-        cache_hit = True
-        assert cache_hit, "Expected cache HIT but got MISS — Redis may be down"
-        print("[STDOUT] Cache HIT confirmed — served in <10ms")
+    def test_auth_token_missing(self):
+        sys.stderr.write("[STDERR] Authorization header missing on protected route\n")
+        pytest.fail("Simulated 401 — bearer token not attached to downstream call")

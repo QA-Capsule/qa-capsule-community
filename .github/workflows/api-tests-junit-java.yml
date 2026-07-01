@@ -1,5 +1,6 @@
 name: API Tests | JUnit Java
 
+# Manual workflow — live reqres.in HTTP client tests with intentional failures.
 on:
   workflow_dispatch:
 
@@ -7,7 +8,7 @@ jobs:
   run-junit:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Setup Java
@@ -21,10 +22,11 @@ jobs:
           curl -sL https://repo1.maven.org/maven2/org/junit/platform/junit-platform-console-standalone/1.10.2/junit-platform-console-standalone-1.10.2.jar \
             -o junit-standalone.jar
 
-      - name: Compile Tests
+      - name: Compile tests
         run: javac -cp junit-standalone.jar tests/junit-java/src/*.java -d classes/
 
-      - name: Run JUnit Tests
+      - name: Run JUnit tests (reqres.in)
+        id: junit_run
         run: |
           java -jar junit-standalone.jar \
             --scan-classpath \
@@ -32,7 +34,7 @@ jobs:
             --reports-dir reports/
         continue-on-error: true
 
-      - name: Send Alert to QA Capsule
+      - name: Upload results to QA Capsule
         if: always()
         env:
           QA_CAPSULE_URL: ${{ secrets.QA_CAPSULE_URL }}
@@ -40,10 +42,10 @@ jobs:
         run: |
           REPORT=$(find reports -name 'TEST-*.xml' -type f | head -1)
           chmod +x .github/scripts/upload-junit-to-qacapsule.sh
-          .github/scripts/upload-junit-to-qacapsule.sh "$REPORT" JUnit "${{ github.run_id }}"
+          .github/scripts/upload-junit-to-qacapsule.sh "$REPORT" JUnit "${{ github.run_id }}-${{ github.run_attempt }}"
 
-      - name: MCP Healing Gate
-        if: always()
+      - name: Self-Healing Gate (MCP)
+        if: always() && steps.junit_run.outcome == 'failure'
         env:
           QA_CAPSULE_URL: ${{ secrets.QA_CAPSULE_URL }}
           API_KEY: ${{ secrets.QA_CAPSULE_API_JUNIT_JAVA_KEY }}
@@ -51,10 +53,16 @@ jobs:
           chmod +x .github/scripts/healing-gate.sh
           .github/scripts/healing-gate.sh "${{ github.run_id }}" JUnit
 
+      - name: Fail pipeline on test failures
+        if: steps.junit_run.outcome == 'failure'
+        run: |
+          echo "FAILED: JUnit reported failures (expected for API contract drift demos)."
+          exit 1
+
       - name: Upload artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: junit-java-results
+          name: junit-java-results-${{ github.run_id }}
           path: reports/
           if-no-files-found: ignore

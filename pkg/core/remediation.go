@@ -72,14 +72,9 @@ func RunPostIngestRemediation(config Config, projectName string, alert UnifiedAl
 		return
 	}
 
-	integrations.RunRemediationAsync(func() {
+		integrations.RunRemediationAsync(func() {
 		engine.EvaluateAlertRules(alert.Name, alert.Error, alert.ConsoleLogs, alert.Status, routing, allowedPluginPaths)
 	})
-}
-
-// EvaluateAlertRules is an alias kept for callers outside ingest; prefer RunPostIngestRemediation.
-func EvaluateAlertRules(config Config, projectName string, alert UnifiedAlert, projectContext map[string]string, allowedPluginPaths map[string]bool) {
-	RunPostIngestRemediation(config, projectName, alert, projectContext, allowedPluginPaths)
 }
 
 // RunSinglePlugin executes an integration by manifest path (API name kept for compatibility).

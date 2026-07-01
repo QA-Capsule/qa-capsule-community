@@ -2,5 +2,5 @@
 robotframework>=6.1.1,<8
 robotframework-requests>=0.9.6
 robotframework-seleniumlibrary>=6.3.0
-# Browser library (Playwright-based) — required for login_broken_selector.robot
+# Browser library (Playwright-based) — required for saucedemo_checkout.robot
 robotframework-browser>=18.0.0

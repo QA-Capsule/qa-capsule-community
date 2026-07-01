@@ -5,7 +5,7 @@
 import { fetchWithAuth, parseJwt, parseApiJson } from './api.js';
 import { notify, applyThemeAppearance, previewThemeFromForm } from './ui.js';
 import { roleLabel, normalizeRole, canAccessView } from './roles.js';
-import { setSelectedCurrency, currencySymbols } from './settings.js';
+import { setSelectedCurrency } from './settings.js';
 import { renderConfigurationPresets, renderThemePickers, initConfigurationPresetsUI } from './config-presets.js';
 import { setLocale, applyI18n, t, getLocale, PREF_LANGUAGE_KEY } from './i18n.js';
 
@@ -618,5 +618,3 @@ if (typeof window !== 'undefined') {
     window.previewThemeAppearance = previewThemeAppearance;
     window.applyPreferences = applyPreferences;
 }
-
-export { currencySymbols };

@@ -1,33 +1,54 @@
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
+
 import static org.junit.jupiter.api.Assertions.*;
 
-@DisplayName("User Service Tests")
+@DisplayName("Reqres Users API")
 class UserServiceTest {
 
-    @Test
-    @DisplayName("Create user returns 201")
-    void createUserReturns201() {
-        System.out.println("[STDOUT] POST /api/users → {name: Alice, role: admin}");
-        int statusCode = 201;
-        assertEquals(201, statusCode, "Expected HTTP 201 Created");
-        System.out.println("[STDOUT] User created with ID: 42");
+    private static final String BASE = "https://reqres.in/api";
+    private final HttpClient client = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(15))
+            .build();
+
+    private HttpResponse<String> get(String path) throws Exception {
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(BASE + path))
+                .timeout(Duration.ofSeconds(15))
+                .GET()
+                .build();
+        return client.send(request, HttpResponse.BodyHandlers.ofString());
     }
 
     @Test
-    @DisplayName("Get user by ID returns 200")
-    void getUserByIdReturns200() {
-        System.out.println("[STDOUT] GET /api/users/42");
-        int statusCode = 200;
-        assertEquals(200, statusCode, "Expected HTTP 200 OK");
-        System.out.println("[STDOUT] User fetched: {id: 42, name: Alice}");
+    @DisplayName("GET /users?page=1 returns 200")
+    void listUsersReturns200() throws Exception {
+        HttpResponse<String> response = get("/users?page=1");
+        System.out.println("[STDOUT] GET /users?page=1 → " + response.statusCode());
+        assertEquals(200, response.statusCode());
+        assertTrue(response.body().contains("\"data\""));
     }
 
     @Test
-    @DisplayName("Delete non-existent user returns 404")
-    void deleteNonExistentUserReturns404() {
-        System.out.println("[STDOUT] DELETE /api/users/999");
-        System.err.println("[STDERR] HTTP 404 Not Found — user does not exist");
-        int statusCode = 404;
-        assertEquals(200, statusCode, "Expected 200 OK but user was not found");
+    @DisplayName("GET /users/2 returns profile with id 2")
+    void getUserByIdReturns200() throws Exception {
+        HttpResponse<String> response = get("/users/2");
+        System.out.println("[STDOUT] GET /users/2 → " + response.statusCode());
+        assertEquals(200, response.statusCode());
+        assertTrue(response.body().contains("\"id\":2"));
+    }
+
+    @Test
+    @DisplayName("GET /users/23 wrong status expectation (self-healing demo)")
+    void missingUserWrongStatusExpectation() throws Exception {
+        HttpResponse<String> response = get("/users/23");
+        System.err.println("[STDERR] GET /users/23 → " + response.statusCode() + " but client expects 200");
+        assertEquals(200, response.statusCode(), "Contract drift: endpoint returns 404 for unknown user");
     }
 }

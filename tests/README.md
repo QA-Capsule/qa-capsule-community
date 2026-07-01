@@ -1,14 +1,29 @@
 # Automated tests (multi-framework)
 
-**QA Capsule Community v1.0.17-beta** — sample projects runnable locally or in CI/CD, with optional JUnit XML upload to **QA Capsule**.
+**QA Capsule Community** — realistic demo suites for CI/CD ingestion, incident correlation, and **MCP self-healing**. Each pipeline runs against **public demo sites** (not QA Capsule itself) and **fails on purpose** on the last scenario so JUnit upload + healing gate can be exercised.
 
-**Docs:** [Test frameworks catalog](https://qa-capsule.github.io/qa-capsule-community/integration/test-frameworks/) · [CI/CD providers](https://qa-capsule.github.io/qa-capsule-community/integration/cicd-providers/)
+**Docs:** [Test frameworks catalog](https://qa-capsule.github.io/qa-capsule-community/integration/test-frameworks/) · [MCP self-healing](https://qa-capsule.github.io/qa-capsule-community/guides/mcp-self-healing-testing/)
+
+## Demo targets
+
+| Framework | Site / API | Passing | Intentional failure |
+|-----------|------------|---------|---------------------|
+| Cypress | [saucedemo.com](https://www.saucedemo.com/) | Login + cart | Broken checkout locator |
+| Playwright | saucedemo.com | Login + cart | Broken checkout locator |
+| Robot | saucedemo.com + [reqres.in](https://reqres.in/) | E2E + API | Broken locator + wrong HTTP status |
+| Selenium | [the-internet.herokuapp.com](https://the-internet.herokuapp.com/login) | Form auth | Broken submit selector |
+| Pytest API | reqres.in | Live REST | Contract drift assertions |
+| Newman | reqres.in | Live REST | Contract drift folder |
+| JUnit Java | reqres.in | `HttpClient` | Contract drift + runtime error |
+
+Credentials (public demos): `standard_user` / `secret_sauce` (Swag Labs), `tomsmith` / `SuperSecretPassword!` (The Internet).
 
 ## Prerequisites
 
 - Python 3.10+
-- `bash` (Git Bash on Windows, or Linux/macOS)
-- For `ui_navigation.robot`: Chrome/Chromium + WebDriver and `SELENIUM_ENABLED=true`
+- Node.js 18+ (Cypress, Playwright, Newman)
+- Java 21+ (JUnit)
+- `bash` (Git Bash on Windows)
 
 ## Layout
 
@@ -16,18 +31,16 @@
 tests/
 ├── run-framework.sh
 ├── upload-junit.sh
-├── robotframework/        # full Robot project + run.sh
-├── playwright/            # full Playwright project + run.sh
-├── cypress/               # full Cypress project + run.sh
-├── pytest/                # full Pytest project + run.sh
-├── selenium-pytest/       # Selenium + Pytest sample + run.sh
-├── newman/                # Postman/Newman sample + run.sh
-└── junit-java/            # JUnit XML sample + run.sh
+├── robotframework/     saucedemo_checkout.robot, api_health.robot
+├── playwright/         saucedemo_checkout.spec.js
+├── cypress/            saucedemo_checkout.cy.js
+├── pytest/             reqres.in API tests
+├── selenium-pytest/    the-internet.herokuapp.com login
+├── newman/             reqres.in Postman collection
+└── junit-java/         reqres.in HttpClient tests
 ```
 
 ## Run locally
-
-From the repository root:
 
 ```bash
 chmod +x tests/run-framework.sh tests/*/run.sh tests/upload-junit.sh
@@ -40,82 +53,45 @@ chmod +x tests/run-framework.sh tests/*/run.sh tests/upload-junit.sh
 ./tests/run-framework.sh junit-java
 ```
 
-Without QA Capsule env vars, tests run and upload is skipped.
-
 ### Upload to QA Capsule
 
 ```bash
 export QA_CAPSULE_URL="http://localhost:9000"
 export QA_CAPSULE_API_KEY="your-project-api-key"
-export QA_CAPSULE_EXEC_ENV="DEV"
-export QA_CAPSULE_EXEC_TYPE="TEST-RUN"
-
 ./tests/run-framework.sh robot
 ```
 
-### API target (optional)
-
-By default `api_health.robot` uses `jsonplaceholder.typicode.com`. For your API:
+### API host override (Robot)
 
 ```bash
-export API_HEALTH_HOST=api.example.com
+export API_HEALTH_HOST=reqres.in
 ./scripts/run-tests.sh
 ```
 
-### UI tests (optional)
+## CI/CD (GitHub Actions)
 
-```bash
-export SELENIUM_ENABLED=true
-export SELENIUM_BROWSER=headlesschrome
-./scripts/run-tests.sh
-```
+All framework workflows are **manual** (`workflow_dispatch`). Each run:
 
-## CI/CD
-
-Entry point can now be `tests/<framework>/run.sh` (framework-specific) or `tests/run-framework.sh`.
-
-### QA Capsule requirements
-
-1. Instance reachable from the runner (`localhost` only works on self-hosted runners).
-2. Copy the project **API key** from **CI/CD Gateways**.
-3. Upload URL: `{QA_CAPSULE_URL}/api/webhooks/upload?framework=RobotFramework`
-
-### Pipeline variables
-
-| Variable | Required | Example |
-|----------|----------|---------|
-| `QA_CAPSULE_URL` | For upload | `https://qa-capsule.example.com` |
-| `QA_CAPSULE_API_KEY` | For upload | project key |
-| `CI_PIPELINE_ID` | Recommended | job id (`X-Run-Id`) |
-| `QA_CAPSULE_EXEC_ENV` | Optional | `STAGING`, `PROD`, `DEV` |
-| `QA_CAPSULE_EXEC_TYPE` | Optional | `TEST-RUN`, `SMOKE`, `NIGHTLY` |
-| `SELENIUM_ENABLED` | Optional | `true` in GitHub workflow |
-
-Without `QA_CAPSULE_*`, tests still run; upload is skipped.
-
-### GitHub Actions
-
-All framework workflows are **manual** (`workflow_dispatch`) so they do not break CI on every push. They include intentional failures for self-healing demos.
+1. Executes real tests against the demo site/API
+2. Uploads JUnit XML to QA Capsule (`continue-on-error` on tests)
+3. Calls **MCP healing gate** when tests failed
+4. **Fails the workflow** (red pipeline) so failures are visible in GitHub
 
 | Workflow | Framework |
 |----------|-----------|
 | `e2e-tests-robot.yml` | Robot Framework |
 | `e2e-tests-playwright.yml` | Playwright |
 | `e2e-tests-cypress.yml` | Cypress |
-| `e2e-tests-selenium-pytest.yml` | Selenium + Pytest |
-| `api-tests-pytest.yml` | Pytest API |
-| `api-tests-newman.yml` | Postman/Newman |
+| `e2e-tests-selenium-pytest.yml` | Selenium |
+| `api-tests-pytest.yml` | Pytest |
+| `api-tests-newman.yml` | Newman |
 | `api-tests-junit-java.yml` | JUnit Java |
 
-Shared upload scripts: [`.github/scripts/`](../.github/scripts/) (`upload-junit-to-qacapsule.sh`, `healing-gate.sh`).
+### Secrets
 
-Quarantine gate: `scripts/quarantine-ci-gate.sh` (when URL + API key are set).
+| Secret | Purpose |
+|--------|---------|
+| `QA_CAPSULE_URL` | Control plane base URL |
+| `QA_CAPSULE_API_*_KEY` | Per-framework project API key |
 
-Add secrets:
-
-- `QA_CAPSULE_URL`
-- `QA_CAPSULE_API_ROBOT_KEY` (or `QA_CAPSULE_API_KEY`)
-
-Run **Actions → Robot Framework Pipeline → Run workflow**.
-
-Suites executed: `smoke_tests.robot`, `api_health.robot`, `demo_failure.robot` (intentional fail), `ui_navigation.robot`. `resources/common.robot` is a shared resource file only.
+Shared scripts: `.github/scripts/upload-junit-to-qacapsule.sh`, `.github/scripts/healing-gate.sh`.

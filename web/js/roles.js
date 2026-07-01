@@ -75,18 +75,8 @@ export function canViewHealing(role) {
     return r === 'lead' || r === 'manager' || r === 'observer';
 }
 
-/** @deprecated use canViewHealing */
-export function canViewRCA(role) {
-    return canViewHealing(role);
-}
-
 export function canManageHealing(role) {
     return hasMinRole(role, 'lead');
-}
-
-/** @deprecated RCA config removed */
-export function canConfigureAI(role) {
-    return false;
 }
 
 export function canPatchExecutionFlags(role) {

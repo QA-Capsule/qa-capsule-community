@@ -19,4 +19,3 @@ If you discover a security issue, please report it privately to the repository m
 | Version        | Supported |
 |----------------|-----------|
 | 1.0.17-beta    | Yes       |
-| 1.0.x          | Best effort |

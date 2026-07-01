@@ -2,7 +2,7 @@
   "name": "qa-capsule-cypress-demo",
   "private": true,
   "version": "1.0.0",
-  "description": "Cypress self-healing demo for QA Capsule. TC-04 fails intentionally with a broken locator so the AI can propose the fix.",
+  "description": "Cypress Swag Labs checkout demo — TC-04 fails with a broken checkout locator for MCP self-healing.",
   "scripts": {
     "test:ci": "cypress run --reporter mocha-junit-reporter --reporter-options mochaFile=cypress-results.xml,toConsole=true"
   },

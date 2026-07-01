@@ -133,11 +133,6 @@ func CanViewHealing(role string) bool {
 	return r == RoleLead || r == RoleManager || r == RoleObserver
 }
 
-// CanViewRCA is deprecated; use CanViewHealing.
-func CanViewRCA(role string) bool {
-	return CanViewHealing(role)
-}
-
 // CanViewQuarantine allows reading quarantine list.
 func CanViewQuarantine(role string) bool {
 	return CanViewHealing(role)
@@ -156,9 +151,4 @@ func CanPatchExecutionFlags(role string) bool {
 // CanManageHealing allows proposing fixes and opening remediation PRs (Lead+).
 func CanManageHealing(role string) bool {
 	return HasMinRole(role, RoleLead)
-}
-
-// CanConfigureAI is deprecated (RCA removed in Phase 1).
-func CanConfigureAI(role string) bool {
-	return false
 }

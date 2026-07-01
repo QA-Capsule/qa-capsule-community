@@ -1,7 +1,6 @@
 name: E2E Tests | Playwright
 
-# Manual workflow — sample tests include intentional failures for self-healing demos.
-# Configure secrets QA_CAPSULE_URL + QA_CAPSULE_API_PLAYWRIGHT_KEY to upload results.
+# Manual workflow — Swag Labs checkout demo with intentional locator failure for MCP self-healing.
 on:
   workflow_dispatch:
 
@@ -28,7 +27,7 @@ jobs:
         run: npx playwright install --with-deps chromium
         working-directory: tests/playwright
 
-      - name: Run Playwright tests
+      - name: Run Playwright tests (saucedemo.com)
         id: playwright_run
         run: npx playwright test
         working-directory: tests/playwright
@@ -46,7 +45,7 @@ jobs:
             Playwright \
             "${{ github.run_id }}-${{ github.run_attempt }}"
 
-      - name: Self-Healing Gate
+      - name: Self-Healing Gate (MCP)
         if: always() && steps.playwright_run.outcome == 'failure'
         env:
           QA_CAPSULE_URL: ${{ secrets.QA_CAPSULE_URL }}
@@ -58,7 +57,7 @@ jobs:
       - name: Fail pipeline on test failures
         if: steps.playwright_run.outcome == 'failure'
         run: |
-          echo "FAILED: One or more Playwright tests failed (expected for self-healing demo suites)."
+          echo "FAILED: Playwright reported failures (expected for MCP self-healing demo on saucedemo.com)."
           exit 1
 
       - name: Upload Playwright artifacts
